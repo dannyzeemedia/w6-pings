@@ -20,7 +20,7 @@ def _h():
 
 
 _cache = {}
-CACHE_TTL = 15  # seconds; any write clears it, so the dashboard never shows stale data after an action
+CACHE_TTL = 45  # seconds; any write clears it (single worker process, so the clear is seen everywhere)
 
 
 def _req(method, url, **kw):

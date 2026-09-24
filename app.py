@@ -566,5 +566,29 @@ def healthz():
     return "ok"
 
 
+def _keep_warm():
+    """Re-render every page in the background so the Airtable cache is always fresh and tab switches are instant."""
+    import threading, time as _t
+
+    def loop():
+        _t.sleep(5)
+        while True:
+            try:
+                c = app.test_client()
+                with c.session_transaction() as sess:
+                    sess["user"] = "warm"
+                for path in ("/", "/approve", "/yours", "/rules", "/results"):
+                    c.get(path)
+            except Exception:
+                pass
+            _t.sleep(30)
+
+    threading.Thread(target=loop, daemon=True).start()
+
+
+if os.environ.get("RENDER"):
+    _keep_warm()
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8090)), debug=bool(os.environ.get("DEBUG")))
