@@ -126,12 +126,48 @@ const QUOTES = [
   ["Success is your duty, obligation, and responsibility.", "Grant Cardone", "So is the second follow-up."],
   ["Be obsessed or be average.", "Grant Cardone", "Obsessed, but in a warm, 'just nudging this back up 😊' kind of way."],
   ["Either you run the day or the day runs you.", "Jim Rohn", "Approve three drafts before you open Slack. That's running the day."],
-  ["Discipline is the bridge between goals and accomplishment.", "Jim Rohn", "The bridge is also known as 'the follow-up'."]
+  ["Discipline is the bridge between goals and accomplishment.", "Jim Rohn", "The bridge is also known as 'the follow-up'."],
+  ["Say little and do much, and receive every person with a cheerful face.", "Shammai, Pirkei Avot 1:15", "Short email. Big smile. 😊"],
+  ["In a place where there are no people, strive to be a person.", "Hillel, Pirkei Avot 2:5", "Nobody's followed up with them since June? Be the person."],
+  ["Who is strong? One who conquers their inclination.", "Ben Zoma, Pirkei Avot 4:1", "Strength is not re-sending the full menu."],
+  ["Judge every person favourably.", "Joshua ben Perachiah, Pirkei Avot 1:6", "They didn't ignore you. They're drowning in BFCM prep."],
+  ["Do not say 'When I have time I will study,' for perhaps you will not have time.", "Hillel, Pirkei Avot 2:4", "Don't say 'I'll approve them after lunch.'"],
+  ["As iron sharpens iron, so one person sharpens another.", "Proverbs 27:17", "Every edit you make sharpens the next draft."],
+  ["Whoever watches the wind will not plant; whoever looks at the clouds will not reap.", "Ecclesiastes 11:4", "There's no perfect week to pitch. It's this week or next week. 😉"],
+  ["You don't have to be great to start, but you have to start to be great.", "Zig Ziglar", "First draft's already written. You just have to press send."],
+  ["People don't buy for logical reasons. They buy for emotional reasons.", "Zig Ziglar", "Nobody books a Marquee because of a spreadsheet. They book because of you."],
+  ["If you really want to do something, you'll find a way. If you don't, you'll find an excuse.", "Jim Rohn", "'Budget's locked' is sometimes a way. Sometimes it's an excuse. Ask which."],
+  ["Formal education will make you a living; self-education will make you a fortune.", "Jim Rohn", "Read the brief before you hit send."],
+  ["Don't wish it were easier. Wish you were better.", "Jim Rohn", "Don't wish for more replies. Wish for shorter emails."],
+  ["The only impossible journey is the one you never begin.", "Tony Robbins", "The only impossible sponsor is the one you never pinged."],
+  ["It's not about the goal. It's about growing to become the person that can accomplish that goal.", "Tony Robbins", "Five a day. Then ten. Then the person who closes Omnisend twice."],
+  ["Set targets for yourself that are 10 times greater than what you believe you can achieve.", "Grant Cardone, The 10X Rule", "Goal says 5. Overachiever says 10. 💅"],
+  ["Your ability to discipline yourself to set clear goals, and then to work toward them every day, will do more to guarantee your success than any other single factor.", "Brian Tracy", "Clear goal. Daily ping count. That's literally the Today tab."],
+  ["If you have to eat two frogs, eat the ugliest one first.", "Brian Tracy, Eat That Frog!", "Reply to the tricky one first. The rest will feel easy."],
+  ["Remember that a person's name is to that person the sweetest and most important sound in any language.", "Dale Carnegie", "'Hey Team' is not a name."],
+  ["Talk to someone about themselves and they'll listen for hours.", "Dale Carnegie", "Ask what they're launching for Q4. Then listen."],
+  ["Aerodynamically, the bumble bee shouldn't be able to fly, but the bumble bee doesn't know it so it goes on flying anyway.", "Mary Kay Ash", "Nobody told Workspace6 it was a small newsletter either. 🐝"],
+  ["The consumer isn't a moron; she is your wife.", "David Ogilvy", "Danny agrees, and he'd like that noted. 😅"],
+  ["If it doesn't sell, it isn't creative.", "David Ogilvy", "Pretty emails are nice. Booked Marquees are nicer."],
+  ["People do not buy goods and services. They buy relations, stories, and magic.", "Seth Godin", "They're not buying a slot. They're buying the room."],
+  ["The aim of marketing is to know and understand the customer so well the product or service fits him and sells itself.", "Peter Drucker", "That's what the 'What you know about them' bit is for."],
+  ["Don't be intimidated by what you don't know. That can be your greatest strength.", "Sara Blakely", "Don't know their budget? Ask. Nicely. Once."],
+  ["People don't like to be sold, but they love to buy.", "Jeffrey Gitomer", "Offer, don't push. 'Want me to hold it?' does the rest."],
+  ["The way to get started is to quit talking and begin doing.", "Walt Disney", "The way to get started is to open To approve."],
+  ["Do what you can, with what you have, where you are.", "Theodore Roosevelt", "Twelve drafts, one coffee, one kitchen table. Go. ☕"],
+  ["You miss 100% of the shots you don't take.", "Wayne Gretzky", "And 100% of the follow-ups you don't send."],
+  ["Whether you think you can, or you think you can't, you're right.", "Henry Ford", "You can. You've closed sponsors before breakfast."],
+  ["Opportunity is missed by most people because it is dressed in overalls and looks like work.", "Thomas Edison", "Opportunity is dressed as a follow-up email."],
+  ["Well done is better than well said.", "Benjamin Franklin", "A sent email beats a perfect draft."]
 ];
-let qi = Math.floor(Math.random() * QUOTES.length);
+// never repeat a quote until she's seen them all
+let seen=[]; try{ seen=JSON.parse(localStorage.getItem('quotes-seen')||'[]'); }catch(e){}
+function pickQuote(){ let pool=QUOTES.map((_,i)=>i).filter(i=>!seen.includes(i)); if(!pool.length){ seen=[]; pool=QUOTES.map((_,i)=>i); }
+  const i=pool[Math.floor(Math.random()*pool.length)]; seen.push(i); try{ localStorage.setItem('quotes-seen',JSON.stringify(seen)); }catch(e){} return i; }
+let qi = pickQuote();
 window.showQuote=function(){ const [t,w,x]=QUOTES[qi]; const q=document.getElementById('quote'); q.classList.add('swap');
   setTimeout(()=>{ document.getElementById('q-text').textContent=t; document.getElementById('q-who').textContent='— '+w; document.getElementById('q-w6').textContent=x; q.classList.remove('swap'); }, 200); }
-window.nextQuote=function(){ qi=(qi+1+Math.floor(Math.random()*(QUOTES.length-1)))%QUOTES.length; showQuote(); }
+window.nextQuote=function(){ qi=pickQuote(); showQuote(); }
 showQuote();
 
 var tmr;
