@@ -46,7 +46,8 @@
 </div>
 {% endfor %}
 </div>
-<div class="card empty" id="all-clear" {% if drafts %}hidden{% endif %}><div class="display">All clear ✨</div><div class="muted">Nothing waiting for you right now.</div></div>
+<div class="card empty" id="all-clear" {% if drafts %}hidden{% endif %}><div class="display">All clear ✨</div><div class="muted" style="margin-bottom:14px">Nothing waiting for you right now. Feeling like an overachiever?</div>{% include "_more.html" %}</div>
+{% if drafts %}<div class="more-bottom">{% include "_more.html" %}</div>{% endif %}
 
 <div id="queued-block" {% if not queued %}hidden{% endif %}>
   <h2 style="margin:28px 0 10px">On its way</h2>

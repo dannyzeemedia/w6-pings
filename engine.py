@@ -326,11 +326,16 @@ def auto_ok(mode, kind):
     return False
 
 
+def daily_cap(s):
+    """The goal is what Karlie aims for; she can overachieve up to twice that. Hard ceiling protects the inbox."""
+    return min(60, 2 * (s.get("Daily Ping Limit") or 0))
+
+
 def send_due(w, max_sends=1):
     """Send at most `max_sends` emails this tick (ticks run every ~10 min, which spaces sends out like a person)."""
     if w.s.get("Paused"):
         return {"paused": True}
-    limit = w.s.get("Daily Ping Limit") or 0
+    limit = daily_cap(w.s)
     done = sent_today(w)
     if done >= limit:
         return {"limit_reached": done}
@@ -419,7 +424,7 @@ def next_send_time(w, contact, not_before=None):
     tz = w.tz_for(contact)
     lo, hi = _window(w, contact)
     days = w.s.get("Send Days") or []
-    limit = w.s.get("Daily Ping Limit") or 0
+    limit = daily_cap(w.s)
     if not days or not limit or hi <= lo:
         return None
     ahead = len([d for d in at.list_records("drafts", "AND({Status}='Approved', {Remix Request}='')", fields=["Subject"])])
@@ -452,9 +457,10 @@ def remix_queue():
                     "subject": f.get("Subject"), "body": f.get("Body"), "brief": f.get("Brief"), "why": f.get("Why This Email"),
                     "thread_id": f.get("Gmail Thread ID")})
     if not out:
-        return {"items": []}
+        return {"items": [], "more_requested": int(w.s.get("More Drafts Requested") or 0)}
     lessons = [l["fields"].get("Lesson") for l in at.list_records("lessons", "{Active}", fields=["Lesson"])]
-    return {"items": out, "voice": w.s.get("Karlie's Voice"), "lessons": lessons}
+    return {"items": out, "voice": w.s.get("Karlie's Voice"), "lessons": lessons,
+            "more_requested": int(w.s.get("More Drafts Requested") or 0)}
 
 
 def remix_apply(item):
@@ -625,7 +631,7 @@ def company_history(w, pid, max_threads=8):
             "notes": (p.get("Notes") or "")[:2000], "sales": sales, "people": people, "ping_log": pings, "email_threads": threads}
 
 
-def context(max_new=None):
+def context(max_new=None, more=0):
     """Everything the brain needs for one run, as JSON."""
     w = World()
     s = w.s
@@ -658,8 +664,11 @@ def context(max_new=None):
                         "final_subject": f.get("Subject"), "final_body": f.get("Body"), "her_note": f.get("Karlie Feedback")})
     # capacity
     queued = len(at.list_records("drafts", "AND(OR({Status}='Pending Approval', {Status}='Approved'), OR({Scheduled For}='', IS_BEFORE({Scheduled For}, DATEADD(NOW(), 2, 'days'))))", fields=["Status"]))
-    limit = s.get("Daily Ping Limit") or 0
-    room = max(0, int(limit * 1.5) - queued)
+    goal = s.get("Daily Ping Limit") or 0
+    room = max(0, 2 * goal - queued)  # keep twice the day's goal waiting, so she can overachieve
+    if more:  # "Create N more" button: write N regardless of what's already waiting
+        room = more
+        at.update("settings", w.settings_rec["id"], {"More Drafts Requested": 0, "More Drafts Started": iso(now())})
     followups = due_followups(w)[:room]
     room -= len(followups)
     rescues = rescue_targets(w)[:max(0, min(room, 3))]

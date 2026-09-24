@@ -88,7 +88,13 @@ def inject():
             n = len(pending_drafts(fields=["Subject"]))
         except Exception:
             n = None
-    return {"user": session.get("user"), "zone_label": ZONE_LABEL, "n_to_approve": n}
+    mp = False
+    if session.get("user") and request.endpoint in ("today", "approve"):
+        try:
+            mp = more_pending(at.settings()["fields"])
+        except Exception:
+            pass
+    return {"user": session.get("user"), "zone_label": ZONE_LABEL, "n_to_approve": n, "more_pending": mp}
 
 
 def celebrate(title, msg="", emoji="🎉", big=False):
@@ -316,10 +322,28 @@ def remix(rid):
     return redirect(url_for("approve") + f"#d-{rid}")
 
 
+def more_pending(f):
+    started, last = parse_ts(f.get("More Drafts Started")), parse_ts(f.get("Last Brain Run"))
+    recent = started and now_utc() - started < dt.timedelta(minutes=20)
+    return bool(f.get("More Drafts Requested")) or bool(recent and (not last or last < started))
+
+
+@app.post("/more")
+@login_required
+def more_drafts():
+    s = at.settings()
+    if not more_pending(s["fields"]):
+        at.update("settings", s["id"], {"More Drafts Requested": 5})
+    flash("On it. Writing 5 more now. They'll pop into To approve in a few minutes.")
+    return redirect(request.referrer or url_for("approve"))
+
+
 @app.get("/approve/status")
 @login_required
 def approve_status():
-    return {"remixing": [d["id"] for d in at.list_records("drafts", "AND({Remix Request}!='', {Status}='Pending Approval')", fields=["Subject"])]}
+    return {"remixing": [d["id"] for d in at.list_records("drafts", "AND({Remix Request}!='', {Status}='Pending Approval')", fields=["Subject"])],
+            "more_pending": more_pending(at.settings()["fields"]),
+            "pending": len(pending_drafts(fields=["Subject"]))}
 
 
 @app.get("/api/engine/remix")
@@ -548,7 +572,8 @@ def engine_context():
     if not engine_auth():
         return {"error": "unauthorised"}, 401
     mx = request.args.get("max_new", type=int)
-    return app.response_class(json.dumps(engine.context(max_new=mx), default=str), mimetype="application/json")
+    more = request.args.get("more", default=0, type=int)
+    return app.response_class(json.dumps(engine.context(max_new=mx, more=more), default=str), mimetype="application/json")
 
 
 @app.post("/api/engine/apply")

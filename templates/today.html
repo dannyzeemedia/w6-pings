@@ -17,18 +17,21 @@
   <div class="card">
     <div class="label">Pings sent today</div>
     <div class="big">{{ sent_today }} <small>of <span id="limit-show">{{ s.get('Daily Ping Limit', 0) }}</span></small></div>
-    <div class="muted tiny">Daily limit <span class="saved" id="saved">Saved</span></div>
+    <div class="muted tiny">Daily goal <span class="saved" id="saved">Saved</span></div>
     <div class="stepper">
       <button type="button" onclick="step(-5)" aria-label="Five fewer">−</button>
       <input id="limit" type="number" min="0" max="200" value="{{ s.get('Daily Ping Limit', 0) }}" aria-label="Daily limit" onchange="saveLimit()">
       <button type="button" onclick="step(5)" aria-label="Five more">+</button>
     </div>
   </div>
-  <a class="card" href="{{ url_for('approve') }}">
-    <div class="label">Waiting for your OK</div>
-    <div class="big">{{ n_to_approve or 0 }}</div>
-    <div class="muted">{{ 'Nothing to check.' if not n_to_approve else 'Emails to approve, tweak or bin →' }}</div>
-  </a>
+  <div class="card">
+    <a href="{{ url_for('approve') }}" style="text-decoration:none;color:inherit;display:block">
+      <div class="label">Waiting for your OK</div>
+      <div class="big">{{ n_to_approve or 0 }}</div>
+      <div class="muted">{{ 'Nothing to check.' if not n_to_approve else 'Emails to approve, tweak or bin →' }}</div>
+    </a>
+    <div style="margin-top:12px">{% include "_more.html" %}</div>
+  </div>
   <a class="card" href="{{ url_for('yours') }}">
     <div class="label">Your turn</div>
     <div class="big">{{ n_yours }}</div>

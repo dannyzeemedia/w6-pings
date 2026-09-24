@@ -304,3 +304,6 @@ form.remixing .email-zone textarea, form.remixing .email-zone input { opacity: 1
 .sent-row.fresh { animation: pop-in .5s cubic-bezier(.3,1.5,.4,1) both; border-color: var(--green); }
 .sent-row.fresh .tick { animation: pop .6s cubic-bezier(.3,1.6,.4,1) both; }
 @keyframes pop-in { from { transform: scale(.9); opacity: 0; } }
+
+.more-wait { font-size: 14px; color: var(--green); background: var(--mint-2); border-radius: var(--r-sm); padding: 10px 12px; }
+.more-bottom { text-align: center; margin: 8px 0 20px; }

@@ -1,0 +1,6 @@
+{% if more_pending %}
+<div class="more-wait" data-more-wait><span class="spin"></span> Writing 5 more in your voice… they'll pop in here in a few minutes.</div>
+<script>(function(){ const poll=()=>fetch("{{ url_for('approve_status') }}").then(r=>r.json()).then(j=>{ if(!j.more_pending){ window.Turbo?Turbo.visit(location.href,{action:'replace'}):location.reload(); } else setTimeout(poll,10000); }).catch(()=>setTimeout(poll,20000)); setTimeout(poll,10000); })();</script>
+{% else %}
+<form method="post" action="{{ url_for('more_drafts') }}" class="more-form"><button class="ghost small">✨ Create 5 more</button></form>
+{% endif %}
