@@ -492,11 +492,13 @@ def remix_queue():
                     "thread_id": f.get("Gmail Thread ID")})
     if not out:
         return {"items": [], "more_requested": int(w.s.get("More Drafts Requested") or 0),
-                "ping_requests": bool((w.s.get("Ping Requests") or "").strip())}
+                "ping_requests": bool((w.s.get("Ping Requests") or "").strip()),
+            "sync_requested": bool(w.s.get("Sync Requested"))}
     lessons = [l["fields"].get("Lesson") for l in at.list_records("lessons", "{Active}", fields=["Lesson"])]
     return {"items": out, "voice": w.s.get("Karlie's Voice"), "offer_rules": w.s.get("Offer Rules"), "lessons": lessons,
             "more_requested": int(w.s.get("More Drafts Requested") or 0),
-            "ping_requests": bool((w.s.get("Ping Requests") or "").strip())}
+            "ping_requests": bool((w.s.get("Ping Requests") or "").strip()),
+            "sync_requested": bool(w.s.get("Sync Requested"))}
 
 
 def remix_apply(item):
@@ -667,7 +669,7 @@ def company_history(w, pid, max_threads=8):
             "notes": (p.get("Notes") or "")[:2000], "sales": sales, "people": people, "ping_log": pings, "email_threads": threads}
 
 
-def context(max_new=None, more=0, requests_only=False):
+def context(max_new=None, more=0, requests_only=False, learn_only=False):
     """Everything the brain needs for one run, as JSON."""
     w = World()
     s = w.s
@@ -723,7 +725,9 @@ def context(max_new=None, more=0, requests_only=False):
     room -= len(followups)
     rescues = rescue_targets(w)[:max(0, min(room, 3))]
     room -= len(rescues)
-    if requests_only:
+    if learn_only:  # "Sync now": read and learn, write nothing new
+        at.update("settings", w.settings_rec["id"], {"Sync Requested": False})
+    if requests_only or learn_only:
         followups, rescues, room = [], [], 0
     cold = pick_prospects(w, room if max_new is None else min(room, max_new))
     work = []

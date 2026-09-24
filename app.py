@@ -356,6 +356,29 @@ def more_pending(f):
     return bool(f.get("More Drafts Requested")) or bool(recent and (not last or last < started))
 
 
+@app.post("/sync")
+@login_required
+def sync_now():
+    """Pull in everything new from her inbox right now, then have the laptop learn from it within a minute or two."""
+    try:
+        w = engine.World()
+        got = engine.sync_inbox(w)
+    except Exception as ex:
+        flash(f"Couldn't reach Gmail just now ({ex}). Try again in a minute.")
+        return redirect(request.referrer or url_for("today"))
+    s = at.settings()
+    at.update("settings", s["id"], {"Sync Requested": True})
+    at._cache.clear()
+    parts = []
+    for k, label in (("replied", "new repl{}"), ("karlie", "email{} you sent yourself"), ("bounced", "bounce{}"), ("left", "person{} who left")):
+        n = got.get(k, 0) if isinstance(got, dict) else 0
+        if n:
+            parts.append(f"{n} " + label.format("ies" if (k == "replied" and n > 1) else ("y" if k == "replied" else ("s" if n > 1 else ""))).replace("persons", "people"))
+    msg = ("Found " + ", ".join(parts) + ".") if parts else "All up to date, nothing new in your inbox."
+    flash(msg + " It's learning from your latest edits and replies now; summaries and suggested replies update in a minute or two.")
+    return redirect(request.referrer or url_for("today"))
+
+
 @app.post("/ask")
 @login_required
 def ask_ping():
@@ -767,7 +790,8 @@ def engine_context():
     mx = request.args.get("max_new", type=int)
     more = request.args.get("more", default=0, type=int)
     ro = request.args.get("requests") == "1"
-    return app.response_class(json.dumps(engine.context(max_new=mx, more=more, requests_only=ro), default=str), mimetype="application/json")
+    lo = request.args.get("learn") == "1"
+    return app.response_class(json.dumps(engine.context(max_new=mx, more=more, requests_only=ro, learn_only=lo), default=str), mimetype="application/json")
 
 
 @app.post("/api/engine/apply")
