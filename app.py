@@ -269,8 +269,9 @@ def decide(rid):
 def _eta(d):
     """(plain-English 'when will this go' in Brisbane time and theirs, UTC datetime or None)."""
     try:
-        w = engine.World()
-        contact = w.contacts.get((d.get("Contact") or [None])[0]) or w.by_email.get((d.get("To Email") or "").lower())
+        w = engine.World()  # settings only; tables load lazily and we don't touch them here
+        cid = (d.get("Contact") or [None])[0]
+        contact = at.get("contacts", cid) if cid else None
         t = engine.next_send_time(w, contact)
         if not t:
             return "It'll go out once there's a send day and time set on the Rules page.", None
