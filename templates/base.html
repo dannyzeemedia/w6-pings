@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Pings{% endblock %} · W6</title>
+<link rel="icon" href="{{ url_for('static', filename='badge.svg') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head><body>
+{% if user %}
+<header class="top"><div class="wrap">
+  <a class="brand" href="{{ url_for('today') }}"><img src="{{ url_for('static', filename='wordmark.svg') }}" alt="Workspace6"><span>Pings</span></a>
+  <nav>
+    {% set here = request.endpoint %}
+    <a href="{{ url_for('today') }}" class="{{ 'on' if here=='today' }}">Today</a>
+    <a href="{{ url_for('approve') }}" class="{{ 'on' if here=='approve' }}">To approve</a>
+    <a href="{{ url_for('yours') }}" class="{{ 'on' if here=='yours' }}">Your turn</a>
+    <a href="{{ url_for('rules') }}" class="{{ 'on' if here=='rules' }}">Rules</a>
+    <a href="{{ url_for('results') }}" class="{{ 'on' if here=='results' }}">Results</a>
+  </nav>
+</div></header>
+{% endif %}
+<main class="wrap">
+  {% for m in get_flashed_messages() %}<div class="flash">{{ m }}</div>{% endfor %}
+  {% block body %}{% endblock %}
+</main>
+<script>document.querySelectorAll("textarea[name=body]").forEach(t=>{const f=()=>{t.style.height="auto";t.style.height=(t.scrollHeight+4)+"px"};t.addEventListener("input",f);f();});</script>
+</body></html>

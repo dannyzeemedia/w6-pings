@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block title %}Your turn{% endblock %}
+{% block body %}
+<div class="head"><h1>Your turn</h1><p>These people replied with something real. The thread is in your inbox, ready for you.</p></div>
+{% for e in events %}{% set f = e.fields %}
+<div class="card">
+  <div class="draft-meta">
+    <div><h3>{% for p in f.get('Partner', []) %}{{ names.get(p) }}{% endfor %}{% if not f.get('Partner') %}{{ f.get('Email') }}{% endif %}</h3>
+      <div class="muted tiny">{{ f.get('Email') }} · {{ f.get('At')|when }}</div></div>
+  </div>
+  {% if f.get('Summary') %}<p style="margin-top:0">{{ f['Summary'] }}</p>{% endif %}
+  {% if f.get('Snippet') %}<div class="why">{{ f['Snippet'] }}</div>{% endif %}
+  <div class="row">
+    {% if f.get('Gmail Thread ID') %}<a class="btn" target="_blank" rel="noopener" href="https://mail.google.com/mail/u/?authuser=karlie@workspace6.io#all/{{ f['Gmail Thread ID'] }}">Open in Gmail</a>{% endif %}
+    <form method="post" action="{{ url_for('yours_done', rid=e.id) }}"><button class="ghost">Done, I've got it</button></form>
+  </div>
+</div>
+{% else %}
+<div class="card empty"><div class="display">No one waiting</div><div class="muted">When someone replies with something real, they'll show up here.</div></div>
+{% endfor %}
+{% endblock %}

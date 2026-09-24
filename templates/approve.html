@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block title %}To approve{% endblock %}
+{% block body %}
+<div class="head"><h1>To approve</h1><p>Change anything you like before you send. Every edit teaches it to sound more like you.</p></div>
+{% for d in drafts %}{% set f = d.fields %}
+<form class="card" method="post" action="{{ url_for('decide', rid=d.id) }}">
+  <div class="draft-meta">
+    <div><h3>{{ f.get('To Name') or f.get('To Email') }}</h3>
+      <div class="muted tiny">{% for p in f.get('Partner', []) %}{{ names.get(p) }} · {% endfor %}{{ f.get('To Email') }}</div></div>
+    <div><span class="tag {{ 'green' if f.get('Kind')=='Cold' }}">{{ f.get('Kind', 'Email') }}</span></div>
+  </div>
+  {% if f.get('Why This Email') %}<div class="why"><strong>Why this one:</strong> {{ f['Why This Email'] }}</div>{% endif %}
+  <div class="field"><label>Subject</label><input type="text" name="subject" value="{{ f.get('Subject', '') }}"></div>
+  <div class="field"><label>Email</label><textarea name="body">{{ f.get('Body', '') }}</textarea></div>
+  {% if f.get('AI-Tell Check') %}<details><summary>Human-sounding check</summary><pre>{{ f['AI-Tell Check'] }}</pre></details>{% endif %}
+  <div class="field"><label>Note for next time <span class="muted tiny">(optional)</span></label>
+    <input type="text" name="feedback" placeholder="e.g. too long, never offer the digest to agencies" value="{{ f.get('Karlie Feedback', '') }}"></div>
+  <div class="row">
+    <button name="action" value="send">Looks good, send</button>
+    <button name="action" value="save" class="ghost">Save edits</button>
+    <button name="action" value="reject" class="danger">Bin it</button>
+  </div>
+</form>
+{% else %}
+<div class="card empty"><div class="display">All clear</div><div class="muted">Nothing waiting for you right now.</div></div>
+{% endfor %}
+{% endblock %}

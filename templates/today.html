@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% block title %}Today{% endblock %}
+{% block body %}
+<div class="head"><h1>Hey Karlie</h1><p>Here's where your pings are at today.</p></div>
+
+<div class="status {{ 'off' if s.get('Paused') else 'on' }}">
+  <div>
+    <strong><span class="dot"></span>{{ 'Paused. Nothing is going out.' if s.get('Paused') else 'Running.' }}</strong>
+    <div class="muted tiny">{% if s.get('Paused') %}Drafts still get written for you to look at.{% else %}Sends {{ s.get('Send Days', [])|join(', ') }}, {{ s.get('Send Window Start (Hour)', 8) }}:00 to {{ s.get('Send Window End (Hour)', 17) }}:00 {{ zone_label.get(s.get('Send Timezone'), '') }} time.{% endif %}</div>
+  </div>
+  <form method="post" action="{{ url_for('quick_settings') }}">
+    <input type="hidden" name="paused" value="{{ '0' if s.get('Paused') else '1' }}">
+    <button class="{{ '' if s.get('Paused') else 'ghost' }}">{{ 'Start sending' if s.get('Paused') else 'Pause' }}</button>
+  </form>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">Pings sent today</div>
+    <div class="big">{{ sent_today }} <small>of {{ s.get('Daily Ping Limit', 0) }}</small></div>
+    <form method="post" action="{{ url_for('quick_settings') }}">
+      <div class="muted tiny">Daily limit</div>
+      <div class="stepper">
+        <button type="button" onclick="step(-5)" aria-label="Less">−</button>
+        <input id="limit" type="number" name="limit" min="0" max="200" value="{{ s.get('Daily Ping Limit', 0) }}">
+        <button type="button" onclick="step(5)" aria-label="More">+</button>
+        <button type="submit" class="ghost save">Save</button>
+      </div>
+    </form>
+  </div>
+  <a class="card" href="{{ url_for('approve') }}" style="text-decoration:none;color:inherit">
+    <div class="label">Waiting for your OK</div>
+    <div class="big">{{ n_pending }}</div>
+    <div class="muted">{{ 'Nothing to check.' if not n_pending else 'Emails to approve, tweak or bin →' }}</div>
+  </a>
+  <a class="card" href="{{ url_for('yours') }}" style="text-decoration:none;color:inherit">
+    <div class="label">Your turn</div>
+    <div class="big">{{ n_yours }}</div>
+    <div class="muted">{{ 'No one waiting on you.' if not n_yours else 'People replied. Over to you →' }}</div>
+  </a>
+</div>
+<script>function step(n){const i=document.getElementById('limit');i.value=Math.max(0,Math.min(200,(+i.value||0)+n));}</script>
+{% endblock %}

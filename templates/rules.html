@@ -1,0 +1,55 @@
+{% extends "base.html" %}{% block title %}Rules{% endblock %}
+{% block body %}
+<div class="head"><h1>Rules</h1><p>How often it pings, when, and when it gives up.</p></div>
+<form method="post">
+<div class="card">
+  <h2 style="margin-bottom:16px">How much say you get</h2>
+  {% for k, label in modes.items() %}
+  <label class="radio"><input type="radio" name="Approval Mode" value="{{ k }}" {{ 'checked' if s.get('Approval Mode')==k }}>{{ label }}</label>
+  {% endfor %}
+  <div class="hint muted tiny">Anyone who replies with real interest always comes to you, whatever you pick here.</div>
+</div>
+
+<div class="card">
+  <h2 style="margin-bottom:16px">When it sends</h2>
+  <div class="field"><label>Pings per day</label><input type="number" name="Daily Ping Limit" min="0" max="200" value="{{ s.get('Daily Ping Limit', '') }}" style="max-width:140px">
+    <div class="hint">Keep this under about 40 so your inbox doesn't get flagged as spam.</div></div>
+  <div class="field"><label>Days</label><div class="days">
+    {% for d in days %}<label><input type="checkbox" name="day_{{ d }}" {{ 'checked' if d in s.get('Send Days', []) }}><span>{{ d }}</span></label>{% endfor %}
+  </div></div>
+  <div class="inline">
+    <div class="field"><label>From (hour)</label><input type="number" name="Send Window Start (Hour)" min="0" max="23" value="{{ s.get('Send Window Start (Hour)', '') }}"></div>
+    <div class="field"><label>Until (hour)</label><input type="number" name="Send Window End (Hour)" min="1" max="24" value="{{ s.get('Send Window End (Hour)', '') }}"></div>
+    <div class="field"><label>In whose time</label><select name="Send Timezone">
+      {% for z in zones %}<option value="{{ z }}" {{ 'selected' if s.get('Send Timezone')==z }}>{{ zone_label[z] }}</option>{% endfor %}</select></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin-bottom:16px">Follow-ups</h2>
+  <div class="field"><label>How many follow-ups before it stops</label><input type="number" name="Max Follow-ups" min="0" max="3" value="{{ s.get('Max Follow-ups', '') }}" style="max-width:140px"></div>
+  <div class="inline">
+    <div class="field"><label>1st follow-up after (days)</label><input type="number" name="Follow-up 1 After (Days)" min="1" value="{{ s.get('Follow-up 1 After (Days)', '') }}"></div>
+    <div class="field"><label>2nd follow-up after (days)</label><input type="number" name="Follow-up 2 After (Days)" min="1" value="{{ s.get('Follow-up 2 After (Days)', '') }}"></div>
+    <div class="field"><label>3rd follow-up after (days)</label><input type="number" name="Follow-up 3 After (Days)" min="1" value="{{ s.get('Follow-up 3 After (Days)', '') }}"></div>
+  </div>
+  <label class="check field"><input type="checkbox" name="Follow-ups Must Add Something New" {{ 'checked' if s.get('Follow-ups Must Add Something New') }}>
+    <span>Every follow-up must bring something new<br><span class="muted tiny">A new date, price or reason, not just "bumping this up". Your old emails show plain nudges almost never got a reply.</span></span></label>
+  <div class="field"><label>Leave a company alone for (days) before pitching it again</label><input type="number" name="Days Before Re-pitching A Company" min="0" value="{{ s.get('Days Before Re-pitching A Company', '') }}" style="max-width:140px"></div>
+</div>
+
+<div class="card">
+  <h2 style="margin-bottom:16px">When someone's gone</h2>
+  <label class="check field"><input type="checkbox" name="Gone-Contact Rescue" {{ 'checked' if s.get('Gone-Contact Rescue') }}>
+    <span>Find someone else at the company and ask for the right person<br><span class="muted tiny">"I was in a convo with Sam who doesn't appear to be around anymore! Can I get the best address for whoever handles partnerships?"</span></span></label>
+  <div class="field"><label>Tries per company</label><input type="number" name="Rescue Tries Per Company" min="0" max="5" value="{{ s.get('Rescue Tries Per Company', '') }}" style="max-width:140px">
+    <div class="hint">Addresses that bounce or have left are never emailed again.</div></div>
+</div>
+
+<div class="card">
+  <h2 style="margin-bottom:16px">Anything else it should know</h2>
+  <textarea name="Notes" style="min-height:120px" placeholder="e.g. Don't pitch agencies in December. Always mention the NYC event to software companies.">{{ s.get('Notes', '') }}</textarea>
+</div>
+<button type="submit">Save rules</button>
+</form>
+{% endblock %}

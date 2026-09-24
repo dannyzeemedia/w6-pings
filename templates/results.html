@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% block title %}Results{% endblock %}
+{% block body %}
+<div class="head"><h1>Results</h1><p>The last 30 days.</p></div>
+<div class="grid">
+  <div class="card"><div class="label">Pings sent</div><div class="big">{{ totals.sent }}</div></div>
+  <div class="card"><div class="label">Replied</div><div class="big">{{ totals.replied }}</div><div class="muted">{{ (totals.rate|string + '% of pings') if totals.rate is not none else 'No pings yet' }}</div></div>
+  <div class="card"><div class="label">Passed to you</div><div class="big">{{ totals.handed }}</div></div>
+  <div class="card"><div class="label">Dead addresses</div><div class="big">{{ n_dead }}</div><div class="muted">Never emailed again</div></div>
+</div>
+<div class="card">
+  <h2>Week by week</h2>
+  <div class="bars">
+    {% for w in weeks %}<div class="bar">
+      <div class="s" style="height:{{ (100 * w.sent / peak)|round }}%">
+        <div class="r" style="height:{{ (100 * w.replied / w.sent)|round if w.sent else 0 }}%"></div>
+        <div class="tip">Week of {{ w.label }}: {{ w.sent }} sent, {{ w.replied }} replied</div>
+      </div></div>{% endfor %}
+  </div>
+  <div class="bar-labels">{% for w in weeks %}<div>{{ w.label }}</div>{% endfor %}</div>
+  <div class="legend"><span><i style="background:var(--mint)"></i>Sent</span><span><i style="background:var(--green)"></i>Replied</span></div>
+</div>
+<div class="card">
+  <h2 style="margin-bottom:10px">Latest activity</h2>
+  {% if recent %}<table>{% for e in recent %}{% set f = e.fields %}
+    <tr><td>{{ f.get('At')|when }}</td><td><strong>{{ f.get('Event') }}</strong> · {% for p in f.get('Partner', []) %}{{ names.get(p) }} {% endfor %}<span class="muted">{{ f.get('Email') }}</span>{% if f.get('Summary') %}<br><span class="muted tiny">{{ f['Summary'] }}</span>{% endif %}</td></tr>
+  {% endfor %}</table>{% else %}<p class="muted">Nothing yet. Activity shows up here once pings start going out.</p>{% endif %}
+</div>
+{% endblock %}
