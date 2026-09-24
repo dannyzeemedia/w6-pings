@@ -37,7 +37,10 @@ def load(start, end):
         kind, state = parse_status(f.get("Status"))
         if not kind or not f.get("Publish Date"):
             continue
-        sponsor = ", ".join(names.get(p, "") for p in f.get("Sponsor", [])) or re.sub(r"\s*(Package|Marquee|Welcome).*$", "", f.get("Name", "")) or "Unknown"
+        nm = f.get("Name", "")
+        sponsor = (", ".join(names.get(p, "") for p in f.get("Sponsor", []))
+                   or (nm.split(" · ")[0] if " · " in nm else re.sub(r"\s*(Package|DTC News|W6|Marquee|Welcome|Shout.?Out|Group Buy).*$", "", nm, flags=re.I))
+                   or "Unknown")
         out.append({"id": r["id"], "date": dt.date.fromisoformat(f["Publish Date"]), "kind": kind, "state": state,
                     "sponsor": sponsor.strip(), "name": f.get("Name", ""), "seq": f.get("# / #", ""),
                     "partner": (f.get("Sponsor") or [None])[0]})
@@ -75,7 +78,7 @@ def add(sponsor_name, partner_id, kind, state, start, count, cadence):
     t = TYPES[kind]
     status = ("🤑 " if state == "paid" else "✏️ ") + t["status"]
     ds = dates_for(start, max(1, min(count, 120)), cadence)
-    rows = [{"Name": f"{sponsor_name} {t['label']}", "Status": status, "Publish Date": d.isoformat(),
+    rows = [{"Name": f"{sponsor_name} · {t['label']}", "Status": status, "Publish Date": d.isoformat(),
              "# / #": f"{i + 1}/{len(ds)}", **({"Sponsor": [partner_id]} if partner_id else {})} for i, d in enumerate(ds)]
     # typecast so a brand-new type (e.g. Group Buy) creates its option the first time
     at.create_many("promo", rows, typecast=True)
