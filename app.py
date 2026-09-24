@@ -354,6 +354,13 @@ def engine_remix_list():
     return engine.remix_queue()
 
 
+@app.get("/api/engine/summaries")
+def engine_summaries():
+    if not engine_auth():
+        return {"error": "unauthorised"}, 401
+    return engine.summaries_queue()
+
+
 @app.post("/api/engine/remix")
 def engine_remix_apply():
     if not engine_auth():

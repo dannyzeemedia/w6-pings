@@ -24,7 +24,8 @@ BOUNCE_FROM = re.compile(r"mailer-daemon|postmaster|mail delivery", re.I)
 AUTO_SUBJ = re.compile(r"out of (the )?office|automatic reply|auto.?reply|autoreply|away from|on leave|vacation|abwesend|^auto:", re.I)
 LEFT = re.compile(r"no longer (with|at|work|employed|part of)|(has|have) left (the company|[A-Z])|last day (at|with)|is no longer|not with .{0,30} anymore|this (mailbox|inbox) is (no longer|not) (monitored|active)", re.I)
 UNSUB = re.compile(r"^\s*(unsubscribe|remove me|stop|take me off)", re.I)
-DEFAULT_BEST = (9, 11)  # local hours that worked best across her history, used until we know a person's habits
+DEFAULT_BEST = (9, 12)  # local hours that worked best across her history, used until we know a person's habits
+SENDS_PER_TICK = 2      # a tick is 10 minutes; two sends per tick fits a 40-a-day day into the morning window
 
 
 def now():
@@ -196,6 +197,9 @@ def _handle_message(w, m):
         c = w.by_email.get(to.lower())
         log("Sent", "Out", "Karlie", to, partner=pid, contact=c and c["id"], summary="Karlie emailed them directly",
             snippet=m["body"], msg_id=m["id"], thread_id=m["thread_id"], at_time=m["dt"], handled=True, reviewed=False)
+        for h in at.list_records("log", f"AND({{Gmail Thread ID}}='{m['thread_id']}', {{Event}}='Handed To Karlie', NOT({{Handled}}))", fields=["Event"]):
+            at.update("log", h["id"], {"Handled": True})  # she answered in Gmail, so it's no longer her turn
+        _cancel_pending(w, pid, to, "Karlie emailed them herself, so the system stepped back.")
         return "karlie"
 
     if BOUNCE_FROM.search(frm):
@@ -331,7 +335,7 @@ def daily_cap(s):
     return min(60, 2 * (s.get("Daily Ping Limit") or 0))
 
 
-def send_due(w, max_sends=1):
+def send_due(w, max_sends=SENDS_PER_TICK):
     """Send at most `max_sends` emails this tick (ticks run every ~10 min, which spaces sends out like a person)."""
     if w.s.get("Paused"):
         return {"paused": True}
@@ -434,16 +438,35 @@ def next_send_time(w, contact, not_before=None):
         local = t.astimezone(tz)
         mins = local.hour * 60 + local.minute
         if local.strftime("%a") in days and lo <= mins < hi:
-            if done_today < limit:
+            slots = SENDS_PER_TICK
+            while slots and done_today < limit:
                 if ahead <= 0:
                     return t
                 ahead -= 1
                 done_today += 1
+                slots -= 1
         nxt = t + dt.timedelta(minutes=10)
         if nxt.astimezone(tz).date() != local.date():
             done_today = 0
         t = nxt
     return None
+
+
+def summaries_queue():
+    """New 'Your turn' replies still showing the placeholder summary, with their threads."""
+    out = []
+    for h in at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}), FIND('Summary coming shortly', {Summary}))",
+                             fields=["Email", "Gmail Thread ID", "At"], max_records=10):
+        f = h["fields"]
+        if not f.get("Gmail Thread ID") or now() - pts(f["At"]) < dt.timedelta(minutes=3):
+            continue
+        try:
+            thread = [{"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:2500]} for x in gmail.thread(f["Gmail Thread ID"])[-6:]]
+        except Exception:
+            continue
+        rep = at.list_records("log", f"AND({{Gmail Thread ID}}='{f['Gmail Thread ID']}', {{Event}}='Replied', NOT({{Reviewed}}))", fields=["Event"], max_records=1)
+        out.append({"handoff_log_id": h["id"], "log_id": rep[0]["id"] if rep else h["id"], "email": f.get("Email"), "thread": thread})
+    return {"items": out}
 
 
 # ---------------------------------------------------------------- on-the-fly rewrites
@@ -731,6 +754,8 @@ def apply(payload):
     t = iso(now())
     done = {"drafts": 0, "events": 0, "lessons": 0, "planned": 0, "contacts": 0}
     for e in payload.get("events", []):
+        if not e.get("log_id"):
+            continue
         f = {"Reviewed": True}
         if e.get("summary"):
             f["Summary"] = e["summary"][:250]
