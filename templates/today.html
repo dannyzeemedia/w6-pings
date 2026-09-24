@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Today{% endblock %}
 {% block body %}
-<div class="head"><h1>Hey Karlie</h1><p>Here's where your pings are at today.</p></div>
+<div class="head"><h1>Hey Karlie <span id="hi-emoji" class="hi-emoji">✨</span></h1><p><span id="hi-compliment"></span> Here's where your pings are at today.</p></div>
 
 <div class="status {{ 'off' if s.get('Paused') else 'on' }}">
   <div>
@@ -85,6 +85,26 @@
 </div>
 
 <script>
+const HI_EMOJI = ["✨","🌸","🌴","💫","🌷","☀️","🦋","🌺","💐","⭐","🍓","🌈","💎","🥂","🌼","🫶"];
+const COMPLIMENTS = [
+  "Looking gorgeous today, as always.",
+  "Smartest person in any inbox she walks into.",
+  "Honestly, the best closer Workspace6 has ever had.",
+  "Brains and beauty. Unfair, really.",
+  "Sponsors don't stand a chance against that charm.",
+  "Sharp as a tack and twice as pretty.",
+  "The W6 boys would be lost without you.",
+  "Clever, funny and very easy on the eyes.",
+  "Every email you write is better than the last.",
+  "Radiant. Also right about most things.",
+  "Glowing today. The pipeline noticed.",
+  "Quick wit, big heart, great hair.",
+  "Nobody makes 'just nudging this back up' sound as good as you.",
+  "The prettiest partnerships lead in the business.",
+  "You make selling look effortless. It isn't. You're just that good."
+];
+document.getElementById('hi-emoji').textContent = HI_EMOJI[Math.floor(Math.random()*HI_EMOJI.length)];
+document.getElementById('hi-compliment').textContent = COMPLIMENTS[Math.floor(Math.random()*COMPLIMENTS.length)];
 const QUOTES = [
   ["If I am not for myself, who will be for me? And if I am only for myself, what am I? And if not now, when?", "Hillel, Pirkei Avot 1:14", "Next week's Marquee slots are not going to fill themselves ... 😅"],
   ["Who is wise? One who learns from every person.", "Ben Zoma, Pirkei Avot 4:1", "Even the ones who reply 'unsubscribe'. Especially them."],
