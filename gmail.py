@@ -83,3 +83,103 @@ def open_link(msgid):
     """Gmail web link that opens this exact message in Karlie's inbox."""
     q = requests.utils.quote(f"rfc822msgid:{msgid.strip('<>')}")
     return f"https://mail.google.com/mail/u/{ME}/#search/{q}"
+
+
+# ---------------------------------------------------------------- engine helpers
+import datetime as _dt
+
+_sig = {"html": None}
+
+
+def profile():
+    r = requests.get(f"{API}/profile", headers=_h(), timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
+def history_since(history_id):
+    """Ids of messages added since `history_id`, and the new latest history id."""
+    ids, page, latest = [], None, history_id
+    while True:
+        params = {"startHistoryId": history_id, "historyTypes": "messageAdded", "maxResults": 500}
+        if page:
+            params["pageToken"] = page
+        r = requests.get(f"{API}/history", headers=_h(), params=params, timeout=30)
+        if r.status_code == 404:  # history id too old: restart from now
+            return [], profile()["historyId"]
+        r.raise_for_status()
+        j = r.json()
+        latest = j.get("historyId", latest)
+        for h in j.get("history", []):
+            for m in h.get("messagesAdded", []):
+                ids.append(m["message"]["id"])
+        page = j.get("nextPageToken")
+        if not page:
+            return list(dict.fromkeys(ids)), latest
+
+
+def search(q, n=20):
+    r = requests.get(f"{API}/messages", headers=_h(), params={"q": q, "maxResults": n}, timeout=30)
+    r.raise_for_status()
+    return [m["id"] for m in r.json().get("messages", [])]
+
+
+def message(mid, meta_only=False):
+    params = {"format": "metadata" if meta_only else "full"}
+    r = requests.get(f"{API}/messages/{mid}", headers=_h(), params=params, timeout=30)
+    r.raise_for_status()
+    m = r.json()
+    hd = {x["name"].lower(): x["value"] for x in m["payload"].get("headers", [])}
+    return {"id": m["id"], "thread_id": m["threadId"], "labels": m.get("labelIds", []), "headers": hd,
+            "from": hd.get("from", ""), "to": hd.get("to", ""), "cc": hd.get("cc", ""), "subject": hd.get("subject", ""),
+            "msgid": hd.get("message-id", ""), "is_me": ME in hd.get("from", "").lower(),
+            "dt": _dt.datetime.fromtimestamp(int(m["internalDate"]) / 1000, _dt.timezone.utc),
+            "body": "" if meta_only else _strip(_body(m["payload"]))}
+
+
+def signature_html():
+    if _sig["html"] is None:
+        r = requests.get(f"{API}/settings/sendAs/{ME}", headers=_h(), timeout=30)
+        _sig["html"] = r.json().get("signature", "") if r.ok else ""
+    return _sig["html"]
+
+
+_URL = re.compile(r"(https?://[^\s<>()]+)")
+
+
+def _to_html(text):
+    out = []
+    for line in text.split("\n"):
+        esc = html.escape(line)
+        esc = _URL.sub(lambda m: f'<a href="{m.group(1)}">{m.group(1)}</a>', esc)
+        out.append(f"<div>{esc}</div>" if line.strip() else "<div><br></div>")
+    return '<div dir="ltr">' + "".join(out) + "</div>"
+
+
+def send(to, subject, body, thread_id=None, signature=True, to_name=None):
+    """Send as Karlie, looking exactly like Gmail: plain + HTML parts, her real signature on first emails.
+    With thread_id it replies in that thread. Returns (message id, thread id)."""
+    msg = EmailMessage()
+    msg["From"] = f"Karlie <{ME}>"
+    msg["To"] = f"{to_name} <{to}>" if to_name and "," not in to_name else to
+    if thread_id:
+        msgs = thread(thread_id)
+        last = msgs[-1]
+        base = msgs[0]["subject"]
+        msg["Subject"] = base if base.lower().startswith("re:") else f"Re: {base}"
+        if last["msgid"]:
+            msg["In-Reply-To"] = last["msgid"]
+            msg["References"] = (last["refs"] + " " + last["msgid"]).strip()
+    else:
+        msg["Subject"] = subject
+    sig = signature_html() if signature else ""
+    msg.set_content(body + ("\n\n-- \nKarlie Zee | Workspace6\n👉 Read this week's Workspace6 DTC News https://news.workspace6.io/" if sig else ""))
+    msg.add_alternative(_to_html(body) + (f'<br><div class="gmail_signature">{sig}</div>' if sig else ""), subtype="html")
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    payload = {"raw": raw}
+    if thread_id:
+        payload["threadId"] = thread_id
+    r = requests.post(f"{API}/messages/send", headers=_h(), json=payload, timeout=30)
+    r.raise_for_status()
+    j = r.json()
+    return j["id"], j["threadId"]

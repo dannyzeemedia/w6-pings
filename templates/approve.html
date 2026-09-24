@@ -11,6 +11,7 @@
   </div>
   {% if f.get('They Asked For') %}<div class="why"><strong>They asked for this:</strong> "{{ f['They Asked For'] }}"</div>{% endif %}
   {% if f.get('Why This Email') %}<div class="why"><strong>Why this one:</strong> {{ f['Why This Email'] }}</div>{% endif %}
+  {% if f.get('Brief') %}<details class="brief"><summary>What you know about them</summary><pre>{{ f['Brief'] }}</pre></details>{% endif %}
   <div class="field"><label>Subject</label><input type="text" name="subject" value="{{ f.get('Subject', '') }}"></div>
   <div class="field"><label>Email</label><textarea class="grow" name="body">{{ f.get('Body', '') }}</textarea></div>
   {% if f.get('AI-Tell Check') %}<details><summary>Human-sounding check</summary><pre>{{ f['AI-Tell Check'] }}</pre></details>{% endif %}

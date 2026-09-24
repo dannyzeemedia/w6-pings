@@ -7,6 +7,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.security import check_password_hash
 import airtable as at
 import gmail
+import engine
 
 app = Flask(__name__)
 app.secret_key = os.environ["SECRET_KEY"]
@@ -427,6 +428,38 @@ def results():
     names = at.partner_names([p for e in ev[:40] for p in e["fields"].get("Partner", [])])
     return render_template("results.html", weeks=weeks, peak=peak, totals=totals,
                            n_dead=len(dead), recent=ev[:40], names=names)
+
+
+# ---------- engine endpoints (cron + the Claude routine) ----------
+def engine_auth():
+    tok = os.environ.get("ENGINE_TOKEN")
+    return tok and request.headers.get("X-Engine-Token") == tok
+
+
+@app.post("/tasks/tick")
+def task_tick():
+    if not engine_auth():
+        return {"error": "unauthorised"}, 401
+    try:
+        return engine.tick()
+    except Exception as ex:
+        import traceback
+        return {"error": str(ex), "trace": traceback.format_exc()[-2000:]}, 500
+
+
+@app.get("/api/engine/context")
+def engine_context():
+    if not engine_auth():
+        return {"error": "unauthorised"}, 401
+    mx = request.args.get("max_new", type=int)
+    return app.response_class(json.dumps(engine.context(max_new=mx), default=str), mimetype="application/json")
+
+
+@app.post("/api/engine/apply")
+def engine_apply():
+    if not engine_auth():
+        return {"error": "unauthorised"}, 401
+    return engine.apply(request.get_json(force=True))
 
 
 @app.route("/healthz")
