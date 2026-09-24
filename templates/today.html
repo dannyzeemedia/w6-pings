@@ -91,24 +91,42 @@
 (function(){
 const HI_EMOJI = ["✨","🌸","🌴","💫","🌷","☀️","🦋","🌺","💐","⭐","🍓","🌈","💎","🥂","🌼","🫶"];
 const COMPLIMENTS = [
-  "Looking gorgeous today, as always.",
-  "Smartest person in any inbox she walks into.",
-  "Honestly, the best closer Workspace6 has ever had.",
-  "Brains and beauty. Unfair, really.",
-  "Sponsors don't stand a chance against that charm.",
-  "Sharp as a tack and twice as pretty.",
-  "The W6 boys would be lost without you.",
-  "Clever, funny and very easy on the eyes.",
-  "Every email you write is better than the last.",
-  "Radiant. Also right about most things.",
-  "Glowing today. The pipeline noticed.",
-  "Quick wit, big heart, great hair.",
-  "Nobody makes 'just nudging this back up' sound as good as you.",
-  "The prettiest partnerships lead in the business.",
-  "You make selling look effortless. It isn't. You're just that good."
+  "Those lashes, babe. Honestly, unfair to everyone else.",
+  "That smile could close a sponsor before they've opened the email.",
+  "Your eyes are doing that twinkly thing again. Stop it. Actually, don't.",
+  "The neck on you. Swan-like. I said what I said.",
+  "Tiny perfect fingers typing tiny perfect emails. Iconic.",
+  "Not to be weird, but your toes are genuinely flawless. 💅",
+  "If lashes could send pings, yours would hit 40 a day.",
+  "That smile should come with a warning label. Dangerous.",
+  "Girl, your cheekbones have their own fan club and I'm president.",
+  "Eyes like that should be illegal in at least three states.",
+  "Hair looking expensive today. Very 'paid in full' energy. 🤑",
+  "I'd sponsor that smile. Marquee placement. Every send.",
+  "Those hands? Elegant. Those emails? Also elegant. Coincidence? No.",
+  "You walked in and the whole inbox got prettier.",
+  "Honestly, the collarbones. I'm not okay.",
+  "Your laugh is the best notification sound in the building.",
+  "Lashes: fluttering. Eyes: twinkling. Pipeline: thriving.",
+  "If I weren't me, I'd be so jealous of whoever gets that smile every morning. Oh wait. 😏",
+  "The way your eyes crinkle when you smile? Chef's kiss.",
+  "Gorgeous, clever and in charge of partnerships. The trifecta.",
+  "Every sponsor you email is lucky, and they don't even know what you look like.",
+  "Neck of a ballerina, brain of a closer.",
+  "Those dimples should have their own rate card.",
+  "Your fingers are so dainty it's frankly rude to the rest of us.",
+  "Glowing. Radiant. Slightly intimidating. Keep going.",
+  "Even your pinky toes are perfectly proportioned. I checked. Don't ask.",
+  "You look like you just got a 'let's do it!' reply. Oh, you did? Of course you did.",
+  "Those eyes could talk anyone into a 3-pack.",
+  "Stunning as always. The W6 boys are lost without you (and a little in love).",
+  "Your smile is the only thing brighter than this dashboard in dark mode."
 ];
 document.getElementById('hi-emoji').textContent = HI_EMOJI[Math.floor(Math.random()*HI_EMOJI.length)];
-document.getElementById('hi-compliment').textContent = COMPLIMENTS[Math.floor(Math.random()*COMPLIMENTS.length)];
+let cseen=[]; try{ cseen=JSON.parse(localStorage.getItem('compliments-seen')||'[]'); }catch(e){}
+let cpool=COMPLIMENTS.map((_,i)=>i).filter(i=>!cseen.includes(i)); if(!cpool.length){ cseen=[]; cpool=COMPLIMENTS.map((_,i)=>i); }
+const ci=cpool[Math.floor(Math.random()*cpool.length)]; cseen.push(ci); try{ localStorage.setItem('compliments-seen',JSON.stringify(cseen)); }catch(e){}
+document.getElementById('hi-compliment').textContent = COMPLIMENTS[ci];
 const QUOTES = [
   ["If I am not for myself, who will be for me? And if I am only for myself, what am I? And if not now, when?", "Hillel, Pirkei Avot 1:14", "Next week's Marquee slots are not going to fill themselves ... 😅"],
   ["Who is wise? One who learns from every person.", "Ben Zoma, Pirkei Avot 4:1", "Even the ones who reply 'unsubscribe'. Especially them."],
