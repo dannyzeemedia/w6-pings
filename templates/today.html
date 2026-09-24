@@ -18,14 +18,15 @@
   <div class="card ping-card {{ 'goal-hit' if (s.get('Daily Ping Limit', 0) and sent_today >= s.get('Daily Ping Limit', 0)) }}" data-sent="{{ sent_today }}" data-goal="{{ s.get('Daily Ping Limit', 0) }}">
     {% set goal = s.get('Daily Ping Limit', 0) or 0 %}{% set hit = goal and sent_today >= goal %}
     <div class="label">Pings sent today</div>
-    {% if hit %}<div class="goal-badge">{% if sent_today > goal %}🔥 Overachiever! +{{ sent_today - goal }} over goal{% else %}🎉 Goal hit!{% endif %}</div>{% endif %}
+    <div class="goal-badge" id="goal-badge" {% if not hit %}hidden{% endif %}>{% if hit %}{% if sent_today > goal %}🔥 Overachiever! +{{ sent_today - goal }} over goal{% else %}🎉 Goal hit!{% endif %}{% endif %}</div>
     <div class="big">{{ sent_today }} <small>of <span id="limit-show">{{ goal }}</span></small></div>
-    <div class="goal-bar"><div style="width:{{ [100, (100 * sent_today / goal)|round|int if goal else 0]|min }}%"></div></div>
+    <div class="goal-bar"><div id="goal-fill" style="width:{{ [100, (100 * sent_today / goal)|round|int if goal else 0]|min }}%"></div></div>
+    <div class="muted tiny" id="goal-togo" {% if hit or not goal %}hidden{% endif %}>{{ (goal - sent_today) if goal and not hit else '' }} to go</div>
     <div class="muted tiny">Daily goal <span class="saved" id="saved">Saved</span></div>
     <div class="stepper">
-      <button type="button" onclick="step(-5)" aria-label="Five fewer">−</button>
+      <button type="button" onclick="step(-1)" aria-label="One fewer">−</button>
       <input id="limit" type="number" min="0" max="200" value="{{ s.get('Daily Ping Limit', 0) }}" aria-label="Daily limit" onchange="saveLimit()">
-      <button type="button" onclick="step(5)" aria-label="Five more">+</button>
+      <button type="button" onclick="step(1)" aria-label="One more">+</button>
     </div>
   </div>
   <div class="card">
@@ -94,14 +95,27 @@
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script>
 (function(){
-  // goal hit: confetti the first time she opens Today after hitting it (once per day, per person)
-  const c=document.querySelector('.ping-card.goal-hit'); if(!c||!window.confetti||matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const key='goal-party-'+new Date().toDateString()+'-'+c.dataset.sent;
-  try{ if(localStorage.getItem(key)) return; localStorage.setItem(key,'1'); }catch(e){}
-  const r=c.getBoundingClientRect(), x=(r.left+r.width/2)/innerWidth, y=(r.top+r.height/3)/innerHeight;
-  const colors=['#265c51','#bee1de','#e2dbbe','#7fc4b6','#ffffff'];
-  setTimeout(()=>{ confetti({particleCount:90,spread:75,startVelocity:30,origin:{x,y},colors,scalar:.9});
-    setTimeout(()=>confetti({particleCount:50,spread:110,startVelocity:22,origin:{x,y},colors,scalar:.8}),250); },350);
+  // The ping card reacts to the goal live: lower it to today's count and it celebrates, raise it and it shows what's left.
+  const card=document.querySelector('.ping-card'); if(!card) return;
+  const sent=+card.dataset.sent||0, colors=['#265c51','#bee1de','#e2dbbe','#7fc4b6','#ffffff'];
+  const party=()=>{
+    if(!window.confetti||matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const goal=+card.dataset.goal||0, key='goal-party-'+new Date().toDateString()+'-'+sent+'-'+goal;
+    try{ if(localStorage.getItem(key)) return; localStorage.setItem(key,'1'); }catch(e){}
+    const r=card.getBoundingClientRect(), x=(r.left+r.width/2)/innerWidth, y=(r.top+r.height/3)/innerHeight;
+    confetti({particleCount:90,spread:75,startVelocity:30,origin:{x,y},colors,scalar:.9});
+    setTimeout(()=>confetti({particleCount:50,spread:110,startVelocity:22,origin:{x,y},colors,scalar:.8}),250);
+  };
+  window.renderGoal=function(goal){
+    card.dataset.goal=goal;
+    const hit=goal>0&&sent>=goal, badge=document.getElementById('goal-badge'), togo=document.getElementById('goal-togo');
+    card.classList.toggle('goal-hit',hit);
+    document.getElementById('goal-fill').style.width=(goal?Math.min(100,Math.round(100*sent/goal)):0)+'%';
+    badge.hidden=!hit; if(hit){ badge.textContent=sent>goal?('🔥 Overachiever! +'+(sent-goal)+' over goal'):'🎉 Goal hit!'; badge.style.animation='none'; badge.offsetWidth; badge.style.animation=''; }
+    togo.hidden=hit||!goal; togo.textContent=(goal-sent)+' to go';
+    if(hit) party();
+  };
+  if(card.classList.contains('goal-hit')) setTimeout(party,350);
 })();
 </script>
 <script>
@@ -206,8 +220,8 @@ window.nextQuote=function(){ qi=pickQuote(); showQuote(); }
 showQuote();
 
 var tmr;
-window.step=function(n){ const i=document.getElementById('limit'); i.value=Math.max(0,Math.min(200,(+i.value||0)+n)); document.getElementById('limit-show').textContent=i.value; clearTimeout(tmr); tmr=setTimeout(saveLimit,600); }
-window.saveLimit=function(){ const i=document.getElementById('limit'); document.getElementById('limit-show').textContent=i.value;
+window.step=function(n){ const i=document.getElementById('limit'); i.value=Math.max(0,Math.min(200,(+i.value||0)+n)); document.getElementById('limit-show').textContent=i.value; window.renderGoal&&renderGoal(+i.value); clearTimeout(tmr); tmr=setTimeout(saveLimit,600); }
+window.saveLimit=function(){ const i=document.getElementById('limit'); document.getElementById('limit-show').textContent=i.value; window.renderGoal&&renderGoal(+i.value);
   fetch("{{ url_for('quick_settings') }}",{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'limit='+encodeURIComponent(i.value)})
     .then(r=>{ const s=document.getElementById('saved'); s.textContent=r.ok?'Saved':'Not saved, try again'; s.classList.add('show'); setTimeout(()=>s.classList.remove('show'),1600); }); }
 
