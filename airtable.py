@@ -19,14 +19,28 @@ def _h():
     return {"Authorization": f"Bearer {os.environ['AIRTABLE_TOKEN']}"}
 
 
+_cache = {}
+CACHE_TTL = 15  # seconds; any write clears it, so the dashboard never shows stale data after an action
+
+
 def _req(method, url, **kw):
+    if method == "GET":
+        key = (url, repr(sorted((kw.get("params") or {}).items())))
+        hit = _cache.get(key)
+        if hit and time.time() - hit[0] < CACHE_TTL:
+            return hit[1]
+    else:
+        _cache.clear()
     for attempt in range(4):
         r = requests.request(method, url, headers=_h(), timeout=30, **kw)
         if r.status_code == 429:
             time.sleep(1 + attempt)
             continue
         r.raise_for_status()
-        return r.json()
+        j = r.json()
+        if method == "GET":
+            _cache[key] = (time.time(), j)
+        return j
     r.raise_for_status()
 
 

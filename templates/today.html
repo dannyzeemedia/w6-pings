@@ -85,6 +85,7 @@
 </div>
 
 <script>
+(function(){
 const HI_EMOJI = ["✨","🌸","🌴","💫","🌷","☀️","🦋","🌺","💐","⭐","🍓","🌈","💎","🥂","🌼","🫶"];
 const COMPLIMENTS = [
   "Looking gorgeous today, as always.",
@@ -125,15 +126,17 @@ const QUOTES = [
   ["Discipline is the bridge between goals and accomplishment.", "Jim Rohn", "The bridge is also known as 'the follow-up'."]
 ];
 let qi = Math.floor(Math.random() * QUOTES.length);
-function showQuote(){ const [t,w,x]=QUOTES[qi]; const q=document.getElementById('quote'); q.classList.add('swap');
+window.showQuote=function(){ const [t,w,x]=QUOTES[qi]; const q=document.getElementById('quote'); q.classList.add('swap');
   setTimeout(()=>{ document.getElementById('q-text').textContent=t; document.getElementById('q-who').textContent='— '+w; document.getElementById('q-w6').textContent=x; q.classList.remove('swap'); }, 200); }
-function nextQuote(){ qi=(qi+1+Math.floor(Math.random()*(QUOTES.length-1)))%QUOTES.length; showQuote(); }
+window.nextQuote=function(){ qi=(qi+1+Math.floor(Math.random()*(QUOTES.length-1)))%QUOTES.length; showQuote(); }
 showQuote();
 
-let tmr;
-function step(n){ const i=document.getElementById('limit'); i.value=Math.max(0,Math.min(200,(+i.value||0)+n)); document.getElementById('limit-show').textContent=i.value; clearTimeout(tmr); tmr=setTimeout(saveLimit,600); }
-function saveLimit(){ const i=document.getElementById('limit'); document.getElementById('limit-show').textContent=i.value;
+var tmr;
+window.step=function(n){ const i=document.getElementById('limit'); i.value=Math.max(0,Math.min(200,(+i.value||0)+n)); document.getElementById('limit-show').textContent=i.value; clearTimeout(tmr); tmr=setTimeout(saveLimit,600); }
+window.saveLimit=function(){ const i=document.getElementById('limit'); document.getElementById('limit-show').textContent=i.value;
   fetch("{{ url_for('quick_settings') }}",{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'limit='+encodeURIComponent(i.value)})
     .then(r=>{ const s=document.getElementById('saved'); s.textContent=r.ok?'Saved':'Not saved, try again'; s.classList.add('show'); setTimeout(()=>s.classList.remove('show'),1600); }); }
+
+})();
 </script>
 {% endblock %}

@@ -275,3 +275,32 @@ form.remixing textarea, form.remixing input, form.remixing .row { opacity: .45; 
 .remix-banner { background: var(--mint-2); border: 1px solid var(--mint); border-radius: var(--r-sm); padding: 12px 14px; margin-bottom: 14px; font-size: 14px; }
 .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--mint); border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -1px; margin-right: 6px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* rewriting overlay */
+.email-zone { position: relative; }
+form.remixing .email-zone textarea, form.remixing .email-zone input { opacity: 1; }
+.remix-overlay { position: absolute; inset: -6px; border-radius: var(--r-sm); display: grid; place-items: center; z-index: 2;
+  background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); overflow: hidden; }
+.remix-overlay::before { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--mint) 55%, transparent) 50%, transparent 80%);
+  background-size: 250% 100%; animation: shimmer 1.8s linear infinite; }
+@keyframes shimmer { from { background-position: 150% 0; } to { background-position: -100% 0; } }
+.remix-card { position: relative; text-align: center; width: min(420px, 90%); background: var(--card); border: 1px solid var(--mint); border-radius: 18px; padding: 18px 20px;
+  box-shadow: 0 16px 40px -20px rgba(0,0,0,.35); }
+.quill { font-size: 30px; display: inline-block; animation: write 1.1s ease-in-out infinite; }
+@keyframes write { 0%,100% { transform: translate(0,0) rotate(-6deg); } 25% { transform: translate(6px,-2px) rotate(4deg); } 50% { transform: translate(12px,1px) rotate(-4deg); } 75% { transform: translate(4px,-1px) rotate(3deg); } }
+.remix-step { font-family: Gambetta, Georgia, serif; font-size: 20px; margin: 6px 0 12px; }
+.progress { height: 8px; background: var(--mint-2); border-radius: 99px; overflow: hidden; }
+.progress .bar { height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, var(--green), var(--mint)); transition: width .4s ease; }
+.remix-ask { margin-top: 10px; font-style: italic; }
+
+/* approve: fold to a line */
+.draft-wrap { transition: height .42s cubic-bezier(.3,.8,.2,1), opacity .42s; overflow: hidden; }
+.draft-wrap.folding > .draft { opacity: 0; transform: scale(.98); transition: opacity .3s, transform .3s; }
+.sent-row { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; background: var(--card); border: 1px solid var(--line);
+  border-radius: 16px; padding: 12px 16px; margin-bottom: 8px; }
+.sent-row .sent-main { display: flex; flex-direction: column; min-width: 0; }
+.sent-row strong { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tick { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--green); color: var(--on-green); font-size: 14px; }
+.sent-row.fresh { animation: pop-in .5s cubic-bezier(.3,1.5,.4,1) both; border-color: var(--green); }
+.sent-row.fresh .tick { animation: pop .6s cubic-bezier(.3,1.6,.4,1) both; }
+@keyframes pop-in { from { transform: scale(.9); opacity: 0; } }

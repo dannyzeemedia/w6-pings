@@ -1,20 +1,11 @@
-{% extends "base.html" %}{% block title %}To approve<script>
-(function(){
-  const waiting=[...document.querySelectorAll('form.remixing')].map(f=>f.id.slice(2));
-  if(!waiting.length) return;
-  const poll=()=>fetch("{{ url_for('approve_status') }}").then(r=>r.json()).then(j=>{
-    if(waiting.some(id=>!j.remixing.includes(id))) location.reload(); else setTimeout(poll,8000);
-  }).catch(()=>setTimeout(poll,15000));
-  setTimeout(poll,8000);
-})();
-</script>
-{% endblock %}
+{% extends "base.html" %}{% block title %}To approve{% endblock %}
 {% block body %}
 <div class="head"><h1>To approve</h1><p>Change anything you like before you send. It saves exactly what you changed and learns from it, so the next drafts need fewer edits.</p></div>
 {% set KIND = {'Cold': 'New pitch', 'Follow-up': 'Follow-up', 'Gone-Contact Rescue': 'Finding the right person', 'Reply': 'Reply'} %}
+<div id="drafts">
 {% for d in drafts %}{% set f = d.fields %}
-<form class="card {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ d.id }}" method="post" action="{{ url_for('decide', rid=d.id) }}">
-  {% if f.get('Remix Request') %}<div class="remix-banner"><span class="spin"></span> Rewriting it: "{{ f['Remix Request'] }}"<br><span class="tiny">The new version will appear here by itself, usually within a minute or two.</span></div>{% endif %}
+<div class="draft-wrap" id="w-{{ d.id }}">
+<form class="card draft {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ d.id }}" method="post" action="{{ url_for('decide', rid=d.id) }}">
   <div class="draft-meta">
     <div><h3>{{ f.get('To Name') or f.get('To Email') }}</h3>
       <div class="muted tiny">{% for p in f.get('Partner', []) %}{{ names.get(p) }} · {% endfor %}{{ f.get('To Email') }}{% if f.get('Scheduled For') %} · goes {{ f['Scheduled For']|when }}{% endif %}</div></div>
@@ -23,34 +14,117 @@
   {% if f.get('They Asked For') %}<div class="why"><strong>They asked for this:</strong> "{{ f['They Asked For'] }}"</div>{% endif %}
   {% if f.get('Why This Email') %}<div class="why"><strong>Why this one:</strong> {{ f['Why This Email'] }}</div>{% endif %}
   {% if f.get('Brief') %}<details class="brief"><summary>What you know about them</summary><pre>{{ f['Brief'] }}</pre></details>{% endif %}
-  <div class="field"><label>Subject</label><input type="text" name="subject" value="{{ f.get('Subject', '') }}"></div>
-  <div class="field"><label>Email</label><textarea class="grow" name="body">{{ f.get('Body', '') }}</textarea></div>
+  <div class="email-zone">
+    <div class="field"><label>Subject</label><input type="text" name="subject" value="{{ f.get('Subject', '') }}"></div>
+    <div class="field"><label>Email</label><textarea class="grow" name="body">{{ f.get('Body', '') }}</textarea></div>
+    {% if f.get('Remix Request') %}
+    <div class="remix-overlay" data-id="{{ d.id }}">
+      <div class="remix-card">
+        <div class="quill">✍️</div>
+        <div class="remix-step" id="step-{{ d.id }}">Reading your instruction…</div>
+        <div class="progress"><div class="bar" id="bar-{{ d.id }}"></div></div>
+        <div class="muted tiny remix-ask">"{{ f['Remix Request'] }}"</div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
   {% if f.get('AI-Tell Check') %}<details><summary>Human-sounding check</summary><pre>{{ f['AI-Tell Check'] }}</pre></details>{% endif %}
-  <div class="field"><label>Note for next time <span class="muted tiny">(optional)</span></label>
-    <input type="text" name="feedback" placeholder="What should it do differently from now on?" value="{{ f.get('Karlie Feedback', '') }}">
-    <div class="hint">This becomes a rule for every future email, not just this one. For example: "too long, keep cold emails under 80 words", "don't offer the digest to agencies", "always mention the NYC event to software companies", "never open with 'I hope you're well'".</div></div>
   <details class="rewrite"{% if f.get('Remix Request') %} hidden{% endif %}><summary>✨ Rewrite it for me</summary>
     <div class="field" style="margin-top:10px"><textarea name="instruction" style="min-height:80px" placeholder="e.g. change the offer: we've got 2 spots open next week and the week after, both for $2.7k (down from $4k)"></textarea>
       <div class="hint">Tell it what to change, the way you'd tell a person. It rewrites this email in your voice and keeps everything else. This one's just for this email; use "Note for next time" for a rule.</div></div>
-    <button class="ghost" formaction="{{ url_for('remix', rid=d.id) }}" name="action" value="remix">Rewrite it</button>
+    <button class="ghost" formaction="{{ url_for('remix', rid=d.id) }}" name="action" value="remix" onclick="markRemix('{{ d.id }}')">Rewrite it</button>
   </details>
+  <div class="field"><label>Note for next time <span class="muted tiny">(optional)</span></label>
+    <input type="text" name="feedback" placeholder="What should it do differently from now on?" value="{{ f.get('Karlie Feedback', '') }}">
+    <div class="hint">This becomes a rule for every future email, not just this one. For example: "too long, keep cold emails under 80 words", "don't offer the digest to agencies", "always mention the NYC event to software companies", "never open with 'I hope you're well'".</div></div>
   <div class="row">
-    <button name="action" value="send">Looks good, send</button>
+    <button name="action" value="send" data-send>Looks good, send</button>
     <button name="action" value="save" class="ghost">Save edits</button>
     <button name="action" value="reject" class="danger">Bin it</button>
   </div>
 </form>
-{% else %}
-<div class="card empty"><div class="display">All clear ✨</div><div class="muted">Nothing waiting for you right now.</div></div>
+</div>
 {% endfor %}
+</div>
+<div class="card empty" id="all-clear" {% if drafts %}hidden{% endif %}><div class="display">All clear ✨</div><div class="muted">Nothing waiting for you right now.</div></div>
+
+<div id="queued-block" {% if not queued %}hidden{% endif %}>
+  <h2 style="margin:28px 0 10px">On its way</h2>
+  <div id="queued">
+  {% for d in queued %}{% set f = d.fields %}
+    <div class="sent-row">
+      <span class="tick">✓</span>
+      <div class="sent-main"><strong>{{ f.get('Subject') or ('Follow-up to ' ~ (f.get('To Name') or f.get('To Email'))) }}</strong>
+        <span class="muted tiny">{{ f.get('To Name') or f.get('To Email') }} · {{ short_eta(f.get('Expected Send')) }}</span></div>
+      <form method="post" action="{{ url_for('approve_undo', rid=d.id) }}"><button class="ghost small">Undo</button></form>
+    </div>
+  {% endfor %}
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script>
 (function(){
-  const waiting=[...document.querySelectorAll('form.remixing')].map(f=>f.id.slice(2));
-  if(!waiting.length) return;
+const COLORS=['#265c51','#bee1de','#e2dbbe','#7fc4b6','#ffffff'];
+window.toast=function(emoji,title,msg){
+  const el=document.createElement('div'); el.className='toast'; el.setAttribute('role','status');
+  el.innerHTML='<div class="emoji"></div><div><strong></strong><span class="msg"></span></div>';
+  el.querySelector('.emoji').textContent=emoji; el.querySelector('strong').textContent=title; el.querySelector('.msg').textContent=msg;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),5400);
+}
+window.markRemix=function(id){ try{ localStorage.setItem('remix-'+id, Date.now()); }catch(e){} }
+
+// Looks good, send: approve in place, fold the card down to a single line, drop it into "On its way".
+document.querySelectorAll('[data-send]').forEach(btn=>btn.addEventListener('click',e=>{
+  e.preventDefault();
+  const form=btn.closest('form'), wrap=form.parentElement;
+  const data=new FormData(form); data.set('action','send');
+  btn.disabled=true; btn.textContent='Approving…';
+  fetch(form.action,{method:'POST',body:data,headers:{'X-Fetch':'1'}}).then(r=>r.json()).then(j=>{
+    if(!j.ok) throw 0;
+    wrap.style.height=wrap.offsetHeight+'px';
+    requestAnimationFrame(()=>{ wrap.classList.add('folding'); wrap.style.height='64px'; });
+    setTimeout(()=>{
+      wrap.innerHTML='';
+      const row=document.createElement('div'); row.className='sent-row fresh';
+      row.innerHTML='<span class="tick">✓</span><div class="sent-main"><strong></strong><span class="muted tiny"></span></div>';
+      row.querySelector('strong').textContent=j.subject||'Follow-up';
+      row.querySelector('.tiny').textContent=j.eta_short;
+      wrap.appendChild(row); wrap.style.height='auto';
+      setTimeout(()=>{ document.getElementById('queued-block').hidden=false; document.getElementById('queued').prepend(row); wrap.remove();
+        if(!document.querySelector('#drafts .draft')) document.getElementById('all-clear').hidden=false; },900);
+    },420);
+    const last=j.left===0;
+    toast(last?'✨':'🚀', last?'All clear!':'Off it goes!', j.eta+(last?'':' '+j.left+' more to look at.'));
+    if(window.confetti && !matchMedia('(prefers-reduced-motion: reduce)').matches) confetti({particleCount:last?140:70,spread:last?100:70,startVelocity:32,origin:{y:.85},colors:COLORS,scalar:.9});
+  }).catch(()=>{ form.submit(); });
+}));
+
+// Rewriting: animated steps + a progress bar that eases toward done, then reload when the new version lands.
+(function(){
+  const overlays=[...document.querySelectorAll('.remix-overlay')];
+  if(!overlays.length) return;
+  const STEPS=[[0,'Reading your instruction…'],[5,'Rewriting it in your voice…'],[16,'Running the human-sounding check…'],[26,'Polishing the last bits…'],[45,'Nearly there, this one\'s taking a little longer…']];
+  overlays.forEach(o=>{
+    const id=o.dataset.id; let start=Date.now();
+    try{ start=+localStorage.getItem('remix-'+id)||start; if(!localStorage.getItem('remix-'+id)) localStorage.setItem('remix-'+id,start);}catch(e){}
+    const tick=()=>{
+      const s=(Date.now()-start)/1000;
+      document.getElementById('bar-'+id).style.width=(95*(1-Math.exp(-s/22))).toFixed(1)+'%';
+      const step=STEPS.filter(x=>s>=x[0]).pop(); document.getElementById('step-'+id).textContent=step[1];
+      requestAnimationFrame(tick);
+    }; tick();
+  });
+  const waiting=overlays.map(o=>o.dataset.id);
   const poll=()=>fetch("{{ url_for('approve_status') }}").then(r=>r.json()).then(j=>{
-    if(waiting.some(id=>!j.remixing.includes(id))) location.reload(); else setTimeout(poll,8000);
-  }).catch(()=>setTimeout(poll,15000));
-  setTimeout(poll,8000);
+    const done=waiting.filter(id=>!j.remixing.includes(id));
+    if(done.length){ done.forEach(id=>{ const b=document.getElementById('bar-'+id); if(b) b.style.width='100%'; try{localStorage.removeItem('remix-'+id);}catch(e){} });
+      setTimeout(()=>{ window.Turbo?Turbo.visit(location.href,{action:'replace'}):location.reload(); },450); }
+    else setTimeout(poll,4000);
+  }).catch(()=>setTimeout(poll,8000));
+  setTimeout(poll,4000);
+})();
+
 })();
 </script>
 {% endblock %}

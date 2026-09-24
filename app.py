@@ -3,7 +3,7 @@ Airtable (W6 Media base) is the database; this app is only a friendlier screen o
 import os, json, datetime as dt
 from functools import wraps
 from zoneinfo import ZoneInfo
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect as _redirect, url_for, session, flash
 from werkzeug.security import check_password_hash
 import airtable as at
 import gmail
@@ -11,6 +11,11 @@ import engine
 from ops_log import OpsLog
 
 app = Flask(__name__)
+
+
+def redirect(location, code=303):
+    return _redirect(location, code)
+
 app.secret_key = os.environ["SECRET_KEY"]
 app.permanent_session_lifetime = dt.timedelta(days=90)
 USERS = json.loads(os.environ.get("DASH_USERS", "{}"))  # {"karlie": "<werkzeug hash>", ...}
@@ -117,6 +122,7 @@ def login():
             session["user"] = u
             return redirect(request.args.get("next") or url_for("today"))
         flash("That name and password don't match.")
+        return render_template("login.html"), 422  # Turbo only re-renders a failed form post on a 4xx
     return render_template("login.html")
 
 
@@ -212,8 +218,9 @@ def planned(rid):
 @login_required
 def approve():
     drafts = pending_drafts()
-    names = at.partner_names([p for d in drafts for p in d["fields"].get("Partner", [])])
-    return render_template("approve.html", drafts=drafts, names=names)
+    queued = at.list_records("drafts", "{Status}='Approved'", sort=[("Expected Send", "asc")])
+    names = at.partner_names([p for d in drafts + queued for p in d["fields"].get("Partner", [])])
+    return render_template("approve.html", drafts=drafts, names=names, queued=queued, short_eta=lambda s: _short_eta(parse_ts(s)))
 
 
 @app.post("/approve/<rid>")
@@ -232,8 +239,14 @@ def decide(rid):
         fields["Decided At"] = iso(now_utc())
     if action == "send":
         fields["Status"] = "Approved"
-        eta = _eta_line(d)
+        eta, eta_t = _eta(d)
+        if eta_t:
+            fields["Expected Send"] = iso(eta_t)
         left = len(pending_drafts(fields=["Subject"])) - 1
+        if request.headers.get("X-Fetch") == "1":
+            at.update("drafts", rid, fields)
+            return {"ok": True, "eta": eta, "left": max(left, 0), "subject": subject,
+                    "eta_short": _short_eta(eta_t)}
         if left <= 0:
             celebrate("All clear!", eta + " Every draft's dealt with.", "✨", big=True)
         else:
@@ -247,26 +260,47 @@ def decide(rid):
     return redirect(url_for("approve"))
 
 
-def _eta_line(d):
-    """Plain-English 'when will this go' for the approval confirmation, in Brisbane time and theirs."""
+def _eta(d):
+    """(plain-English 'when will this go' in Brisbane time and theirs, UTC datetime or None)."""
     try:
         w = engine.World()
         contact = w.contacts.get((d.get("Contact") or [None])[0]) or w.by_email.get((d.get("To Email") or "").lower())
         t = engine.next_send_time(w, contact)
         if not t:
-            return "It'll go out once there's a send day and time set on the Rules page."
+            return "It'll go out once there's a send day and time set on the Rules page.", None
         tz = w.tz_for(contact)
-        mine = t.astimezone(BRIS)
-        theirs = t.astimezone(tz)
+        fmt = lambda x, f: x.strftime(f).replace("AM", "am").replace("PM", "pm")
         who = (d.get("To Name") or "them").split()[0]
         place = tz.key.split("/")[-1].replace("_", " ")
-        line = (f"Goes out around {mine.strftime('%a %-d %b, %-I:%M%p').replace('AM','am').replace('PM','pm')} your time "
-                f"({theirs.strftime('%a %-I:%M%p').replace('AM','am').replace('PM','pm')} for {who} in {place}).")
+        line = (f"Goes out around {fmt(t.astimezone(BRIS), '%a %-d %b, %-I:%M%p')} your time "
+                f"({fmt(t.astimezone(tz), '%a %-I:%M%p')} for {who} in {place}).")
         if w.s.get("Paused"):
             line = "Sending is paused, so it's waiting. Once you press Start sending: " + line[0].lower() + line[1:]
-        return line
+        return line, t
     except Exception:
-        return "It'll go out in the next send window."
+        return "It'll go out in the next send window.", None
+
+
+def _eta_line(d):
+    return _eta(d)[0]
+
+
+def _short_eta(t):
+    if not t:
+        return "waiting for a send window"
+    return "goes out ~" + t.astimezone(BRIS).strftime("%a %-I:%M%p").replace("AM", "am").replace("PM", "pm")
+
+
+@app.post("/approve/<rid>/undo")
+@login_required
+def approve_undo(rid):
+    d = at.get("drafts", rid)["fields"]
+    if d.get("Status") == "Approved":
+        at.update("drafts", rid, {"Status": "Pending Approval", "Decided At": None, "Expected Send": None})
+        flash("Pulled back. It's in To approve again.")
+    else:
+        flash("Too late, that one has already gone.")
+    return redirect(url_for("approve"))
 
 
 @app.post("/approve/<rid>/remix")
