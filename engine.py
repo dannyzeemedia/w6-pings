@@ -721,10 +721,18 @@ def context(max_new=None, more=0):
     weekly = not s.get("Voice Updated At") or now() - pts(s["Voice Updated At"]) > dt.timedelta(days=7)
     return {"now": iso(now()), "settings": {k: v for k, v in s.items() if k not in ("Karlie's Voice", "Gmail History ID")},
             "voice": s.get("Karlie's Voice"), "lessons": lessons, "events_to_review": events, "decisions_to_learn": decided,
-            "work": work, "voice_rewrite_due": weekly,
+            "work": work, "voice_rewrite_due": weekly, "calendar": _calendar(),
             "results": results_summary() if weekly else None,
             "pending_voice_notes": [{"id": l["id"], "note": l["fields"].get("Lesson")} for l in
                                     at.list_records("lessons", "AND({Active}, NOT({Folded Into Voice}))")]}
+
+
+def _calendar():
+    try:
+        import bookings
+        return bookings.upcoming_for_brain()
+    except Exception as ex:
+        return {"error": str(ex)}
 
 
 def results_summary(days=56):

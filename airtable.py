@@ -11,6 +11,7 @@ TABLES = {
     "partners": "tbl7OH9U8ed4ZLLvI",
     "sales": "tblakxHy3Dke93A3b",
     "handsoff": "tblUuIEQoMGOAv8r0",
+    "promo": "tblDgkaHQFHHPNAHA",  # W6 Promo Calendar: one row per placement per publish date
 }
 API = f"https://api.airtable.com/v0/{BASE}"
 
@@ -72,8 +73,19 @@ def update(table, rid, fields):
     return _req("PATCH", f"{API}/{TABLES[table]}/{rid}", json={"fields": fields, "typecast": False})
 
 
-def create(table, fields):
-    return _req("POST", f"{API}/{TABLES[table]}", json={"fields": fields, "typecast": False})
+def create(table, fields, typecast=False):
+    return _req("POST", f"{API}/{TABLES[table]}", json={"fields": fields, "typecast": typecast})
+
+
+def create_many(table, rows, typecast=False):
+    out = []
+    for i in range(0, len(rows), 10):
+        out += _req("POST", f"{API}/{TABLES[table]}", json={"records": [{"fields": r} for r in rows[i:i + 10]], "typecast": typecast})["records"]
+    return out
+
+
+def delete(table, rid):
+    return _req("DELETE", f"{API}/{TABLES[table]}/{rid}")
 
 
 def settings():

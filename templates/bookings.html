@@ -1,0 +1,147 @@
+{% extends "base.html" %}{% block title %}Bookings{% endblock %}
+{% block body %}
+<div class="head bk-head">
+  <div><h1>Bookings</h1><p>Every sponsor placement across DTC News and W6, and every open slot you can sell.</p></div>
+  <div class="seg" role="tablist">
+    <a href="{{ url_for('bookings_page', view='calendar', month=month.strftime('%Y-%m')) }}" class="{{ 'on' if view=='calendar' }}">Calendar</a>
+    <a href="{{ url_for('bookings_page', view='list') }}" class="{{ 'on' if view=='list' }}">List</a>
+  </div>
+</div>
+
+<div class="grid bk-stats">
+  <div class="card"><div class="label">Open Marquees, next 2 weeks</div><div class="big">{{ soon_open|length }}</div>
+    <div class="muted tiny">{% for d in soon_open[:4] %}{{ d.strftime('%a %-d %b') }}{{ ', ' if not loop.last }}{% endfor %}{% if soon_open|length > 4 %} …{% endif %}</div></div>
+  {% for k in ['marquee','shoutout','welcome','groupbuy'] %}
+  <div class="card"><div class="label"><i class="sw k-{{ k }}"></i>{{ types[k].label }}</div><div class="big">{{ counts[k] }}</div><div class="muted tiny">booked, next 90 days</div></div>
+  {% endfor %}
+</div>
+
+<div class="legend bk-legend" id="legend">
+  {% for k, t in types.items() %}<label><input type="checkbox" checked data-kind="{{ k }}"><i class="sw k-{{ k }}"></i>{{ t.label }}</label>{% endfor %}
+  <span class="leg-state"><i class="sw paid"></i>🤑 Paid</span><span class="leg-state"><i class="sw pencilled"></i>✏️ Pencilled in</span><span class="leg-state"><i class="sw open"></i>Open slot</span>
+</div>
+
+{% if view == 'calendar' %}
+<div class="card cal-card">
+  <div class="cal-nav">
+    <a class="btn ghost small" href="{{ url_for('bookings_page', view='calendar', month=prev.strftime('%Y-%m')) }}">‹</a>
+    <h2>{{ month.strftime('%B %Y') }}</h2>
+    <a class="btn ghost small" href="{{ url_for('bookings_page', view='calendar', month=nxt.strftime('%Y-%m')) }}">›</a>
+    <a class="btn ghost small" href="{{ url_for('bookings_page', view='calendar') }}">Today</a>
+  </div>
+  <div class="cal">
+    <div class="cal-dow">{% for n in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}<div>{{ n }}</div>{% endfor %}</div>
+    {% for w in weeks %}
+    <div class="cal-week">
+      {% for c in w.cells %}
+      <div class="cal-day {{ 'out' if not c.in_month }} {{ 'today' if c.today }} {{ 'past' if c.past }}" style="grid-column:{{ loop.index }}">
+        <div class="cal-num">{{ c.date.day }}</div>
+      </div>
+      {% endfor %}
+      <div class="cal-layer">
+        {% for b in w.bands %}
+        <button type="button" class="band k-welcome {{ b.state }}" data-kind="welcome" style="grid-column:{{ b.start + 1 }} / {{ b.end + 2 }}"
+          title="Welcome Flow · {{ b.sponsor }} · {{ '🤑 Paid' if b.state=='paid' else '✏️ Pencilled in' }}" onclick="openEdit('{{ b.id }}','{{ b.sponsor|e }}','Welcome Flow','','{{ b.state }}')">
+          {{ b.sponsor }}</button>
+        {% endfor %}
+      </div>
+      <div class="cal-items">
+        {% for c in w.cells %}
+        <div class="cal-slot" style="grid-column:{{ loop.index }}">
+          {% for b in c.entries %}
+          <button type="button" class="chip k-{{ b.kind }} {{ b.state }}" data-kind="{{ b.kind }}"
+            title="{{ types[b.kind].label }} · {{ b.sponsor }}{% if b.seq %} ({{ b.seq }}){% endif %} · {{ '🤑 Paid' if b.state=='paid' else ('Swap' if b.state=='swap' else '✏️ Pencilled in') }}"
+            onclick="openEdit('{{ b.id }}','{{ b.sponsor|e }}','{{ types[b.kind].label }}','{{ b.date.isoformat() }}','{{ b.state }}')">
+            <span class="dot"></span>{{ b.sponsor }}</button>
+          {% endfor %}
+          {% if c.open %}<button type="button" class="chip open" data-kind="marquee" title="Open DTC News Marquee · click to book" onclick="openAdd('{{ c.date.isoformat() }}','marquee')">+ Open Marquee</button>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <h2 style="margin-bottom:6px">Next 90 days</h2>
+  {% if soon_open %}<p class="muted tiny" style="margin:0 0 10px">Open Marquees in the next 2 weeks: {% for d in soon_open %}<a href="#" onclick="openAdd('{{ d.isoformat() }}','marquee');return false">{{ d.strftime('%a %-d %b') }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+  {% for wk, items in groups %}
+  <div class="bk-week"><div class="label">Week of {{ wk.strftime('%-d %b') }}</div>
+    {% for b in items %}
+    <button type="button" class="bk-row" data-kind="{{ b.kind }}" onclick="openEdit('{{ b.id }}','{{ b.sponsor|e }}','{{ types[b.kind].label }}','{{ b.date.isoformat() }}','{{ b.state }}')">
+      <span class="bk-date">{{ b.date.strftime('%a %-d %b') }}</span>
+      <span class="tagk k-{{ b.kind }}"><i class="sw k-{{ b.kind }}"></i>{{ types[b.kind].label }}</span>
+      <strong>{{ b.sponsor }}</strong>
+      <span class="muted tiny">{{ b.seq }}</span>
+      <span class="bk-state">{{ '🤑 Paid' if b.state=='paid' else ('Swap' if b.state=='swap' else '✏️ Pencilled in') }}</span>
+    </button>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty"><div class="display">Wide open</div><div class="muted">Nothing booked in the next 90 days. Every Tuesday and Thursday Marquee is yours to sell.</div></div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="card" id="add">
+  <h2 style="margin-bottom:14px">Add a booking</h2>
+  <form method="post" action="{{ url_for('bookings_add') }}" class="bk-form">
+    <input type="hidden" name="view" value="{{ view }}">
+    <label>Sponsor<input type="text" name="sponsor" list="bk-partners" required placeholder="e.g. Omnisend" autocomplete="off"></label>
+    <label>What<select name="kind" id="add-kind">{% for k, t in types.items() %}{% if k != '7fc' %}<option value="{{ k }}">{{ t.label }}</option>{% endif %}{% endfor %}</select></label>
+    <label>First date<input type="date" name="start" id="add-start" required value="{{ today.isoformat() }}"></label>
+    <label>How many<input type="number" name="count" id="add-count" min="1" max="120" value="1"></label>
+    <label>Repeats<select name="cadence" id="add-cadence">
+      <option value="once">Just that date</option>
+      <option value="sends">Next DTC News sends (Tue + Thu)</option>
+      <option value="weekly">Weekly</option>
+      <option value="daily">Every day (Welcome Flow)</option></select></label>
+    <label>Status<select name="state"><option value="pencilled">✏️ Pencilled in</option><option value="paid">🤑 Paid</option></select></label>
+    <button>Add to calendar</button>
+  </form>
+  <div class="hint">A 3-Marquee package: pick the first date, "How many" = 3, "Repeats" = Next DTC News sends. A month of Welcome Flow: 30, every day.</div>
+  <datalist id="bk-partners">{% for pid, n in partners %}<option value="{{ n }}">{% endfor %}</datalist>
+</div>
+
+<dialog id="edit" class="bk-dialog">
+  <form method="post" id="edit-form">
+    <h3 id="edit-title"></h3>
+    <div class="muted tiny" id="edit-sub" style="margin-bottom:14px"></div>
+    <div class="inline">
+      <label class="field">Status<select name="state" id="edit-state"><option value="pencilled">✏️ Pencilled in</option><option value="paid">🤑 Paid</option></select></label>
+      <label class="field" id="edit-date-wrap">Date<input type="date" name="date" id="edit-date"></label>
+    </div>
+    <div class="row" style="justify-content:space-between">
+      <button name="action" value="save">Save</button>
+      <div class="row"><button type="button" class="ghost" onclick="document.getElementById('edit').close()">Close</button>
+      <button name="action" value="delete" class="danger" onclick="return confirm('Remove this date from the calendar?')">Remove</button></div>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function(){
+  window.openEdit=function(id,sponsor,label,date,state){
+    const d=document.getElementById('edit');
+    document.getElementById('edit-form').setAttribute('action','/bookings/'+id+'/edit');
+    document.getElementById('edit-title').textContent=sponsor;
+    document.getElementById('edit-sub').textContent=label+(date?' · '+new Date(date+'T12:00').toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}):'');
+    document.getElementById('edit-state').value=state==='paid'?'paid':'pencilled';
+    document.getElementById('edit-date').value=date||'';
+    document.getElementById('edit-date-wrap').style.display=date?'':'none';
+    d.showModal();
+  };
+  window.openAdd=function(date,kind){
+    document.getElementById('add-start').value=date; document.getElementById('add-kind').value=kind;
+    document.getElementById('add-count').value=1; document.getElementById('add-cadence').value='once';
+    const a=document.getElementById('add'); a.scrollIntoView({behavior:'smooth',block:'center'}); a.classList.add('flash-card'); setTimeout(()=>a.classList.remove('flash-card'),1400);
+    a.querySelector('[name=sponsor]').focus({preventScroll:true});
+  };
+  // type filter: hide/show a placement type everywhere on the page
+  const apply=()=>{ const off=[...document.querySelectorAll('#legend [data-kind]')].filter(x=>!x.checked).map(x=>x.dataset.kind);
+    document.querySelectorAll('.chip,.band,.bk-row').forEach(el=>{ el.hidden=off.includes(el.dataset.kind); }); };
+  document.querySelectorAll('#legend [data-kind]').forEach(x=>x.addEventListener('change',apply));
+})();
+</script>
+{% endblock %}

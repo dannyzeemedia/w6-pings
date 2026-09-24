@@ -8,6 +8,7 @@ from werkzeug.security import check_password_hash
 import airtable as at
 import gmail
 import engine
+import bookings as bk
 from ops_log import OpsLog
 
 app = Flask(__name__)
@@ -523,6 +524,100 @@ def lesson_fix(rid):
 def lesson_toggle(rid):
     at.update("lessons", rid, {"Active": request.form.get("active") == "1"})
     return redirect(url_for("rules") + "#learned")
+
+
+# ---------- bookings ----------
+@app.route("/bookings")
+@login_required
+def bookings_page():
+    today = dt.date.today()
+    view = request.args.get("view", "calendar")
+    try:
+        month = dt.date.fromisoformat((request.args.get("month") or today.strftime("%Y-%m")) + "-01")
+    except ValueError:
+        month = today.replace(day=1)
+    nxt = (month + dt.timedelta(days=32)).replace(day=1)
+    prev = (month - dt.timedelta(days=1)).replace(day=1)
+    grid_start = month - dt.timedelta(days=month.weekday())
+    grid_end = (nxt - dt.timedelta(days=1))
+    grid_end = grid_end + dt.timedelta(days=6 - grid_end.weekday())
+    list_end = today + dt.timedelta(days=90)
+    rows = bk.load(min(grid_start, today), max(grid_end, list_end))
+    by_day = {}
+    for b in rows:
+        by_day.setdefault(b["date"], []).append(b)
+    open_m = set(bk.open_marquees(rows, grid_start, grid_end))
+    weeks, d = [], grid_start
+    while d <= grid_end:
+        days = [d + dt.timedelta(days=i) for i in range(7)]
+        # Welcome Flow runs every day, so draw each sponsor's run as one band across the week instead of 7 chips
+        bands, seen = [], {}
+        for i, day in enumerate(days):
+            for b in by_day.get(day, []):
+                if b["kind"] == "welcome":
+                    k = (b["sponsor"], b["state"])
+                    if k in seen and seen[k]["end"] == i - 1:
+                        seen[k]["end"] = i
+                    else:
+                        seen[k] = {"sponsor": b["sponsor"], "state": b["state"], "start": i, "end": i, "id": b["id"]}
+                        bands.append(seen[k])
+        cells = [{"date": day, "in_month": day.month == month.month, "today": day == today, "past": day < today,
+                  "entries": [b for b in by_day.get(day, []) if b["kind"] != "welcome"],
+                  "open": day in open_m} for day in days]
+        weeks.append({"cells": cells, "bands": bands})
+        d += dt.timedelta(days=7)
+    upcoming = [b for b in rows if today <= b["date"] <= list_end]
+    groups = {}
+    for b in upcoming:
+        wk = b["date"] - dt.timedelta(days=b["date"].weekday())
+        groups.setdefault(wk, []).append(b)
+    soon_open = bk.open_marquees(rows, today, today + dt.timedelta(days=13))
+    return render_template("bookings.html", view=view, month=month, prev=prev, nxt=nxt, weeks=weeks, groups=sorted(groups.items()),
+                           types=bk.TYPES, soon_open=soon_open, partners=at.all_partners(), today=today,
+                           counts={k: sum(1 for b in upcoming if b["kind"] == k) for k in bk.TYPES})
+
+
+@app.post("/bookings/add")
+@login_required
+def bookings_add():
+    fm = request.form
+    name = fm.get("sponsor", "").strip()
+    kind = fm.get("kind") if fm.get("kind") in bk.TYPES else "marquee"
+    try:
+        start = dt.date.fromisoformat(fm.get("start"))
+        count = int(fm.get("count") or 1)
+    except (TypeError, ValueError):
+        flash("Pick a start date first.")
+        return redirect(url_for("bookings_page"))
+    pid = next((p for p, n in at.all_partners() if n.lower() == name.lower()), None)
+    ds = bk.add(name or "Sponsor", pid, kind, fm.get("state", "pencilled"), start, count, fm.get("cadence", "once"))
+    celebrate("Booked!", f"{name} · {bk.TYPES[kind]['label']} · {len(ds)} date{'s' if len(ds) > 1 else ''} from {ds[0].strftime('%a %-d %b')}", "📅",
+              big=fm.get("state") == "paid")
+    return redirect(url_for("bookings_page", month=ds[0].strftime("%Y-%m"), view=fm.get("view", "calendar")))
+
+
+@app.post("/bookings/<rid>/edit")
+@login_required
+def bookings_edit(rid):
+    fm = request.form
+    r = at.get("promo", rid)["fields"]
+    kind, state = bk.parse_status(r.get("Status"))
+    if fm.get("action") == "delete":
+        at.delete("promo", rid)
+        flash("Removed that date.")
+    else:
+        fields = {}
+        if fm.get("state") in ("paid", "pencilled") and kind:
+            fields["Status"] = ("🤑 " if fm["state"] == "paid" else "✏️ ") + bk.TYPES[kind]["status"]
+        if fm.get("date"):
+            fields["Publish Date"] = fm["date"]
+        if fields:
+            at.update("promo", rid, fields)
+            if fields.get("Status", "").startswith("🤑") and state != "paid":
+                celebrate("Paid! 🤑", r.get("Name", ""), "💸", big=True)
+            else:
+                flash("Updated.")
+    return redirect(request.referrer or url_for("bookings_page"))
 
 
 # ---------- results ----------
