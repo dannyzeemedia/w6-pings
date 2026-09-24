@@ -346,6 +346,8 @@ def send_due(w, max_sends=1):
             continue
         if f.get("Scheduled For") and pts(f["Scheduled For"]) > now():
             continue
+        if f.get("Remix Request"):
+            continue  # being rewritten on Karlie's instruction
         pid = (f.get("Partner") or [None])[0]
         contact = w.contacts.get((f.get("Contact") or [None])[0]) or w.by_email.get((f.get("To Email") or "").lower())
         why = w.blocked(pid)
@@ -409,6 +411,62 @@ def _touch_sale(w, pid, sale_id, t):
     r = at.create("sales", {"Opportunity": f"{name} // Pings", "Partner": [pid], "Status": "Outreach", "Ping": "1",
                             "Ping Modified": iso(t), "Via": "Email", "Assignee": {"id": JESSE}})
     return r["id"]
+
+
+def next_send_time(w, contact, not_before=None):
+    """Earliest moment the sender would actually send to this person: their local window, allowed days,
+    the daily limit, and emails already approved ahead of it. Returns a UTC datetime (or None if no window)."""
+    tz = w.tz_for(contact)
+    lo, hi = _window(w, contact)
+    days = w.s.get("Send Days") or []
+    limit = w.s.get("Daily Ping Limit") or 0
+    if not days or not limit or hi <= lo:
+        return None
+    ahead = len([d for d in at.list_records("drafts", "AND({Status}='Approved', {Remix Request}='')", fields=["Subject"])])
+    t = max(now(), not_before or now()) + dt.timedelta(minutes=10)  # next tick
+    done_today = sent_today(w)
+    for _ in range(24 * 6 * 14):  # walk forward in 10-minute ticks, up to two weeks
+        local = t.astimezone(tz)
+        mins = local.hour * 60 + local.minute
+        if local.strftime("%a") in days and lo <= mins < hi:
+            if done_today < limit:
+                if ahead <= 0:
+                    return t
+                ahead -= 1
+                done_today += 1
+        nxt = t + dt.timedelta(minutes=10)
+        if nxt.astimezone(tz).date() != local.date():
+            done_today = 0
+        t = nxt
+    return None
+
+
+# ---------------------------------------------------------------- on-the-fly rewrites
+def remix_queue():
+    """Drafts Karlie asked to rewrite, with what the rewriter needs."""
+    w = World()
+    out = []
+    for d in at.list_records("drafts", "AND({Remix Request}!='', OR({Status}='Pending Approval', {Status}='Approved'))"):
+        f = d["fields"]
+        out.append({"draft_id": d["id"], "instruction": f["Remix Request"], "kind": f.get("Kind"), "to_name": f.get("To Name"),
+                    "subject": f.get("Subject"), "body": f.get("Body"), "brief": f.get("Brief"), "why": f.get("Why This Email"),
+                    "thread_id": f.get("Gmail Thread ID")})
+    if not out:
+        return {"items": []}
+    lessons = [l["fields"].get("Lesson") for l in at.list_records("lessons", "{Active}", fields=["Lesson"])]
+    return {"items": out, "voice": w.s.get("Karlie's Voice"), "lessons": lessons}
+
+
+def remix_apply(item):
+    d = at.get("drafts", item["draft_id"])["fields"]
+    hist = (d.get("Remix History") or "")
+    hist = (f"[{dt.date.today().isoformat()}] Asked: {d.get('Remix Request', '')}\nBefore:\n{d.get('Body', '')}\n\n" + hist)[:20000]
+    f = {"Body": item["body"], "Remix Request": "", "Remix History": hist, "Edited By Karlie": True,
+         "AI-Tell Check": item.get("ai_tell_check", "")[:3000]}
+    if item.get("subject") is not None and d.get("Kind") != "Follow-up":
+        f["Subject"] = item["subject"]
+    at.update("drafts", item["draft_id"], f)
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------- choosing who to ping

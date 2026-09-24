@@ -232,11 +232,12 @@ def decide(rid):
         fields["Decided At"] = iso(now_utc())
     if action == "send":
         fields["Status"] = "Approved"
+        eta = _eta_line(d)
         left = len(pending_drafts(fields=["Subject"])) - 1
         if left <= 0:
-            celebrate("All clear!", "Every draft's dealt with. They'll go out in the next send window.", "✨", big=True)
+            celebrate("All clear!", eta + " Every draft's dealt with.", "✨", big=True)
         else:
-            celebrate("Off it goes!", f"Out in the next send window. {left} more to look at.", "🚀")
+            celebrate("Off it goes!", eta + f" {left} more to look at.", "🚀")
     elif action == "reject":
         fields["Status"] = "Rejected"
         flash("Binned. It'll learn from why.")
@@ -244,6 +245,61 @@ def decide(rid):
         flash("Edits saved.")
     at.update("drafts", rid, fields)
     return redirect(url_for("approve"))
+
+
+def _eta_line(d):
+    """Plain-English 'when will this go' for the approval confirmation, in Brisbane time and theirs."""
+    try:
+        w = engine.World()
+        contact = w.contacts.get((d.get("Contact") or [None])[0]) or w.by_email.get((d.get("To Email") or "").lower())
+        t = engine.next_send_time(w, contact)
+        if not t:
+            return "It'll go out once there's a send day and time set on the Rules page."
+        tz = w.tz_for(contact)
+        mine = t.astimezone(BRIS)
+        theirs = t.astimezone(tz)
+        who = (d.get("To Name") or "them").split()[0]
+        place = tz.key.split("/")[-1].replace("_", " ")
+        line = (f"Goes out around {mine.strftime('%a %-d %b, %-I:%M%p').replace('AM','am').replace('PM','pm')} your time "
+                f"({theirs.strftime('%a %-I:%M%p').replace('AM','am').replace('PM','pm')} for {who} in {place}).")
+        if w.s.get("Paused"):
+            line = "Sending is paused, so it's waiting. Once you press Start sending: " + line[0].lower() + line[1:]
+        return line
+    except Exception:
+        return "It'll go out in the next send window."
+
+
+@app.post("/approve/<rid>/remix")
+@login_required
+def remix(rid):
+    d = at.get("drafts", rid)["fields"]
+    instr = request.form.get("instruction", "").strip()
+    if not instr or d.get("Status") not in ("Pending Approval", "Approved"):
+        return redirect(url_for("approve"))
+    at.update("drafts", rid, {"Subject": request.form.get("subject", d.get("Subject", "")).strip(),
+                              "Body": request.form.get("body", d.get("Body", "")).strip(), "Remix Request": instr})
+    flash("Rewriting it now. The new version usually shows up here in about a minute.")
+    return redirect(url_for("approve") + f"#d-{rid}")
+
+
+@app.get("/approve/status")
+@login_required
+def approve_status():
+    return {"remixing": [d["id"] for d in at.list_records("drafts", "AND({Remix Request}!='', {Status}='Pending Approval')", fields=["Subject"])]}
+
+
+@app.get("/api/engine/remix")
+def engine_remix_list():
+    if not engine_auth():
+        return {"error": "unauthorised"}, 401
+    return engine.remix_queue()
+
+
+@app.post("/api/engine/remix")
+def engine_remix_apply():
+    if not engine_auth():
+        return {"error": "unauthorised"}, 401
+    return engine.remix_apply(request.get_json(force=True))
 
 
 # ---------- replies handed to her ----------

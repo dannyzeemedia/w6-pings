@@ -1,9 +1,20 @@
-{% extends "base.html" %}{% block title %}To approve{% endblock %}
+{% extends "base.html" %}{% block title %}To approve<script>
+(function(){
+  const waiting=[...document.querySelectorAll('form.remixing')].map(f=>f.id.slice(2));
+  if(!waiting.length) return;
+  const poll=()=>fetch("{{ url_for('approve_status') }}").then(r=>r.json()).then(j=>{
+    if(waiting.some(id=>!j.remixing.includes(id))) location.reload(); else setTimeout(poll,8000);
+  }).catch(()=>setTimeout(poll,15000));
+  setTimeout(poll,8000);
+})();
+</script>
+{% endblock %}
 {% block body %}
 <div class="head"><h1>To approve</h1><p>Change anything you like before you send. It saves exactly what you changed and learns from it, so the next drafts need fewer edits.</p></div>
 {% set KIND = {'Cold': 'New pitch', 'Follow-up': 'Follow-up', 'Gone-Contact Rescue': 'Finding the right person', 'Reply': 'Reply'} %}
 {% for d in drafts %}{% set f = d.fields %}
-<form class="card" method="post" action="{{ url_for('decide', rid=d.id) }}">
+<form class="card {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ d.id }}" method="post" action="{{ url_for('decide', rid=d.id) }}">
+  {% if f.get('Remix Request') %}<div class="remix-banner"><span class="spin"></span> Rewriting it: "{{ f['Remix Request'] }}"<br><span class="tiny">The new version will appear here by itself, usually within a minute or two.</span></div>{% endif %}
   <div class="draft-meta">
     <div><h3>{{ f.get('To Name') or f.get('To Email') }}</h3>
       <div class="muted tiny">{% for p in f.get('Partner', []) %}{{ names.get(p) }} · {% endfor %}{{ f.get('To Email') }}{% if f.get('Scheduled For') %} · goes {{ f['Scheduled For']|when }}{% endif %}</div></div>
@@ -18,6 +29,11 @@
   <div class="field"><label>Note for next time <span class="muted tiny">(optional)</span></label>
     <input type="text" name="feedback" placeholder="What should it do differently from now on?" value="{{ f.get('Karlie Feedback', '') }}">
     <div class="hint">This becomes a rule for every future email, not just this one. For example: "too long, keep cold emails under 80 words", "don't offer the digest to agencies", "always mention the NYC event to software companies", "never open with 'I hope you're well'".</div></div>
+  <details class="rewrite"{% if f.get('Remix Request') %} hidden{% endif %}><summary>✨ Rewrite it for me</summary>
+    <div class="field" style="margin-top:10px"><textarea name="instruction" style="min-height:80px" placeholder="e.g. change the offer: we've got 2 spots open next week and the week after, both for $2.7k (down from $4k)"></textarea>
+      <div class="hint">Tell it what to change, the way you'd tell a person. It rewrites this email in your voice and keeps everything else. This one's just for this email; use "Note for next time" for a rule.</div></div>
+    <button class="ghost" formaction="{{ url_for('remix', rid=d.id) }}" name="action" value="remix">Rewrite it</button>
+  </details>
   <div class="row">
     <button name="action" value="send">Looks good, send</button>
     <button name="action" value="save" class="ghost">Save edits</button>
@@ -27,4 +43,14 @@
 {% else %}
 <div class="card empty"><div class="display">All clear ✨</div><div class="muted">Nothing waiting for you right now.</div></div>
 {% endfor %}
+<script>
+(function(){
+  const waiting=[...document.querySelectorAll('form.remixing')].map(f=>f.id.slice(2));
+  if(!waiting.length) return;
+  const poll=()=>fetch("{{ url_for('approve_status') }}").then(r=>r.json()).then(j=>{
+    if(waiting.some(id=>!j.remixing.includes(id))) location.reload(); else setTimeout(poll,8000);
+  }).catch(()=>setTimeout(poll,15000));
+  setTimeout(poll,8000);
+})();
+</script>
 {% endblock %}
