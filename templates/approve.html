@@ -81,7 +81,7 @@ document.querySelectorAll('[data-send]').forEach(btn=>btn.addEventListener('clic
   const form=btn.closest('form'), wrap=form.parentElement;
   const data=new FormData(form); data.set('action','send');
   btn.disabled=true; btn.textContent='Approving…';
-  fetch(form.action,{method:'POST',body:data,headers:{'X-Fetch':'1'}}).then(r=>r.json()).then(j=>{
+  fetch(form.getAttribute('action'),{method:'POST',body:data,headers:{'X-Fetch':'1'}}).then(r=>r.json()).then(j=>{
     if(!j.ok) throw 0;
     wrap.style.height=wrap.offsetHeight+'px';
     requestAnimationFrame(()=>{ wrap.classList.add('folding'); wrap.style.height='64px'; });
@@ -98,7 +98,7 @@ document.querySelectorAll('[data-send]').forEach(btn=>btn.addEventListener('clic
     const last=j.left===0;
     toast(last?'✨':'🚀', last?'All clear!':'Off it goes!', j.eta+(last?'':' '+j.left+' more to look at.'));
     if(window.confetti && !matchMedia('(prefers-reduced-motion: reduce)').matches) confetti({particleCount:last?140:70,spread:last?100:70,startVelocity:32,origin:{y:.85},colors:COLORS,scalar:.9});
-  }).catch(()=>{ form.submit(); });
+  }).catch(()=>{ btn.disabled=false; btn.textContent='Looks good, send'; const h=document.createElement('input'); h.type='hidden'; h.name='action'; h.value='send'; form.appendChild(h); HTMLFormElement.prototype.submit.call(form); });
 }));
 
 // Rewriting: animated steps + a progress bar that eases toward done, then reload when the new version lands.

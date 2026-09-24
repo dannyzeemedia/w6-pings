@@ -236,7 +236,7 @@ def decide(rid):
     if d.get("Status") != "Pending Approval":
         flash("That email was already dealt with.")
         return redirect(url_for("approve"))
-    action = request.form["action"]
+    action = request.form.get("action", "save")
     subject, body = request.form.get("subject", "").strip(), request.form.get("body", "").strip()
     fields = {"Subject": subject, "Body": body, "Karlie Feedback": request.form.get("feedback", "").strip()}
     fields["Edited By Karlie"] = (body != (d.get("AI Original Body") or "").strip()
