@@ -2,6 +2,14 @@
 {% from "_brand.html" import chip, site %}
 {% block body %}
 <div class="head"><h1>To approve</h1><p>Change anything you like before you send. It saves exactly what you changed and learns from it, so the next drafts need fewer edits.</p></div>
+<div class="card ask-card">
+  <form method="post" action="{{ url_for('ask_ping') }}" class="say">
+    <input type="text" name="ask" placeholder="Ask for a ping… e.g. &quot;make a ping to Recharge&quot; or &quot;follow up with Omnisend about Q1&quot;" autocomplete="off" required>
+    <button>Ask</button>
+  </form>
+  {% if asks %}<div class="ask-wait"><span class="spin"></span> Writing {{ asks|length }} requested ping{{ 's' if asks|length > 1 }}: {% for a in asks %}"{{ a.split('] ',1)[-1] }}"{{ ', ' if not loop.last }}{% endfor %}. It'll appear here in a couple of minutes.</div>
+  <script>(function(){ const poll=()=>fetch("{{ url_for('approve_status') }}").then(r=>r.json()).then(j=>{ if(!j.asks){ window.Turbo?Turbo.visit(location.href,{action:'replace'}):location.reload(); } else setTimeout(poll,10000); }).catch(()=>setTimeout(poll,20000)); setTimeout(poll,10000); })();</script>{% endif %}
+</div>
 {% set KIND = {'Cold': 'New pitch', 'Follow-up': 'Follow-up', 'Gone-Contact Rescue': 'Finding the right person', 'Reply': 'Reply'} %}
 <div id="drafts">
 {% for d in drafts %}{% set f = d.fields %}

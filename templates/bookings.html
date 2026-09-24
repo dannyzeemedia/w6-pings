@@ -97,17 +97,17 @@
   <details class="manual"><summary>Or fill it in yourself</summary>
   <form method="post" action="{{ url_for('bookings_add') }}" class="bk-form" style="margin-top:12px">
     <input type="hidden" name="view" value="{{ view }}">
-    <label>Sponsor<input type="text" name="sponsor" list="bk-partners" required placeholder="e.g. Omnisend" autocomplete="off"></label>
-    <label>What<select name="kind" id="add-kind">{% for k, t in types.items() %}{% if k != '7fc' %}<option value="{{ k }}">{{ t.label }}</option>{% endif %}{% endfor %}</select></label>
-    <label>First date<input type="date" name="start" id="add-start" required value="{{ today.isoformat() }}"></label>
-    <label>How many<input type="number" name="count" id="add-count" min="1" max="120" value="1"></label>
-    <label>Repeats<select name="cadence" id="add-cadence">
+    <label class="f-sponsor">Sponsor<input type="text" name="sponsor" list="bk-partners" required placeholder="e.g. Omnisend" autocomplete="off"></label>
+    <label class="f-what">What<select name="kind" id="add-kind">{% for k, t in types.items() %}{% if k != '7fc' %}<option value="{{ k }}">{{ t.label }}</option>{% endif %}{% endfor %}</select></label>
+    <label class="f-date">First date<input type="date" name="start" id="add-start" required value="{{ today.isoformat() }}"></label>
+    <label class="f-count">How many<input type="number" name="count" id="add-count" min="1" max="120" value="1"></label>
+    <label class="f-rep">Repeats<select name="cadence" id="add-cadence">
       <option value="once">Just that date</option>
       <option value="sends">Next DTC News sends (Tue + Thu)</option>
       <option value="weekly">Weekly</option>
       <option value="daily">Every day (Welcome Flow)</option></select></label>
-    <label>Status<select name="state"><option value="pencilled">✏️ Pencilled in</option><option value="paid">🤑 Paid</option></select></label>
-    <button>Add to calendar</button>
+    <label class="f-state">Status<select name="state"><option value="pencilled">✏️ Pencilled in</option><option value="paid">🤑 Paid</option></select></label>
+    <button class="f-go">Add to calendar</button>
   </form>
   <div class="hint">A 3-Marquee package: pick the first date, "How many" = 3, "Repeats" = Next DTC News sends. A month of Welcome Flow: 30, every day. New sponsor? Just type their name.</div>
   </details>

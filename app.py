@@ -249,8 +249,9 @@ def planned(rid):
 def approve():
     drafts = pending_drafts()
     queued = at.list_records("drafts", "{Status}='Approved'", sort=[("Expected Send", "asc")])
+    asks = [l for l in (at.settings()["fields"].get("Ping Requests") or "").splitlines() if l.strip()]
     names = at.partner_names([p for d in drafts + queued for p in d["fields"].get("Partner", [])])
-    return render_template("approve.html", drafts=drafts, names=names, queued=queued, short_eta=lambda s: _short_eta(parse_ts(s)),
+    return render_template("approve.html", drafts=drafts, names=names, queued=queued, asks=asks, short_eta=lambda s: _short_eta(parse_ts(s)),
                            brands=brands_for(drafts + queued, "To Email"))
 
 
@@ -354,6 +355,19 @@ def more_pending(f):
     return bool(f.get("More Drafts Requested")) or bool(recent and (not last or last < started))
 
 
+@app.post("/ask")
+@login_required
+def ask_ping():
+    text = " ".join(request.form.get("ask", "").split())
+    if text:
+        s = at.settings()
+        cur = (s["fields"].get("Ping Requests") or "").strip()
+        line = f"[{dt.date.today().isoformat()} {session['user']}] {text}"
+        at.update("settings", s["id"], {"Ping Requests": (cur + "\n" + line).strip()})
+        flash("Got it. That ping will be written in the next couple of minutes and land here for you to approve.")
+    return redirect(url_for("approve"))
+
+
 @app.post("/more")
 @login_required
 def more_drafts():
@@ -369,6 +383,7 @@ def more_drafts():
 def approve_status():
     return {"remixing": [d["id"] for d in at.list_records("drafts", "AND({Remix Request}!='', {Status}='Pending Approval')", fields=["Subject"])],
             "more_pending": more_pending(at.settings()["fields"]),
+            "asks": bool((at.settings()["fields"].get("Ping Requests") or "").strip()),
             "pending": len(pending_drafts(fields=["Subject"]))}
 
 
@@ -474,8 +489,10 @@ def yours_reply(rid):
     link = {"Partner": e.get("Partner", []), "Sale": e.get("Sale", [])}
     if e.get("Contact"):
         link["Contact"] = e["Contact"]
+    sug = (e.get("Suggested Reply") or "").strip()
     draft = at.create("drafts", {"Subject": "Reply from Karlie", "Status": "Sent", "Kind": "Reply",
-                                 "To Email": to, "Body": text, "Written By Karlie": True,
+                                 "To Email": to, "Body": text, "Written By Karlie": not sug,
+                                 **({"AI Original Body": sug, "Edited By Karlie": text.strip() != sug} if sug else {}),
                                  "Gmail Thread ID": tid, "Sent At": t, "Decided At": t, **link})
     at.create("log", {"Summary": "Karlie replied from the dashboard", "Event": "Sent", "Direction": "Out",
                       "Email": to, "At": t, "Snippet": text[:500], "Gmail Message ID": mid,
@@ -737,7 +754,8 @@ def engine_context():
         return {"error": "unauthorised"}, 401
     mx = request.args.get("max_new", type=int)
     more = request.args.get("more", default=0, type=int)
-    return app.response_class(json.dumps(engine.context(max_new=mx, more=more), default=str), mimetype="application/json")
+    ro = request.args.get("requests") == "1"
+    return app.response_class(json.dumps(engine.context(max_new=mx, more=more, requests_only=ro), default=str), mimetype="application/json")
 
 
 @app.post("/api/engine/apply")

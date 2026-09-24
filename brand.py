@@ -31,14 +31,34 @@ def _attr(tag, name):
     return _html.unescape(m.group(1)) if m else None
 
 
+# Strong signs a sponsor's domain is no longer theirs. Deliberately narrow: this retires companies automatically.
+HIJACK = re.compile(r"\bcasino\b|\bbetting\b|\bgambl|\bpoker\b|slot\s*gacor|\btogel\b|\bjudi\b|\bporn|viagra|payday loan|"
+                    r"domain (?:name )?(?:is )?for sale|buy this domain|this domain (?:may be|is) for sale|parked (?:free|domain)|domain parking|"
+                    r"hugedomains|dan\.com|sedo\.com|afternic", re.I)
+
+
+def is_gone(domain):
+    """True only when the domain no longer exists at all (NXDOMAIN), not for a slow or erroring site."""
+    import socket
+    try:
+        socket.getaddrinfo(domain, 443)
+        return False
+    except socket.gaierror as ex:
+        return ex.errno in (socket.EAI_NONAME, getattr(socket, "EAI_NODATA", -5))
+    except Exception:
+        return False
+
+
 def lookup(domain):
-    """(logo_url, description) from the homepage. Prefers a real logo image, then a big icon; description from meta tags."""
+    """(logo_url, description, dead_reason) from the homepage. dead_reason is set when the site is hijacked, parked or gone."""
     try:
         r = requests.get(f"https://{domain}", headers=UA, timeout=8, allow_redirects=True)
         r.encoding = r.encoding if r.encoding and r.encoding.lower() not in ("iso-8859-1", "latin-1") else "utf-8"
         page, base = r.text[:400000], r.url
     except Exception:
-        return None, None
+        if is_gone(domain) and is_gone("www." + domain):
+            return None, "⚠️ Their website no longer exists. The company has likely closed.", f"{domain} no longer exists (no DNS record)"
+        return None, None, None
     logo = None
     if not logo:
         icons = []
@@ -58,11 +78,31 @@ def lookup(domain):
         if m and _attr(m.group(0), "content"):
             desc = re.sub(r"\s+", " ", _attr(m.group(0), "content")).strip()
             break
-    if desc and re.search(r"casino|betting|gambl|\bslots?\b|poker|porn|viagra|payday loan|domain (?:is )?for sale|buy this domain|parked", desc, re.I):
-        desc = "⚠️ Their website looks like it's been taken over or parked (it's showing unrelated content). The company may have closed or moved; check before emailing them."
+    title = re.search(r"<title[^>]*>(.*?)</title>", page, re.I | re.S)
+    probe = " ".join(filter(None, [desc, title and _html.unescape(title.group(1)), urlparse(base).netloc]))
+    dead = None
+    if HIJACK.search(probe):
+        dead = f"{domain} now shows unrelated content ({HIJACK.search(probe).group(0)})"
+        desc = "⚠️ Their website has been taken over or parked (it's showing unrelated content). Retired from outreach."
+        logo = None
     if desc and len(desc) > 220 and not desc.startswith("⚠️"):
         desc = desc[:217].rsplit(" ", 1)[0] + "…"
-    return logo, desc
+    return logo, desc, dead
+
+
+def retire_partner(pid, reason):
+    """Stop all outreach to a company whose website is gone or hijacked. Keeps their history; reversible via Stage."""
+    f = at.get("partners", pid)["fields"]
+    if f.get("Stage") == "Out of Service":
+        return False
+    note = f"🤖 {dt.date.today().isoformat()}: retired from outreach, {reason}."
+    at.update("partners", pid, {"Stage": "Out of Service", "Notes": ((f.get("Notes") or "").rstrip() + "\n\n" + note).strip()})
+    for c in at.list_records("contacts", f"FIND('{pid}', ARRAYJOIN({{Partner}}))", fields=["Status"]):
+        if c["fields"].get("Status") in (None, "Active"):
+            at.update("contacts", c["id"], {"Status": "Do Not Contact", "Dead Reason": note})
+    for d in at.list_records("drafts", f"AND(OR({{Status}}='Pending Approval', {{Status}}='Approved'), FIND('{pid}', ARRAYJOIN({{Partner}})))", fields=["Status"]):
+        at.update("drafts", d["id"], {"Status": "Cancelled", "Replan Note": "Their website is gone or hijacked, so the company was retired from outreach."})
+    return True
 
 
 def enrich_partner(pid):
@@ -76,8 +116,9 @@ def enrich_partner(pid):
         emails = re.findall(r"[\w.+-]+@([\w-]+\.[\w.-]+)", f.get("Contact") or "")
         dom = next((e.lower() for e in emails if e.lower() not in FREE), None)
     fields = {"🤖 Brand Checked": dt.date.today().isoformat()}
+    dead = None
     if dom:
-        logo, desc = lookup(dom)
+        logo, desc, dead = lookup(dom)
         if logo:
             fields["🤖 Logo URL"] = logo
         if desc:
@@ -85,6 +126,9 @@ def enrich_partner(pid):
         if not f.get("Website"):
             fields["Website"] = f"https://{dom}"
     at.update("partners", pid, fields)
+    if dead:
+        retire_partner(pid, dead)
+    return dead
 
 
 def for_partners(pids):

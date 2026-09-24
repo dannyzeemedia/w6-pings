@@ -397,3 +397,18 @@ a.brand-chip:hover { transform: scale(1.06); }
 .about .label { display: block; margin-bottom: 2px; }
 .sent-row { grid-template-columns: auto auto 1fr auto; }
 .bk-row strong.who-row { gap: 8px; }
+
+/* manual booking form: row 1 = who/what/status, row 2 = when/how many/repeats/add */
+.bk-form { grid-template-columns: repeat(12, 1fr); gap: 12px; }
+.bk-form .f-sponsor { grid-column: span 5; } .bk-form .f-what { grid-column: span 4; } .bk-form .f-state { grid-column: span 3; }
+.bk-form .f-date { grid-column: span 3; } .bk-form .f-count { grid-column: span 2; } .bk-form .f-rep { grid-column: span 4; }
+.bk-form .f-go { grid-column: span 3; justify-self: stretch; padding: 0 12px; }
+.bk-form select, .bk-form input { min-width: 0; }
+@media (max-width: 700px) { .bk-form .f-sponsor, .bk-form .f-what, .bk-form .f-state, .bk-form .f-rep, .bk-form .f-go { grid-column: span 12; } .bk-form .f-date { grid-column: span 7; } .bk-form .f-count { grid-column: span 5; } }
+/* page-load bar in W6 colours */
+html .turbo-progress-bar { height: 3px; background: linear-gradient(90deg, #265c51, #bee1de) !important; }
+.msg .text.long { max-height: 320px; overflow: hidden; -webkit-mask-image: linear-gradient(#000 80%, transparent); mask-image: linear-gradient(#000 80%, transparent); }
+.msg .text.long.open { max-height: none; -webkit-mask-image: none; mask-image: none; }
+.more-txt { margin-top: 6px; }
+
+.ask-card { padding: 16px; } .ask-wait { margin-top: 10px; font-size: 14px; color: var(--green); }

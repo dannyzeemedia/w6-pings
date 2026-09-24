@@ -17,10 +17,13 @@
       {% if th.earlier %}<div class="muted tiny" style="margin-bottom:10px">{{ th.earlier }} earlier message{{ 's' if th.earlier > 1 }} in Gmail</div>{% endif %}
       {% for m in th.msgs %}<div class="msg {{ 'me' if m.is_me else 'them' }}">
         <div class="who">{{ 'You' if m.is_me else m['from'].split('<')[0].strip(' "') }} · {{ m.ts|mswhen }}</div>
-        <div class="text">{{ m.body[:1500] }}</div></div>{% endfor %}
+        <div class="text {{ 'long' if m.body|length > 900 }}">{{ m.body }}</div>{% if m.body|length > 900 %}<button type="button" class="ghost small more-txt" onclick="this.previousElementSibling.classList.toggle('open');this.textContent=this.textContent=='Show all'?'Show less':'Show all'">Show all</button>{% endif %}</div>{% endfor %}
     </div>
     <form method="post" action="{{ url_for('yours_reply', rid=e.id) }}">
-      <div class="field"><label>Your reply</label><textarea class="grow" name="body" placeholder="Write it like you normally would. It goes from your inbox, in this same thread." style="min-height:120px"></textarea></div>
+      <div class="field"><label>{{ 'Suggested reply' if f.get('Suggested Reply') else 'Your reply' }} {% if f.get('Suggested Reply') %}<span class="muted tiny">(written in your voice, change anything)</span>{% endif %}</label>
+        <textarea class="grow" name="body" placeholder="{{ 'Write it like you normally would. It goes from your inbox, in this same thread.' if not f.get('Suggested Reply') else '' }}" style="min-height:120px">{{ f.get('Suggested Reply', '') }}</textarea>
+        {% if not f.get('Suggested Reply') %}<div class="hint"><span class="spin"></span> A suggested reply is being written. It usually appears within a few minutes.</div>
+        {% elif '[' in f.get('Suggested Reply') %}<div class="hint">Fill in the [bracketed] bits before you send. It left those because it doesn't know the answer.</div>{% endif %}</div>
       <div class="row">
         <button>Send reply</button>
   {% elif f.get('Snippet') %}

@@ -116,6 +116,9 @@ class World:
         """Why the system must not email this company right now, or None."""
         if not pid:
             return None
+        stage = self.partners.get(pid, {}).get("fields", {}).get("Stage")
+        if stage in ("Out of Service", "Not Interested"):
+            return f"Partner is marked {stage}"
         names = {self.partners[pid]["fields"].get("Name", "").strip().lower()} if pid in self.partners else set()
         for h in self.handsoff:
             f = h["fields"]
@@ -453,20 +456,27 @@ def next_send_time(w, contact, not_before=None):
 
 
 def summaries_queue():
-    """New 'Your turn' replies still showing the placeholder summary, with their threads."""
-    out = []
-    for h in at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}), FIND('Summary coming shortly', {Summary}))",
-                             fields=["Email", "Gmail Thread ID", "At"], max_records=10):
+    """Open 'Your turn' replies that still need a summary or a suggested reply, with everything needed to write one."""
+    out, w = [], None
+    for h in at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}), OR(FIND('Summary coming shortly', {Summary}), {Suggested Reply}=''))",
+                             fields=["Email", "Gmail Thread ID", "At", "Partner", "Summary"], max_records=8):
         f = h["fields"]
-        if not f.get("Gmail Thread ID") or now() - pts(f["At"]) < dt.timedelta(minutes=3):
+        if not f.get("Gmail Thread ID") or now() - pts(f["At"]) < dt.timedelta(minutes=2):
             continue
         try:
-            thread = [{"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:2500]} for x in gmail.thread(f["Gmail Thread ID"])[-6:]]
+            thread = [{"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:8000]} for x in gmail.thread(f["Gmail Thread ID"])[-8:]]
         except Exception:
             continue
+        w = w or World()
+        pid = (f.get("Partner") or [None])[0]
         rep = at.list_records("log", f"AND({{Gmail Thread ID}}='{f['Gmail Thread ID']}', {{Event}}='Replied', NOT({{Reviewed}}))", fields=["Event"], max_records=1)
-        out.append({"handoff_log_id": h["id"], "log_id": rep[0]["id"] if rep else h["id"], "email": f.get("Email"), "thread": thread})
-    return {"items": out}
+        out.append({"handoff_log_id": h["id"], "log_id": rep[0]["id"] if rep else h["id"], "email": f.get("Email"),
+                    "needs_summary": "Summary coming shortly" in (f.get("Summary") or ""), "thread": thread,
+                    "company": company_history(w, pid, max_threads=3) if pid else None})
+    if not out:
+        return {"items": []}
+    lessons = [l["fields"].get("Lesson") for l in at.list_records("lessons", "{Active}", fields=["Lesson"])]
+    return {"items": out, "voice": (w or World()).s.get("Karlie's Voice"), "lessons": lessons, "calendar": _calendar()}
 
 
 # ---------------------------------------------------------------- on-the-fly rewrites
@@ -480,10 +490,12 @@ def remix_queue():
                     "subject": f.get("Subject"), "body": f.get("Body"), "brief": f.get("Brief"), "why": f.get("Why This Email"),
                     "thread_id": f.get("Gmail Thread ID")})
     if not out:
-        return {"items": [], "more_requested": int(w.s.get("More Drafts Requested") or 0)}
+        return {"items": [], "more_requested": int(w.s.get("More Drafts Requested") or 0),
+                "ping_requests": bool((w.s.get("Ping Requests") or "").strip())}
     lessons = [l["fields"].get("Lesson") for l in at.list_records("lessons", "{Active}", fields=["Lesson"])]
     return {"items": out, "voice": w.s.get("Karlie's Voice"), "lessons": lessons,
-            "more_requested": int(w.s.get("More Drafts Requested") or 0)}
+            "more_requested": int(w.s.get("More Drafts Requested") or 0),
+            "ping_requests": bool((w.s.get("Ping Requests") or "").strip())}
 
 
 def remix_apply(item):
@@ -642,7 +654,7 @@ def company_history(w, pid, max_threads=8):
             msgs = gmail.thread(m["thread_id"])
             threads.append({"thread_id": m["thread_id"], "subject": msgs[0]["subject"], "messages": [
                 {"from": "Karlie" if x["is_me"] else x["from"], "date": dt.datetime.fromtimestamp(x["ts"] / 1000, dt.timezone.utc).strftime("%Y-%m-%d"),
-                 "text": x["body"][:1800]} for x in msgs[-6:]], "earlier_messages": max(0, len(msgs) - 6)})
+                 "text": x["body"][:5000]} for x in msgs[-6:]], "earlier_messages": max(0, len(msgs) - 6)})
     sales = [{"opportunity": s["fields"].get("Opportunity"), "status": s["fields"].get("Status"), "value": s["fields"].get("Value"),
               "created": s["fields"].get("Created"), "pings": s["fields"].get("Ping")} for s in w.partner_sales(pid)]
     pings = [{"at": r["fields"].get("At"), "event": r["fields"].get("Event"), "by": r["fields"].get("By"), "summary": r["fields"].get("Summary")}
@@ -654,7 +666,7 @@ def company_history(w, pid, max_threads=8):
             "notes": (p.get("Notes") or "")[:2000], "sales": sales, "people": people, "ping_log": pings, "email_threads": threads}
 
 
-def context(max_new=None, more=0):
+def context(max_new=None, more=0, requests_only=False):
     """Everything the brain needs for one run, as JSON."""
     w = World()
     s = w.s
@@ -670,7 +682,7 @@ def context(max_new=None, more=0):
         thread = []
         if tid:
             try:
-                thread = [{"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:2000]} for x in gmail.thread(tid)[-6:]]
+                thread = [{"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:8000]} for x in gmail.thread(tid)[-6:]]
             except Exception:
                 pass
         handoff = at.list_records("log", f"AND({{Gmail Thread ID}}='{tid}', {{Event}}='Handed To Karlie', NOT({{Handled}}))", fields=["Summary"], max_records=1) if tid else []
@@ -687,6 +699,20 @@ def context(max_new=None, more=0):
                         "final_subject": f.get("Subject"), "final_body": f.get("Body"), "her_note": f.get("Karlie Feedback")})
     # capacity
     queued = len(at.list_records("drafts", "AND(OR({Status}='Pending Approval', {Status}='Approved'), OR({Scheduled For}='', IS_BEFORE({Scheduled For}, DATEADD(NOW(), 2, 'days'))))", fields=["Status"]))
+    # explicit asks from the dashboard ("make a ping to Recharge"): always written, ahead of everything else
+    asks = []
+    if (s.get("Ping Requests") or "").strip():
+        import bookings
+        partners = [(pid, p["fields"].get("Name", "").strip()) for pid, p in w.partners.items() if p["fields"].get("Name")]
+        for line in [l.strip() for l in s["Ping Requests"].splitlines() if l.strip()]:
+            text = re.sub(r"^\[[^\]]*\]\s*", "", line)
+            low = text.lower()
+            hits = sorted([(len(n), pid, n) for pid, n in partners if len(n) > 2 and re.search(r"\b" + re.escape(n.lower()) + r"\b", low)], reverse=True)
+            pid = hits[0][1] if hits else None
+            asks.append({"instruction": text, "partner_id": pid, "matched_name": hits[0][2] if hits else None,
+                         "company": company_history(w, pid) if pid else None,
+                         "blocked": w.blocked(pid) if pid else None})
+        at.update("settings", w.settings_rec["id"], {"Ping Requests": ""})
     goal = s.get("Daily Ping Limit") or 0
     room = max(0, 2 * goal - queued)  # keep twice the day's goal waiting, so she can overachieve
     if more:  # "Create N more" button: write N regardless of what's already waiting
@@ -696,6 +722,8 @@ def context(max_new=None, more=0):
     room -= len(followups)
     rescues = rescue_targets(w)[:max(0, min(room, 3))]
     room -= len(rescues)
+    if requests_only:
+        followups, rescues, room = [], [], 0
     cold = pick_prospects(w, room if max_new is None else min(room, max_new))
     work = []
     for x in followups:
@@ -721,7 +749,7 @@ def context(max_new=None, more=0):
     weekly = not s.get("Voice Updated At") or now() - pts(s["Voice Updated At"]) > dt.timedelta(days=7)
     return {"now": iso(now()), "settings": {k: v for k, v in s.items() if k not in ("Karlie's Voice", "Gmail History ID")},
             "voice": s.get("Karlie's Voice"), "lessons": lessons, "events_to_review": events, "decisions_to_learn": decided,
-            "work": work, "voice_rewrite_due": weekly, "calendar": _calendar(),
+            "work": work, "requests": asks, "voice_rewrite_due": weekly and not requests_only, "calendar": _calendar(),
             "results": results_summary() if weekly else None,
             "pending_voice_notes": [{"id": l["id"], "note": l["fields"].get("Lesson")} for l in
                                     at.list_records("lessons", "AND({Active}, NOT({Folded Into Voice}))")]}
@@ -768,8 +796,13 @@ def apply(payload):
         if e.get("summary"):
             f["Summary"] = e["summary"][:250]
         at.update("log", e["log_id"], f)
-        if e.get("handoff_log_id") and e.get("summary"):
-            at.update("log", e["handoff_log_id"], {"Summary": e["summary"][:250], "Reviewed": True})
+        if e.get("handoff_log_id") and (e.get("summary") or e.get("suggested_reply")):
+            hf = {"Reviewed": True}
+            if e.get("summary"):
+                hf["Summary"] = e["summary"][:250]
+            if e.get("suggested_reply"):
+                hf["Suggested Reply"] = _txt(e["suggested_reply"], False)[:8000]
+            at.update("log", e["handoff_log_id"], hf)
         if e.get("contact_time_zone") and e.get("contact_id"):
             at.update("contacts", e["contact_id"], {"Time Zone": e["contact_time_zone"]})
         done["events"] += 1
