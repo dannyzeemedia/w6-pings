@@ -1,4 +1,5 @@
 {% extends "base.html" %}{% block title %}Bookings{% endblock %}
+{% from "_brand.html" import chip %}
 {% block body %}
 <div class="head bk-head">
   <div><h1>Bookings</h1><p>Every sponsor placement across DTC News and W6, booked or pencilled in.</p></div>
@@ -72,7 +73,7 @@
     <button type="button" class="bk-row" data-kind="{{ b.kind }}" onclick="openEdit('{{ b.id }}','{{ b.sponsor|e }}','{{ types[b.kind].label }}','{{ b.date.isoformat() }}','{{ b.state }}')">
       <span class="bk-date">{{ b.date.strftime('%a %-d %b') }}</span>
       <span class="tagk k-{{ b.kind }}"><i class="sw k-{{ b.kind }}"></i>{{ types[b.kind].label }}</span>
-      <strong>{{ b.sponsor }}</strong>
+      <strong class="who-row">{{ chip(bbrands.get(b.partner), b.sponsor, 24) }}{{ b.sponsor }}</strong>
       <span class="muted tiny">{{ b.seq }}</span>
       <span class="bk-state">{{ '🤑 Paid' if b.state=='paid' else ('Swap' if b.state=='swap' else '✏️ Pencilled in') }}</span>
     </button>

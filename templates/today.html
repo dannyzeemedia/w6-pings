@@ -1,4 +1,5 @@
 {% extends "base.html" %}{% block title %}Today{% endblock %}
+{% from "_brand.html" import chip %}
 {% block body %}
 <div class="head"><h1>Hey Karlie <span id="hi-emoji" class="hi-emoji">✨</span></h1><p><span id="hi-compliment"></span> Here's where your pings are at today.</p></div>
 
@@ -44,11 +45,11 @@
   <p class="muted tiny" style="margin:4px 0 8px">Pings planned for later, like when someone said "try me next quarter". Each one lands in To approve two days before it's due. If they get in touch first, it changes the plan instead of sending.</p>
   {% for d in upcoming %}{% set f = d.fields %}
   <div class="plan">
-    <div>
+    <div class="who-row">{{ chip(brands.get(d.id), f.get('To Email'), 32) }}<div>
       <strong>{% for p in f.get('Partner', []) %}{{ names.get(p) }}{% endfor %}{% if not f.get('Partner') %}{{ f.get('To Name') or f.get('To Email') }}{% endif %}</strong>
       <span class="muted"> · {{ f.get('Scheduled For')|when }}</span>
       {% if f.get('They Asked For') %}<div class="muted tiny">They said: "{{ f['They Asked For'] }}"</div>{% elif f.get('Why This Email') %}<div class="muted tiny">{{ f['Why This Email'] }}</div>{% endif %}
-    </div>
+    </div></div>
     <form method="post" action="{{ url_for('planned', rid=d.id) }}">
       <input type="date" name="date" value="{{ f.get('Scheduled For')|datevalue }}" aria-label="Move to">
       <button class="ghost small" name="action" value="move">Move</button>

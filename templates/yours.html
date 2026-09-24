@@ -1,14 +1,17 @@
 {% extends "base.html" %}{% block title %}Your turn{% endblock %}
+{% from "_brand.html" import chip, site %}
 {% block body %}
 <div class="head"><h1>Your turn</h1><p>These people replied with something real. Reply here or in Gmail. "I've got it from here" keeps the system away from them, even if you move to WhatsApp.</p></div>
 {% for e in events %}{% set f = e.fields %}{% set th = threads.get(f.get('Gmail Thread ID')) %}
 <div class="card">
   <div class="draft-meta">
-    <div><h3>{% for p in f.get('Partner', []) %}{{ names.get(p) }}{% endfor %}{% if not f.get('Partner') %}{{ f.get('Email') }}{% endif %}</h3>
-      <div class="muted tiny">{{ f.get('Email') }} · {{ f.get('At')|when }}</div></div>
+    <div class="who-row">{{ chip(brands.get(e.id), names.get((f.get('Partner') or [''])[0]) or f.get('Email')) }}
+      <div><h3>{% for p in f.get('Partner', []) %}{{ names.get(p) }}{% endfor %}{% if not f.get('Partner') %}{{ f.get('Email') }}{% endif %}</h3>
+      <div class="muted tiny">{{ f.get('Email') }} · {{ f.get('At')|when }} {{ site(brands.get(e.id)) }}</div></div></div>
     {% if th and th.link %}<a class="btn ghost small" target="_blank" rel="noopener" href="{{ th.link }}">Open in Gmail ↗</a>{% endif %}
   </div>
   {% if f.get('Summary') %}<p style="margin-top:0"><strong>What they want:</strong> {{ f['Summary'] }}</p>{% endif %}
+  {% set bd = brands.get(e.id) %}{% if bd and bd.desc %}<details class="brief"><summary>What they do</summary><div class="about"><div>{{ bd.desc }}</div></div></details>{% endif %}
   {% if th %}
     <div class="thread">
       {% if th.earlier %}<div class="muted tiny" style="margin-bottom:10px">{{ th.earlier }} earlier message{{ 's' if th.earlier > 1 }} in Gmail</div>{% endif %}

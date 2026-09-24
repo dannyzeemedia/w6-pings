@@ -9,6 +9,7 @@ import airtable as at
 import gmail
 import engine
 import bookings as bk
+import brand
 from ops_log import OpsLog
 
 app = Flask(__name__)
@@ -117,6 +118,22 @@ def once(key, ids):
     return new
 
 
+def brands_for(records, email_field):
+    """{record id: brand dict} for drafts/log rows: their Partner's logo + blurb, else the email domain's icon."""
+    pids = [p for r in records for p in r["fields"].get("Partner", [])[:1]]
+    by_p = brand.for_partners(pids)
+    out = {}
+    for r in records:
+        f = r["fields"]
+        pid = (f.get("Partner") or [None])[0]
+        b = by_p.get(pid)
+        if not b:
+            dom = brand.domain_from(email=f.get(email_field))
+            b = {"name": None, "logo": brand.favicon(dom), "desc": None, "website": f"https://{dom}" if dom else None, "domain": dom}
+        out[r["id"]] = b
+    return out
+
+
 def pending_drafts(fields=None):
     horizon = iso((now_utc() + dt.timedelta(days=APPROVE_AHEAD_DAYS)).replace(minute=0, second=0, microsecond=0))
     return at.list_records(
@@ -168,7 +185,7 @@ def today():
     if session.get("user") == "karlie" or request.args.get("party"):
         _today_parties(f, sent_today, yours, tz)
     return render_template("today.html", s=f, sent_today=sent_today, n_yours=len(yours),
-                           upcoming=upcoming, names=names, handsoff=handsoff, partners=at.all_partners())
+                           upcoming=upcoming, names=names, brands=brands_for(upcoming, "To Email"), handsoff=handsoff, partners=at.all_partners())
 
 
 def _today_parties(f, sent_today, yours, tz):
@@ -233,7 +250,8 @@ def approve():
     drafts = pending_drafts()
     queued = at.list_records("drafts", "{Status}='Approved'", sort=[("Expected Send", "asc")])
     names = at.partner_names([p for d in drafts + queued for p in d["fields"].get("Partner", [])])
-    return render_template("approve.html", drafts=drafts, names=names, queued=queued, short_eta=lambda s: _short_eta(parse_ts(s)))
+    return render_template("approve.html", drafts=drafts, names=names, queued=queued, short_eta=lambda s: _short_eta(parse_ts(s)),
+                           brands=brands_for(drafts + queued, "To Email"))
 
 
 @app.post("/approve/<rid>")
@@ -391,7 +409,7 @@ def yours():
                                 "link": gmail.open_link(msgs[-1]["msgid"]) if msgs[-1]["msgid"] else None}
             except Exception:
                 threads[tid] = None
-    return render_template("yours.html", events=ev, names=names, threads=threads)
+    return render_template("yours.html", events=ev, names=names, threads=threads, brands=brands_for(ev, "Email"))
 
 
 @app.post("/yours/<rid>/done")
@@ -577,7 +595,8 @@ def bookings_page():
     for b in upcoming:
         wk = b["date"] - dt.timedelta(days=b["date"].weekday())
         groups.setdefault(wk, []).append(b)
-    return render_template("bookings.html", view=view, month=month, prev=prev, nxt=nxt, weeks=weeks, groups=sorted(groups.items()),
+    bbrands = brand.for_partners([b["partner"] for b in upcoming])
+    return render_template("bookings.html", view=view, month=month, prev=prev, nxt=nxt, weeks=weeks, groups=sorted(groups.items()), bbrands=bbrands,
                            types=bk.TYPES, partners=at.all_partners(), today=today,
                            n_pencilled=sum(1 for b in upcoming if b["state"] == "pencilled"), n_paid=sum(1 for b in upcoming if b["state"] == "paid"),
                            counts={k: sum(1 for b in upcoming if b["kind"] == k) for k in bk.TYPES})
@@ -736,6 +755,21 @@ def healthz():
     return "ok"
 
 
+def _enrich_brands(limit=4):
+    """Fetch logos + 'what they do' for brands on screen that haven't been looked up yet (a few per cycle)."""
+    recs = pending_drafts(fields=["Partner"]) + at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}))", fields=["Partner"])
+    pids = list(dict.fromkeys(p for r in recs for p in r["fields"].get("Partner", [])[:1]))
+    if not pids:
+        return
+    formula = "OR(" + ",".join(f"RECORD_ID()='{i}'" for i in pids[:90]) + ")"
+    todo = [r["id"] for r in at.list_records("partners", formula, fields=["🤖 Brand Checked"]) if not r["fields"].get("🤖 Brand Checked")]
+    for pid in todo[:limit]:
+        try:
+            brand.enrich_partner(pid)
+        except Exception:
+            pass
+
+
 def _keep_warm():
     """Re-render every page in the background so the Airtable cache is always fresh and tab switches are instant."""
     import threading, time as _t
@@ -749,6 +783,7 @@ def _keep_warm():
                     sess["user"] = "warm"
                 for path in ("/", "/approve", "/yours", "/bookings", "/bookings?view=list", "/rules", "/results"):
                     c.get(path)
+                _enrich_brands()
             except Exception:
                 pass
             _t.sleep(30)

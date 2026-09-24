@@ -1,4 +1,5 @@
 {% extends "base.html" %}{% block title %}To approve{% endblock %}
+{% from "_brand.html" import chip, site %}
 {% block body %}
 <div class="head"><h1>To approve</h1><p>Change anything you like before you send. It saves exactly what you changed and learns from it, so the next drafts need fewer edits.</p></div>
 {% set KIND = {'Cold': 'New pitch', 'Follow-up': 'Follow-up', 'Gone-Contact Rescue': 'Finding the right person', 'Reply': 'Reply'} %}
@@ -7,13 +8,18 @@
 <div class="draft-wrap" id="w-{{ d.id }}">
 <form class="card draft {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ d.id }}" method="post" action="{{ url_for('decide', rid=d.id) }}">
   <div class="draft-meta">
-    <div><h3>{{ f.get('To Name') or f.get('To Email') }}</h3>
-      <div class="muted tiny">{% for p in f.get('Partner', []) %}{{ names.get(p) }} · {% endfor %}{{ f.get('To Email') }}{% if f.get('Scheduled For') %} · goes {{ f['Scheduled For']|when }}{% endif %}</div></div>
+    <div class="who-row">{{ chip(brands.get(d.id), names.get((f.get('Partner') or [''])[0]) or f.get('To Email')) }}
+      <div><h3>{{ f.get('To Name') or f.get('To Email') }}</h3>
+      <div class="muted tiny">{% for p in f.get('Partner', []) %}{{ names.get(p) }} · {% endfor %}{{ f.get('To Email') }}{% if f.get('Scheduled For') %} · goes {{ f['Scheduled For']|when }}{% endif %} {{ site(brands.get(d.id)) }}</div></div></div>
     <div><span class="tag {{ 'green' if f.get('Kind')=='Cold' }}">{{ KIND.get(f.get('Kind'), f.get('Kind') or 'Email') }}</span></div>
   </div>
   {% if f.get('They Asked For') %}<div class="why"><strong>They asked for this:</strong> "{{ f['They Asked For'] }}"</div>{% endif %}
   {% if f.get('Why This Email') %}<div class="why"><strong>Why this one:</strong> {{ f['Why This Email'] }}</div>{% endif %}
-  {% if f.get('Brief') %}<details class="brief"><summary>What you know about them</summary><pre>{{ f['Brief'] }}</pre></details>{% endif %}
+  {% set bd = brands.get(d.id) %}
+  {% if f.get('Brief') or (bd and bd.desc) %}<details class="brief"><summary>What you know about them</summary>
+    {% if bd and bd.desc %}<div class="about"><span class="label">What they do</span><div>{{ bd.desc }}</div></div>{% endif %}
+    {% if f.get('Brief') %}<div class="label" style="margin-top:10px">You and them</div><pre>{{ f['Brief'] }}</pre>{% endif %}
+  </details>{% endif %}
   <div class="email-zone">
     <div class="field"><label>Subject</label><input type="text" name="subject" value="{{ f.get('Subject', '') }}"></div>
     <div class="field"><label>Email</label><textarea class="grow" name="body">{{ f.get('Body', '') }}</textarea></div>
@@ -54,7 +60,7 @@
   <div id="queued">
   {% for d in queued %}{% set f = d.fields %}
     <div class="sent-row">
-      <span class="tick">✓</span>
+      <span class="tick">✓</span>{{ chip(brands.get(d.id), f.get('To Email'), 28) }}
       <div class="sent-main"><strong>{{ f.get('Subject') or ('Follow-up to ' ~ (f.get('To Name') or f.get('To Email'))) }}</strong>
         <span class="muted tiny">{{ f.get('To Name') or f.get('To Email') }} · {{ short_eta(f.get('Expected Send')) }}</span></div>
       <form method="post" action="{{ url_for('approve_undo', rid=d.id) }}"><button class="ghost small">Undo</button></form>

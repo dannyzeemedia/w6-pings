@@ -1,0 +1,9 @@
+{% macro chip(b, name='', size=40) -%}
+{%- set nm = (b.name if b else '') or name or '?' -%}
+{%- if b and b.website -%}<a class="brand-chip" href="{{ b.website }}" target="_blank" rel="noopener" title="{{ nm }} · open their website" style="--s:{{ size }}px">
+{%- else -%}<span class="brand-chip" style="--s:{{ size }}px">{%- endif -%}
+{%- if b and b.logo -%}<img src="{{ b.logo }}" alt="{{ nm }} logo" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<b>{{ nm[:1]|upper }}</b>'">
+{%- else -%}<b>{{ nm[:1]|upper }}</b>{%- endif -%}
+{%- if b and b.website -%}</a>{%- else -%}</span>{%- endif -%}
+{%- endmacro %}
+{% macro site(b) -%}{% if b and b.website %}<a class="brand-site" href="{{ b.website }}" target="_blank" rel="noopener">{{ b.domain or b.website }} ↗</a>{% endif %}{%- endmacro %}
