@@ -226,7 +226,22 @@ def _date_range(t, today):
             found.append((m.start(), m.end(), int(d), mon, yr))
     found.sort()
     if not found:
-        return None
+        # bare days: "from the 26th to the 30th", "26-30", optionally "of next month"
+        m = re.search(r"(?:from\s+|between\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s*(?:to|until|till|through|thru|and|-|–)\s*(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\b(?:\s+of\s+(this|next)\s+month)?", t, re.I)
+        if not m or not re.search(r"(st|nd|rd|th|from|between|the)", m.group(0), re.I):
+            return None
+        d1, d2, which = int(m.group(1)), int(m.group(2)), (m.group(3) or "").lower()
+        y, mo = today.year, today.month
+        if which == "next" or (not which and d1 < today.day - 7):
+            y, mo = (y + 1, 1) if mo == 12 else (y, mo + 1)
+        last = calendar.monthrange(y, mo)[1]
+        start = dt.date(y, mo, min(d1, last))
+        if d2 >= d1:
+            end = dt.date(y, mo, min(d2, last))
+        else:
+            ny, nm = (y + 1, 1) if mo == 12 else (y, mo + 1)
+            end = dt.date(ny, nm, min(d2, calendar.monthrange(ny, nm)[1]))
+        return start, end
     _, e1, d1, mon1, yr1 = found[0]
     mnum = lambda mon: [x.lower()[:3] for x in calendar.month_abbr[1:]].index(mon.lower()[:3]) + 1
     y = int(yr1) if yr1 else today.year
@@ -287,7 +302,15 @@ def parse_request(text, partners, today=None):
         start = today if kind == "welcome" else next(today + dt.timedelta(days=i) for i in range(1, 8) if (today + dt.timedelta(days=i)).weekday() in MARQUEE_DAYS)
     sends_kind = kind in ("marquee", "shoutout", "takeover")
     dates = []
-    if unit and unit.startswith(("week", "month")):
+    rng = _date_range(t, today) if re.search(r"\b(to|until|till|through|thru|between)\b|\d\s*[-–]\s*\d", low) else None
+    if rng:
+        start, end = rng
+        d = start
+        while d <= end:
+            if kind == "welcome" or d == start or (sends_kind and d.weekday() in MARQUEE_DAYS) or (kind == "groupbuy" and (d - start).days % 7 == 0):
+                dates.append(d)
+            d += dt.timedelta(days=1)
+    elif unit and unit.startswith(("week", "month")):
         span = dt.timedelta(days=7 * count) if unit.startswith("week") else dt.timedelta(days=30 * count)
         end = start + span - dt.timedelta(days=1)
         if kind == "welcome":
