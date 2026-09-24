@@ -1,4 +1,21 @@
-{% extends "base.html" %}{% block title %}Your turn{% endblock %}
+{% extends "base.html" %}{% block title %}Your turn<script>
+(function(){
+  window.markRemix=function(id){ try{ localStorage.setItem('remix-'+id, Date.now()); }catch(e){} };
+  const overlays=[...document.querySelectorAll('.remix-overlay')];
+  if(!overlays.length) return;
+  const STEPS=[[0,'Reading your instruction…'],[5,'Rewriting it in your voice…'],[16,'Running the human-sounding check…'],[26,'Polishing the last bits…'],[45,'Nearly there…']];
+  overlays.forEach(o=>{ const id=o.dataset.id; let start=Date.now();
+    try{ start=+localStorage.getItem('remix-'+id)||start; }catch(e){}
+    const tick=()=>{ const s=(Date.now()-start)/1000; const b=document.getElementById('bar-'+id); if(!b) return;
+      b.style.width=(95*(1-Math.exp(-s/22))).toFixed(1)+'%'; document.getElementById('step-'+id).textContent=STEPS.filter(x=>s>=x[0]).pop()[1]; requestAnimationFrame(tick); }; tick(); });
+  const waiting=overlays.map(o=>o.dataset.id);
+  const poll=()=>fetch("{{ url_for('approve_status') }}").then(r=>r.json()).then(j=>{
+    if(waiting.some(id=>!(j.remixing_replies||[]).includes(id))){ window.Turbo?Turbo.visit(location.href,{action:'replace'}):location.reload(); } else setTimeout(poll,4000);
+  }).catch(()=>setTimeout(poll,8000));
+  setTimeout(poll,4000);
+})();
+</script>
+{% endblock %}
 {% from "_brand.html" import chip, site %}
 {% block body %}
 <div class="head"><h1>Your turn</h1><p>These people replied with something real. Reply here or in Gmail. "I've got it from here" keeps the system away from them, even if you move to WhatsApp.</p></div>
@@ -17,15 +34,33 @@
       {% if th.earlier %}<div class="muted tiny" style="margin-bottom:10px">{{ th.earlier }} earlier message{{ 's' if th.earlier > 1 }} in Gmail</div>{% endif %}
       {% for m in th.msgs %}<div class="msg {{ 'me' if m.is_me else 'them' }}">
         <div class="who">{{ 'You' if m.is_me else m['from'].split('<')[0].strip(' "') }} · {{ m.ts|mswhen }}</div>
-        <div class="text {{ 'long' if m.body|length > 900 }}">{{ m.body }}</div>{% if m.body|length > 900 %}<button type="button" class="ghost small more-txt" onclick="this.previousElementSibling.classList.toggle('open');this.textContent=this.textContent=='Show all'?'Show less':'Show all'">Show all</button>{% endif %}</div>{% endfor %}
+        <div class="text">{{ m.body }}</div></div>{% endfor %}
     </div>
-    <form method="post" action="{{ url_for('yours_reply', rid=e.id) }}">
-      <div class="field"><label>{{ 'Suggested reply' if f.get('Suggested Reply') else 'Your reply' }} {% if f.get('Suggested Reply') %}<span class="muted tiny">(written in your voice, change anything)</span>{% endif %}</label>
-        <textarea class="grow" name="body" placeholder="{{ 'Write it like you normally would. It goes from your inbox, in this same thread.' if not f.get('Suggested Reply') else '' }}" style="min-height:120px">{{ f.get('Suggested Reply', '') }}</textarea>
-        {% if not f.get('Suggested Reply') %}<div class="hint"><span class="spin"></span> A suggested reply is being written. It usually appears within a few minutes.</div>
-        {% else %}<div class="hint">It suggests real options using your prices and how you usually discount. Tweak anything before you send.</div>{% endif %}</div>
+    <form method="post" action="{{ url_for('yours_reply', rid=e.id) }}" class="draft {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ e.id }}">
+      <div class="email-zone">
+        <div class="field"><label>{{ 'Suggested reply' if f.get('Suggested Reply') else 'Your reply' }} {% if f.get('Suggested Reply') %}<span class="muted tiny">(written in your voice, change anything)</span>{% endif %}</label>
+          <textarea class="grow" name="body" placeholder="{{ 'Write it like you normally would. It goes from your inbox, in this same thread.' if not f.get('Suggested Reply') else '' }}" style="min-height:120px">{{ f.get('Suggested Reply', '') }}</textarea>
+          {% if not f.get('Suggested Reply') %}<div class="hint"><span class="spin"></span> A suggested reply is being written. It usually appears within a few minutes.</div>{% endif %}</div>
+        {% if f.get('Remix Request') %}
+        <div class="remix-overlay" data-id="{{ e.id }}"><div class="remix-card"><div class="quill">✍️</div>
+          <div class="remix-step" id="step-{{ e.id }}">Reading your instruction…</div>
+          <div class="progress"><div class="bar" id="bar-{{ e.id }}"></div></div>
+          <div class="muted tiny remix-ask">"{{ f['Remix Request'] }}"</div></div></div>
+        {% endif %}
+      </div>
+      {% if f.get('Suggestion Check') %}<details><summary>Human-sounding check</summary><pre>{{ f['Suggestion Check'] }}</pre></details>{% endif %}
+      {% if f.get('Suggested Reply') %}
+      <details class="rewrite"{% if f.get('Remix Request') %} hidden{% endif %}><summary>✨ Rewrite it for me</summary>
+        <div class="field" style="margin-top:10px"><textarea name="instruction" style="min-height:80px" placeholder="e.g. offer the 3-pack instead, and answer the seats question first"></textarea>
+          <div class="hint">Tell it what to change, the way you'd tell a person. It rewrites this reply in your voice and keeps everything else.</div></div>
+        <button class="ghost" formaction="{{ url_for('yours_remix', rid=e.id) }}" onclick="markRemix('{{ e.id }}')">Rewrite it</button>
+      </details>{% endif %}
+      <div class="field"><label>Note for next time <span class="muted tiny">(optional)</span></label>
+        <input type="text" name="feedback" placeholder="What should it do differently from now on?">
+        <div class="hint">This becomes a rule for every future reply and email, e.g. "answer their questions in the order they asked", "always offer the community code to agencies".</div></div>
       <div class="row">
         <button>Send reply</button>
+        <button class="ghost" formaction="{{ url_for('yours_save', rid=e.id) }}">Save edits</button>
   {% elif f.get('Snippet') %}
     <div class="why">{{ f['Snippet'] }}</div>
     <form><div class="row">
@@ -38,4 +73,21 @@
 {% else %}
 <div class="card empty"><div class="display">No one waiting</div><div class="muted">When someone replies with something real, they'll show up here.</div></div>
 {% endfor %}
+<script>
+(function(){
+  window.markRemix=function(id){ try{ localStorage.setItem('remix-'+id, Date.now()); }catch(e){} };
+  const overlays=[...document.querySelectorAll('.remix-overlay')];
+  if(!overlays.length) return;
+  const STEPS=[[0,'Reading your instruction…'],[5,'Rewriting it in your voice…'],[16,'Running the human-sounding check…'],[26,'Polishing the last bits…'],[45,'Nearly there…']];
+  overlays.forEach(o=>{ const id=o.dataset.id; let start=Date.now();
+    try{ start=+localStorage.getItem('remix-'+id)||start; }catch(e){}
+    const tick=()=>{ const s=(Date.now()-start)/1000; const b=document.getElementById('bar-'+id); if(!b) return;
+      b.style.width=(95*(1-Math.exp(-s/22))).toFixed(1)+'%'; document.getElementById('step-'+id).textContent=STEPS.filter(x=>s>=x[0]).pop()[1]; requestAnimationFrame(tick); }; tick(); });
+  const waiting=overlays.map(o=>o.dataset.id);
+  const poll=()=>fetch("{{ url_for('approve_status') }}").then(r=>r.json()).then(j=>{
+    if(waiting.some(id=>!(j.remixing_replies||[]).includes(id))){ window.Turbo?Turbo.visit(location.href,{action:'replace'}):location.reload(); } else setTimeout(poll,4000);
+  }).catch(()=>setTimeout(poll,8000));
+  setTimeout(poll,4000);
+})();
+</script>
 {% endblock %}

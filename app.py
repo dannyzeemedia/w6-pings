@@ -408,6 +408,7 @@ def approve_status():
     return {"remixing": [d["id"] for d in at.list_records("drafts", "AND({Remix Request}!='', {Status}='Pending Approval')", fields=["Subject"])],
             "more_pending": more_pending(at.settings()["fields"]),
             "asks": bool((at.settings()["fields"].get("Ping Requests") or "").strip()),
+            "remixing_replies": [x["id"] for x in at.list_records("log", "AND({Remix Request}!='', NOT({Handled}))", fields=["Event"])],
             "pending": len(pending_drafts(fields=["Subject"]))}
 
 
@@ -494,6 +495,24 @@ def handsoff_release(rid):
     return redirect(url_for("today") + "#handsoff")
 
 
+@app.post("/yours/<rid>/save")
+@login_required
+def yours_save(rid):
+    at.update("log", rid, {"Suggested Reply": request.form.get("body", "").strip()})
+    flash("Edits saved.")
+    return redirect(url_for("yours") + f"#d-{rid}")
+
+
+@app.post("/yours/<rid>/remix")
+@login_required
+def yours_remix(rid):
+    instr = request.form.get("instruction", "").strip()
+    if instr:
+        at.update("log", rid, {"Suggested Reply": request.form.get("body", "").strip(), "Remix Request": instr})
+        flash("Rewriting it now. The new version usually shows up here in about a minute.")
+    return redirect(url_for("yours") + f"#d-{rid}")
+
+
 @app.post("/yours/<rid>/reply")
 @login_required
 def yours_reply(rid):
@@ -517,6 +536,7 @@ def yours_reply(rid):
     draft = at.create("drafts", {"Subject": "Reply from Karlie", "Status": "Sent", "Kind": "Reply",
                                  "To Email": to, "Body": text, "Written By Karlie": not sug,
                                  **({"AI Original Body": sug, "Edited By Karlie": text.strip() != sug} if sug else {}),
+                                 **({"Karlie Feedback": request.form.get("feedback", "").strip()} if request.form.get("feedback", "").strip() else {}),
                                  "Gmail Thread ID": tid, "Sent At": t, "Decided At": t, **link})
     at.create("log", {"Summary": "Karlie replied from the dashboard", "Event": "Sent", "Direction": "Out",
                       "Email": to, "At": t, "Snippet": text[:500], "Gmail Message ID": mid,

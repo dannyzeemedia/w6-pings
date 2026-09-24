@@ -490,6 +490,14 @@ def remix_queue():
         out.append({"draft_id": d["id"], "instruction": f["Remix Request"], "kind": f.get("Kind"), "to_name": f.get("To Name"),
                     "subject": f.get("Subject"), "body": f.get("Body"), "brief": f.get("Brief"), "why": f.get("Why This Email"),
                     "thread_id": f.get("Gmail Thread ID")})
+    for h in at.list_records("log", "AND({Remix Request}!='', NOT({Handled}))"):
+        f = h["fields"]
+        try:
+            thread = [{"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:6000]} for x in gmail.thread(f["Gmail Thread ID"])[-6:]] if f.get("Gmail Thread ID") else []
+        except Exception:
+            thread = []
+        out.append({"log_id": h["id"], "instruction": f["Remix Request"], "kind": "Reply", "to_name": f.get("Email"),
+                    "subject": None, "body": f.get("Suggested Reply"), "thread": thread})
     if not out:
         return {"items": [], "more_requested": int(w.s.get("More Drafts Requested") or 0),
                 "ping_requests": bool((w.s.get("Ping Requests") or "").strip()),
@@ -502,6 +510,10 @@ def remix_queue():
 
 
 def remix_apply(item):
+    if item.get("log_id"):
+        at.update("log", item["log_id"], {"Suggested Reply": _txt(item["body"], False)[:8000], "Remix Request": "",
+                                          "Suggestion Check": _txt(item.get("ai_tell_check"), False)[:3000]})
+        return {"ok": True}
     d = at.get("drafts", item["draft_id"])["fields"]
     hist = (d.get("Remix History") or "")
     hist = (f"[{dt.date.today().isoformat()}] Asked: {d.get('Remix Request', '')}\nBefore:\n{d.get('Body', '')}\n\n" + hist)[:20000]
@@ -807,6 +819,8 @@ def apply(payload):
                 hf["Summary"] = e["summary"][:250]
             if e.get("suggested_reply"):
                 hf["Suggested Reply"] = _txt(e["suggested_reply"], False)[:8000]
+            if e.get("ai_tell_check"):
+                hf["Suggestion Check"] = _txt(e["ai_tell_check"], False)[:3000]
             at.update("log", e["handoff_log_id"], hf)
         if e.get("contact_time_zone") and e.get("contact_id"):
             at.update("contacts", e["contact_id"], {"Time Zone": e["contact_time_zone"]})
