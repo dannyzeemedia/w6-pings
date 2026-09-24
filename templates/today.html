@@ -15,9 +15,12 @@
 </div>
 
 <div class="grid">
-  <div class="card">
+  <div class="card ping-card {{ 'goal-hit' if (s.get('Daily Ping Limit', 0) and sent_today >= s.get('Daily Ping Limit', 0)) }}" data-sent="{{ sent_today }}" data-goal="{{ s.get('Daily Ping Limit', 0) }}">
+    {% set goal = s.get('Daily Ping Limit', 0) or 0 %}{% set hit = goal and sent_today >= goal %}
     <div class="label">Pings sent today</div>
-    <div class="big">{{ sent_today }} <small>of <span id="limit-show">{{ s.get('Daily Ping Limit', 0) }}</span></small></div>
+    {% if hit %}<div class="goal-badge">{% if sent_today > goal %}🔥 Overachiever! +{{ sent_today - goal }} over goal{% else %}🎉 Goal hit!{% endif %}</div>{% endif %}
+    <div class="big">{{ sent_today }} <small>of <span id="limit-show">{{ goal }}</span></small></div>
+    <div class="goal-bar"><div style="width:{{ [100, (100 * sent_today / goal)|round|int if goal else 0]|min }}%"></div></div>
     <div class="muted tiny">Daily goal <span class="saved" id="saved">Saved</span></div>
     <div class="stepper">
       <button type="button" onclick="step(-5)" aria-label="Five fewer">−</button>
@@ -88,6 +91,19 @@
   <div class="translate"><span class="label">Workspace6 translation</span><div id="q-w6"></div></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script>
+(function(){
+  // goal hit: confetti the first time she opens Today after hitting it (once per day, per person)
+  const c=document.querySelector('.ping-card.goal-hit'); if(!c||!window.confetti||matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const key='goal-party-'+new Date().toDateString()+'-'+c.dataset.sent;
+  try{ if(localStorage.getItem(key)) return; localStorage.setItem(key,'1'); }catch(e){}
+  const r=c.getBoundingClientRect(), x=(r.left+r.width/2)/innerWidth, y=(r.top+r.height/3)/innerHeight;
+  const colors=['#265c51','#bee1de','#e2dbbe','#7fc4b6','#ffffff'];
+  setTimeout(()=>{ confetti({particleCount:90,spread:75,startVelocity:30,origin:{x,y},colors,scalar:.9});
+    setTimeout(()=>confetti({particleCount:50,spread:110,startVelocity:22,origin:{x,y},colors,scalar:.8}),250); },350);
+})();
+</script>
 <script>
 (function(){
 const HI_EMOJI = ["✨","🌸","🌴","💫","🌷","☀️","🦋","🌺","💐","⭐","🍓","🌈","💎","🥂","🌼","🫶"];

@@ -509,3 +509,14 @@ nav a.on .pill { background: var(--on-green); color: var(--green); }
 .band.blockout { cursor: default; color: var(--ink-2); border-left-color: var(--ink-2); border-color: color-mix(in srgb, var(--ink-2) 35%, transparent);
   background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--ink-2) 14%, var(--card)) 0 6px, var(--card) 6px 11px); }
 .sw.blocked { background: repeating-linear-gradient(45deg, var(--ink-2) 0 2px, transparent 2px 4px); border: 1px solid var(--ink-2); }
+
+/* daily goal */
+.goal-bar { height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--mint) 45%, transparent); overflow: hidden; margin: 2px 0 8px; }
+.goal-bar > div { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--green), #7fc4b6); transition: width .6s cubic-bezier(.2,.7,.2,1); }
+.ping-card.goal-hit { border-color: var(--green); background: linear-gradient(160deg, color-mix(in srgb, var(--mint) 55%, var(--card)), var(--card) 75%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mint) 70%, transparent), 0 14px 34px -18px rgba(38,92,81,.55); animation: goal-glow 2.6s ease-in-out infinite; }
+.ping-card.goal-hit .big { color: var(--green); }
+.goal-badge { display: inline-block; margin: 6px 0 0; padding: 4px 10px; border-radius: 99px; background: var(--green); color: var(--on-green);
+  font: 600 12px Inter; animation: pop .7s cubic-bezier(.3,1.6,.4,1) .2s both; }
+@keyframes goal-glow { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--mint) 45%, transparent), 0 16px 38px -18px rgba(38,92,81,.6); } }
+@media (prefers-reduced-motion: reduce) { .ping-card.goal-hit { animation: none; } }
