@@ -367,3 +367,19 @@ form.remixing .email-zone textarea, form.remixing .email-zone input { opacity: 1
 .bk-stats .card { padding: 18px; }
 .bk-form button { grid-column: 1 / -1; justify-self: start; padding: 0 28px; }
 @media (max-width: 640px) { .bk-stats { grid-template-columns: 1fr 1fr; gap: 10px; } .bk-stats .card { padding: 14px; } .bk-stats .big { font-size: 30px; margin: 6px 0 2px; } .bk-stats .card:first-child { grid-column: 1 / -1; } }
+
+.bk-seg { margin: 0 0 12px; }
+.say { display: flex; gap: 8px; }
+.say input { flex: 1; font-size: 17px; padding: 14px 16px; }
+.say button { flex: none; }
+.say-out { margin-top: 12px; border-radius: var(--r-sm); padding: 14px 16px; animation: rise 300ms both; }
+.say-out.good { background: var(--mint-2); border: 1px solid var(--mint); }
+.say-out.bad { background: var(--amber-bg); border: 1px solid var(--amber-line); font-size: 14px; }
+.say-sum { font-family: Gambetta, Georgia, serif; font-size: 20px; }
+.manual { margin-top: 16px; } .manual summary { color: var(--green); }
+turbo-frame { display: block; }
+.top .wrap { gap: 10px; }
+nav a { font-size: 15.5px; padding: 10px 9px 15px; }
+nav .pill { margin-left: 4px; }
+.bk-stats { grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 12px; }
+.bk-stats .card { padding: 16px; } .bk-stats .label { font-size: 11px; }

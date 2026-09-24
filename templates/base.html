@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=10">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=11">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -19,7 +19,7 @@
     {% set here = request.endpoint %}
     <a href="{{ url_for('today') }}" class="{{ 'on' if here=='today' }}">Today</a>
     <a href="{{ url_for('approve') }}" class="{{ 'on' if here=='approve' }}">To approve{% if n_to_approve %}<span class="pill">{{ n_to_approve }}</span>{% endif %}</a>
-    <a href="{{ url_for('yours') }}" class="{{ 'on' if here=='yours' }}">Your turn</a>
+    <a href="{{ url_for('yours') }}" class="{{ 'on' if here=='yours' }}">Your turn{% if n_yours %}<span class="pill">{{ n_yours }}</span>{% endif %}</a>
     <a href="{{ url_for('bookings_page') }}" class="{{ 'on' if here=='bookings_page' }}">Bookings</a>
     <a href="{{ url_for('rules') }}" class="{{ 'on' if here=='rules' }}">Rules</a>
     <a href="{{ url_for('results') }}" class="{{ 'on' if here=='results' }}">Results</a>

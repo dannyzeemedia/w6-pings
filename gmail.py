@@ -45,8 +45,21 @@ def _strip(t):
     return "\n".join(l for l in t.splitlines() if not l.startswith(">")).strip()
 
 
-def thread(tid):
-    """Messages oldest-first: from, is_me, ts, body (quoted history stripped), message-id header."""
+_tcache = {}
+
+
+def thread(tid, max_age=90):
+    """Messages oldest-first: from, is_me, ts, body (quoted history stripped), message-id header. Cached briefly."""
+    import time as _time
+    hit = _tcache.get(tid)
+    if hit and _time.time() - hit[0] < max_age:
+        return hit[1]
+    out = _thread(tid)
+    _tcache[tid] = (_time.time(), out)
+    return out
+
+
+def _thread(tid):
     r = requests.get(f"{API}/threads/{tid}", headers=_h(), params={"format": "full"}, timeout=30)
     r.raise_for_status()
     out = []
@@ -74,6 +87,7 @@ def reply(tid, text):
         msg["References"] = (last_in["refs"] + " " + last_in["msgid"]).strip()
     msg.set_content(text)
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    _tcache.pop(tid, None)
     r = requests.post(f"{API}/messages/send", headers=_h(), json={"raw": raw, "threadId": tid}, timeout=30)
     r.raise_for_status()
     return r.json()["id"], to
@@ -179,6 +193,7 @@ def send(to, subject, body, thread_id=None, signature=True, to_name=None):
     payload = {"raw": raw}
     if thread_id:
         payload["threadId"] = thread_id
+        _tcache.pop(thread_id, None)
     r = requests.post(f"{API}/messages/send", headers=_h(), json=payload, timeout=30)
     r.raise_for_status()
     j = r.json()

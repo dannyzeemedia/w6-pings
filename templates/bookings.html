@@ -1,16 +1,13 @@
 {% extends "base.html" %}{% block title %}Bookings{% endblock %}
 {% block body %}
 <div class="head bk-head">
-  <div><h1>Bookings</h1><p>Every sponsor placement across DTC News and W6, and every open slot you can sell.</p></div>
-  <div class="seg" role="tablist">
-    <a href="{{ url_for('bookings_page', view='calendar', month=month.strftime('%Y-%m')) }}" class="{{ 'on' if view=='calendar' }}">Calendar</a>
-    <a href="{{ url_for('bookings_page', view='list') }}" class="{{ 'on' if view=='list' }}">List</a>
-  </div>
+  <div><h1>Bookings</h1><p>Every sponsor placement across DTC News and W6, booked or pencilled in.</p></div>
+
 </div>
 
 <div class="grid bk-stats">
-  <div class="card"><div class="label">Open Marquees, next 2 weeks</div><div class="big">{{ soon_open|length }}</div>
-    <div class="muted tiny">{% for d in soon_open[:4] %}{{ d.strftime('%a %-d %b') }}{{ ', ' if not loop.last }}{% endfor %}{% if soon_open|length > 4 %} …{% endif %}</div></div>
+  <div class="card"><div class="label">✏️ Pencilled in</div><div class="big">{{ n_pencilled }}</div><div class="muted tiny">next 90 days · worth a nudge</div></div>
+  <div class="card"><div class="label">🤑 Paid</div><div class="big">{{ n_paid }}</div><div class="muted tiny">next 90 days</div></div>
   {% for k in ['marquee','shoutout','welcome','groupbuy'] %}
   <div class="card"><div class="label"><i class="sw k-{{ k }}"></i>{{ types[k].label }}</div><div class="big">{{ counts[k] }}</div><div class="muted tiny">booked, next 90 days</div></div>
   {% endfor %}
@@ -18,9 +15,14 @@
 
 <div class="legend bk-legend" id="legend">
   {% for k, t in types.items() %}<label><input type="checkbox" checked data-kind="{{ k }}"><i class="sw k-{{ k }}"></i>{{ t.label }}</label>{% endfor %}
-  <span class="leg-state"><i class="sw paid"></i>🤑 Paid</span><span class="leg-state"><i class="sw pencilled"></i>✏️ Pencilled in</span><span class="leg-state"><i class="sw open"></i>Open slot</span>
+  <span class="leg-state"><i class="sw paid"></i>🤑 Paid</span><span class="leg-state"><i class="sw pencilled"></i>✏️ Pencilled in</span>
 </div>
 
+<turbo-frame id="bk-main" data-turbo-action="advance">
+<div class="seg bk-seg" role="tablist">
+  <a href="{{ url_for('bookings_page', view='calendar', month=month.strftime('%Y-%m')) }}" class="{{ 'on' if view=='calendar' }}">Calendar</a>
+  <a href="{{ url_for('bookings_page', view='list') }}" class="{{ 'on' if view=='list' }}">List</a>
+</div>
 {% if view == 'calendar' %}
 <div class="card cal-card">
   <div class="cal-nav">
@@ -54,7 +56,6 @@
             onclick="openEdit('{{ b.id }}','{{ b.sponsor|e }}','{{ types[b.kind].label }}','{{ b.date.isoformat() }}','{{ b.state }}')">
             <span class="dot"></span>{{ b.sponsor }}</button>
           {% endfor %}
-          {% if c.open %}<button type="button" class="chip open" data-kind="marquee" title="Open DTC News Marquee · click to book" onclick="openAdd('{{ c.date.isoformat() }}','marquee')">+ Open Marquee</button>{% endif %}
         </div>
         {% endfor %}
       </div>
@@ -65,7 +66,6 @@
 {% else %}
 <div class="card">
   <h2 style="margin-bottom:6px">Next 90 days</h2>
-  {% if soon_open %}<p class="muted tiny" style="margin:0 0 10px">Open Marquees in the next 2 weeks: {% for d in soon_open %}<a href="#" onclick="openAdd('{{ d.isoformat() }}','marquee');return false">{{ d.strftime('%a %-d %b') }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
   {% for wk, items in groups %}
   <div class="bk-week"><div class="label">Week of {{ wk.strftime('%-d %b') }}</div>
     {% for b in items %}
@@ -79,14 +79,22 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="empty"><div class="display">Wide open</div><div class="muted">Nothing booked in the next 90 days. Every Tuesday and Thursday Marquee is yours to sell.</div></div>
+  <div class="empty"><div class="display">Wide open</div><div class="muted">Nothing booked or pencilled in for the next 90 days.</div></div>
   {% endfor %}
 </div>
 {% endif %}
+</turbo-frame>
 
 <div class="card" id="add">
-  <h2 style="margin-bottom:14px">Add a booking</h2>
-  <form method="post" action="{{ url_for('bookings_add') }}" class="bk-form">
+  <h2 style="margin-bottom:6px">Add a booking</h2>
+  <p class="muted tiny" style="margin:0 0 12px">Just say it. For example: "Pencil in Omnisend for 3 weeks of Welcome Flow starting Oct 6, 2026", "Doss paid for 3 Marquees starting next Tuesday", "Pencil in Shoplift for a month of shout-outs from Nov 3". A sponsor you haven't worked with before gets added to your Partners list automatically.</p>
+  <form id="say-form" class="say" onsubmit="return understand(event)">
+    <input type="text" id="say" placeholder="Tell it what to book…" autocomplete="off">
+    <button id="say-btn">Check it</button>
+  </form>
+  <div id="say-out" hidden></div>
+  <details class="manual"><summary>Or fill it in yourself</summary>
+  <form method="post" action="{{ url_for('bookings_add') }}" class="bk-form" style="margin-top:12px">
     <input type="hidden" name="view" value="{{ view }}">
     <label>Sponsor<input type="text" name="sponsor" list="bk-partners" required placeholder="e.g. Omnisend" autocomplete="off"></label>
     <label>What<select name="kind" id="add-kind">{% for k, t in types.items() %}{% if k != '7fc' %}<option value="{{ k }}">{{ t.label }}</option>{% endif %}{% endfor %}</select></label>
@@ -100,7 +108,8 @@
     <label>Status<select name="state"><option value="pencilled">✏️ Pencilled in</option><option value="paid">🤑 Paid</option></select></label>
     <button>Add to calendar</button>
   </form>
-  <div class="hint">A 3-Marquee package: pick the first date, "How many" = 3, "Repeats" = Next DTC News sends. A month of Welcome Flow: 30, every day.</div>
+  <div class="hint">A 3-Marquee package: pick the first date, "How many" = 3, "Repeats" = Next DTC News sends. A month of Welcome Flow: 30, every day. New sponsor? Just type their name.</div>
+  </details>
   <datalist id="bk-partners">{% for pid, n in partners %}<option value="{{ n }}">{% endfor %}</datalist>
 </div>
 
@@ -132,10 +141,29 @@
     document.getElementById('edit-date-wrap').style.display=date?'':'none';
     d.showModal();
   };
+  window.understand=function(e){
+    e.preventDefault();
+    const text=document.getElementById('say').value.trim(); if(!text) return false;
+    const btn=document.getElementById('say-btn'), out=document.getElementById('say-out');
+    btn.disabled=true; btn.textContent='Reading…';
+    const fd=new FormData(); fd.set('text',text);
+    fetch("{{ url_for('bookings_understand') }}",{method:'POST',body:fd}).then(r=>r.json()).then(j=>{
+      btn.disabled=false; btn.textContent='Check it'; out.hidden=false;
+      if(!j.ok){ out.className='say-out bad'; out.textContent=j.error; return; }
+      out.className='say-out good';
+      out.innerHTML='<div class="say-sum"></div><div class="muted tiny say-new"></div><form method="post" action="{{ url_for('bookings_confirm') }}" class="row" style="margin-top:10px">'+
+        '<input type="hidden" name="sponsor"><input type="hidden" name="kind"><input type="hidden" name="state"><input type="hidden" name="dates">'+
+        '<button>Yes, add it</button><button type="button" class="ghost" onclick="document.getElementById(\'say-out\').hidden=true">Not quite</button></form>';
+      out.querySelector('.say-sum').textContent=j.summary;
+      out.querySelector('.say-new').textContent=j.new_sponsor?(j.sponsor+' is new, so they\'ll be added to your Partners list.'):'';
+      const f=out.querySelector('form'); f.sponsor.value=j.sponsor; f.kind.value=j.kind; f.state.value=j.state; f.dates.value=j.dates.join(',');
+    }).catch(()=>{ btn.disabled=false; btn.textContent='Check it'; out.hidden=false; out.className='say-out bad'; out.textContent='Couldn\'t reach the server. Try again in a moment.'; });
+    return false;
+  };
   window.openAdd=function(date,kind){
     document.getElementById('add-start').value=date; document.getElementById('add-kind').value=kind;
     document.getElementById('add-count').value=1; document.getElementById('add-cadence').value='once';
-    const a=document.getElementById('add'); a.scrollIntoView({behavior:'smooth',block:'center'}); a.classList.add('flash-card'); setTimeout(()=>a.classList.remove('flash-card'),1400);
+    document.querySelector('#add details.manual').open=true; const a=document.getElementById('add'); a.scrollIntoView({behavior:'smooth',block:'center'}); a.classList.add('flash-card'); setTimeout(()=>a.classList.remove('flash-card'),1400);
     a.querySelector('[name=sponsor]').focus({preventScroll:true});
   };
   // type filter: hide/show a placement type everywhere on the page

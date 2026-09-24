@@ -1,6 +1,6 @@
 """Karlie's outbound dashboard: daily ping count, approvals, replies to handle, rules, voice, results.
 Airtable (W6 Media base) is the database; this app is only a friendlier screen over it."""
-import os, json, datetime as dt
+import os, json, re, datetime as dt
 from functools import wraps
 from zoneinfo import ZoneInfo
 from flask import Flask, render_template, request, redirect as _redirect, url_for, session, flash
@@ -95,7 +95,13 @@ def inject():
             mp = more_pending(at.settings()["fields"])
         except Exception:
             pass
-    return {"user": session.get("user"), "zone_label": ZONE_LABEL, "n_to_approve": n, "more_pending": mp}
+    ny = None
+    if session.get("user") and request.endpoint not in ("login", "healthz", "static"):
+        try:
+            ny = len(at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}))", fields=["Event"]))
+        except Exception:
+            ny = None
+    return {"user": session.get("user"), "zone_label": ZONE_LABEL, "n_to_approve": n, "more_pending": mp, "n_yours": ny}
 
 
 def celebrate(title, msg="", emoji="🎉", big=False):
@@ -112,7 +118,7 @@ def once(key, ids):
 
 
 def pending_drafts(fields=None):
-    horizon = iso(now_utc() + dt.timedelta(days=APPROVE_AHEAD_DAYS))
+    horizon = iso((now_utc() + dt.timedelta(days=APPROVE_AHEAD_DAYS)).replace(minute=0, second=0, microsecond=0))
     return at.list_records(
         "drafts",
         f"AND({{Status}}='Pending Approval', OR({{Scheduled For}}='', IS_BEFORE({{Scheduled For}}, '{horizon}')))",
@@ -151,7 +157,7 @@ def today():
     sent_today = sum(1 for r in sent if parse_ts(r["fields"].get("At")) and
                      parse_ts(r["fields"]["At"]).astimezone(tz).date() == dt.datetime.now(tz).date())
     yours = at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}))", fields=["Summary"])
-    horizon = iso(now_utc() + dt.timedelta(days=APPROVE_AHEAD_DAYS))
+    horizon = iso((now_utc() + dt.timedelta(days=APPROVE_AHEAD_DAYS)).replace(minute=0, second=0, microsecond=0))
     upcoming = at.list_records(
         "drafts", f"AND({{Status}}='Pending Approval', IS_AFTER({{Scheduled For}}, '{horizon}'))",
         sort=[("Scheduled For", "asc")], max_records=30)
@@ -546,7 +552,7 @@ def bookings_page():
     by_day = {}
     for b in rows:
         by_day.setdefault(b["date"], []).append(b)
-    open_m = set(bk.open_marquees(rows, grid_start, grid_end))
+
     weeks, d = [], grid_start
     while d <= grid_end:
         days = [d + dt.timedelta(days=i) for i in range(7)]
@@ -563,7 +569,7 @@ def bookings_page():
                         bands.append(seen[k])
         cells = [{"date": day, "in_month": day.month == month.month, "today": day == today, "past": day < today,
                   "entries": [b for b in by_day.get(day, []) if b["kind"] != "welcome"],
-                  "open": day in open_m} for day in days]
+                  } for day in days]
         weeks.append({"cells": cells, "bands": bands})
         d += dt.timedelta(days=7)
     upcoming = [b for b in rows if today <= b["date"] <= list_end]
@@ -571,10 +577,46 @@ def bookings_page():
     for b in upcoming:
         wk = b["date"] - dt.timedelta(days=b["date"].weekday())
         groups.setdefault(wk, []).append(b)
-    soon_open = bk.open_marquees(rows, today, today + dt.timedelta(days=13))
     return render_template("bookings.html", view=view, month=month, prev=prev, nxt=nxt, weeks=weeks, groups=sorted(groups.items()),
-                           types=bk.TYPES, soon_open=soon_open, partners=at.all_partners(), today=today,
+                           types=bk.TYPES, partners=at.all_partners(), today=today,
+                           n_pencilled=sum(1 for b in upcoming if b["state"] == "pencilled"), n_paid=sum(1 for b in upcoming if b["state"] == "paid"),
                            counts={k: sum(1 for b in upcoming if b["kind"] == k) for k in bk.TYPES})
+
+
+def _ensure_partner(name):
+    """Partner id for this sponsor name, creating a Partners row if it's a new sponsor."""
+    name = (name or "").strip()
+    if not name:
+        return None, False
+    pid = next((p for p, n in at.all_partners() if n.lower() == name.lower()), None)
+    if pid:
+        return pid, False
+    rec = at.create("partners", {"Name": name, "Stage": "Engaged"}, typecast=True)
+    at._names_cache["at"] = 0  # refresh the picker
+    return rec["id"], True
+
+
+@app.post("/bookings/understand")
+@login_required
+def bookings_understand():
+    return bk.parse_request(request.form.get("text", ""), at.all_partners())
+
+
+@app.post("/bookings/confirm")
+@login_required
+def bookings_confirm():
+    fm = request.form
+    kind = fm.get("kind") if fm.get("kind") in bk.TYPES else None
+    dates = [d for d in fm.get("dates", "").split(",") if re.match(r"\d{4}-\d{2}-\d{2}$", d)]
+    if not kind or not dates:
+        flash("Something went wrong reading that booking. Nothing was added.")
+        return redirect(url_for("bookings_page"))
+    pid, created = _ensure_partner(fm.get("sponsor"))
+    bk.add_dates(fm.get("sponsor").strip(), pid, kind, fm.get("state", "pencilled"), dates)
+    note = " Added them to your Partners list too." if created else ""
+    celebrate("Booked!" if fm.get("state") == "paid" else "Pencilled in!", f"{fm.get('sponsor')} · {bk.TYPES[kind]['label']} · {len(dates)} date{'s' if len(dates) > 1 else ''}.{note}",
+              "💸" if fm.get("state") == "paid" else "✏️", big=fm.get("state") == "paid")
+    return redirect(url_for("bookings_page", month=dates[0][:7]))
 
 
 @app.post("/bookings/add")
@@ -589,7 +631,7 @@ def bookings_add():
     except (TypeError, ValueError):
         flash("Pick a start date first.")
         return redirect(url_for("bookings_page"))
-    pid = next((p for p, n in at.all_partners() if n.lower() == name.lower()), None)
+    pid, created = _ensure_partner(name)
     ds = bk.add(name or "Sponsor", pid, kind, fm.get("state", "pencilled"), start, count, fm.get("cadence", "once"))
     celebrate("Booked!", f"{name} · {bk.TYPES[kind]['label']} · {len(ds)} date{'s' if len(ds) > 1 else ''} from {ds[0].strftime('%a %-d %b')}", "📅",
               big=fm.get("state") == "paid")
@@ -705,7 +747,7 @@ def _keep_warm():
                 c = app.test_client()
                 with c.session_transaction() as sess:
                     sess["user"] = "warm"
-                for path in ("/", "/approve", "/yours", "/rules", "/results"):
+                for path in ("/", "/approve", "/yours", "/bookings", "/bookings?view=list", "/rules", "/results"):
                     c.get(path)
             except Exception:
                 pass
