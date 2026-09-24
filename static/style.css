@@ -18,7 +18,7 @@ h3 { font-size: 19px; }
 .top { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
 .top .wrap { display: flex; align-items: center; gap: 20px; padding-top: 14px; padding-bottom: 0; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; padding-bottom: 12px; }
-.brand img { height: 20px; }
+.brand img { height: 24px; display: block; }
 .brand span { font: 500 11px Inter; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
 nav { display: flex; gap: 4px; margin-left: auto; overflow-x: auto; }
 nav a { text-decoration: none; color: var(--ink-2); font-size: 15px; padding: 8px 12px 12px; border-bottom: 2px solid transparent; white-space: nowrap; }
@@ -109,7 +109,7 @@ td { padding: 10px 8px; border-top: 1px solid var(--line); vertical-align: top; 
 td:first-child { white-space: nowrap; color: var(--ink-2); }
 
 .login { max-width: 380px; margin: 12vh auto 0; }
-.login img { height: 28px; margin-bottom: 24px; }
+.login img { height: 36px; margin-bottom: 24px; display: block; }
 
 .stepper input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .stepper input[type=number] { -moz-appearance: textfield; }

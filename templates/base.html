@@ -10,7 +10,7 @@
 </head><body>
 {% if user %}
 <header class="top"><div class="wrap">
-  <a class="brand" href="{{ url_for('today') }}"><img src="{{ url_for('static', filename='wordmark.svg') }}" alt="Workspace6"><span>Pings</span></a>
+  <a class="brand" href="{{ url_for('today') }}"><img src="{{ url_for('static', filename='logo-pings.png') }}" alt="Workspace6 Pings"></a>
   <nav>
     {% set here = request.endpoint %}
     <a href="{{ url_for('today') }}" class="{{ 'on' if here=='today' }}">Today</a>
