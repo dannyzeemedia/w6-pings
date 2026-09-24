@@ -1,18 +1,32 @@
 {% extends "base.html" %}{% block title %}Your turn{% endblock %}
 {% block body %}
-<div class="head"><h1>Your turn</h1><p>These people replied with something real. The thread is in your inbox, ready for you.</p></div>
-{% for e in events %}{% set f = e.fields %}
+<div class="head"><h1>Your turn</h1><p>These people replied with something real. Reply right here, or open the thread in Gmail.</p></div>
+{% for e in events %}{% set f = e.fields %}{% set th = threads.get(f.get('Gmail Thread ID')) %}
 <div class="card">
   <div class="draft-meta">
     <div><h3>{% for p in f.get('Partner', []) %}{{ names.get(p) }}{% endfor %}{% if not f.get('Partner') %}{{ f.get('Email') }}{% endif %}</h3>
       <div class="muted tiny">{{ f.get('Email') }} · {{ f.get('At')|when }}</div></div>
+    {% if th and th.link %}<a class="btn ghost small" target="_blank" rel="noopener" href="{{ th.link }}">Open in Gmail ↗</a>{% endif %}
   </div>
-  {% if f.get('Summary') %}<p style="margin-top:0">{{ f['Summary'] }}</p>{% endif %}
-  {% if f.get('Snippet') %}<div class="why">{{ f['Snippet'] }}</div>{% endif %}
-  <div class="row">
-    {% if f.get('Gmail Thread ID') %}<a class="btn" target="_blank" rel="noopener" href="https://mail.google.com/mail/u/?authuser=karlie@workspace6.io#all/{{ f['Gmail Thread ID'] }}">Open in Gmail</a>{% endif %}
-    <form method="post" action="{{ url_for('yours_done', rid=e.id) }}"><button class="ghost">Done, I've got it</button></form>
-  </div>
+  {% if f.get('Summary') %}<p style="margin-top:0"><strong>What they want:</strong> {{ f['Summary'] }}</p>{% endif %}
+  {% if th %}
+    <div class="thread">
+      {% if th.earlier %}<div class="muted tiny" style="margin-bottom:10px">{{ th.earlier }} earlier message{{ 's' if th.earlier > 1 }} in Gmail</div>{% endif %}
+      {% for m in th.msgs %}<div class="msg {{ 'me' if m.is_me else 'them' }}">
+        <div class="who">{{ 'You' if m.is_me else m['from'].split('<')[0].strip(' "') }} · {{ m.ts|mswhen }}</div>
+        <div class="text">{{ m.body[:1500] }}</div></div>{% endfor %}
+    </div>
+    <form method="post" action="{{ url_for('yours_reply', rid=e.id) }}">
+      <div class="field"><label>Your reply</label><textarea class="grow" name="body" placeholder="Write it like you normally would. It goes from your inbox, in this same thread." style="min-height:120px"></textarea></div>
+      <div class="row">
+        <button>Send reply</button>
+  {% elif f.get('Snippet') %}
+    <div class="why">{{ f['Snippet'] }}</div>
+    <form><div class="row">
+  {% else %}<form><div class="row">{% endif %}
+        <button class="ghost" formaction="{{ url_for('yours_done', rid=e.id) }}" formmethod="post" formnovalidate>Done, I've handled it</button>
+      </div>
+    </form>
 </div>
 {% else %}
 <div class="card empty"><div class="display">No one waiting</div><div class="muted">When someone replies with something real, they'll show up here.</div></div>

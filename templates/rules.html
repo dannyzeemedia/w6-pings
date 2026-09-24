@@ -1,13 +1,13 @@
 {% extends "base.html" %}{% block title %}Rules{% endblock %}
 {% block body %}
-<div class="head"><h1>Rules</h1><p>How often it pings, when, and when it gives up.</p></div>
+<div class="head"><h1>Rules</h1><p>How often it pings, when, when it gives up, and how it sounds.</p></div>
 <form method="post">
 <div class="card">
   <h2 style="margin-bottom:16px">How much say you get</h2>
   {% for k, label in modes.items() %}
   <label class="radio"><input type="radio" name="Approval Mode" value="{{ k }}" {{ 'checked' if s.get('Approval Mode')==k }}>{{ label }}</label>
   {% endfor %}
-  <div class="hint muted tiny">Anyone who replies with real interest always comes to you, whatever you pick here.</div>
+  <div class="hint">Anyone who replies with real interest always comes to you, whatever you pick here.</div>
 </div>
 
 <div class="card">
@@ -17,33 +17,44 @@
   <div class="field"><label>Days</label><div class="days">
     {% for d in days %}<label><input type="checkbox" name="day_{{ d }}" {{ 'checked' if d in s.get('Send Days', []) }}><span>{{ d }}</span></label>{% endfor %}
   </div></div>
-  <div class="inline">
-    <div class="field"><label>From (hour)</label><input type="number" name="Send Window Start (Hour)" min="0" max="23" value="{{ s.get('Send Window Start (Hour)', '') }}"></div>
-    <div class="field"><label>Until (hour)</label><input type="number" name="Send Window End (Hour)" min="1" max="24" value="{{ s.get('Send Window End (Hour)', '') }}"></div>
-    <div class="field"><label>In whose time</label><select name="Send Timezone">
-      {% for z in zones %}<option value="{{ z }}" {{ 'selected' if s.get('Send Timezone')==z }}>{{ zone_label[z] }}</option>{% endfor %}</select></div>
+  <label class="switch"><input type="checkbox" name="Optimise Send Timing" id="opt" {{ 'checked' if s.get('Optimise Send Timing') }}>
+    <span><strong>Send at the time each person is most likely to reply</strong>
+    <span class="muted tiny">It learns when people like them tend to answer and picks the hour for each email. The hours below are the outer limits it stays inside.</span></span></label>
+  <div id="hours">
+    <div class="inline">
+      <div class="field"><label>Not before (hour)</label><input type="number" name="Send Window Start (Hour)" min="0" max="23" value="{{ s.get('Send Window Start (Hour)', '') }}"></div>
+      <div class="field"><label>Not after (hour)</label><input type="number" name="Send Window End (Hour)" min="1" max="24" value="{{ s.get('Send Window End (Hour)', '') }}"></div>
+      <div class="field"><label>In whose time</label><select name="Send Timezone">
+        {% for z in zones %}<option value="{{ z }}" {{ 'selected' if s.get('Send Timezone')==z }}>{{ zone_label[z] }}</option>{% endfor %}</select></div>
+    </div>
   </div>
 </div>
 
 <div class="card">
   <h2 style="margin-bottom:16px">Follow-ups</h2>
-  <div class="field"><label>How many follow-ups before it stops</label><input type="number" name="Max Follow-ups" min="0" max="3" value="{{ s.get('Max Follow-ups', '') }}" style="max-width:140px"></div>
+  <label class="switch"><input type="checkbox" name="Honour Requested Timing" {{ 'checked' if s.get('Honour Requested Timing') }}>
+    <span><strong>Do what they ask for</strong>
+    <span class="muted tiny">If someone says "ping me next quarter" or "after BFCM", it plans a ping for then and puts it in To approve when it's due. If they get in touch before that, it drops the plan and responds to what they actually said instead.</span></span></label>
+  <div class="field"><label>For everyone else: how many follow-ups before it stops</label><input type="number" name="Max Follow-ups" min="0" max="3" value="{{ s.get('Max Follow-ups', '') }}" style="max-width:140px"></div>
   <div class="inline">
     <div class="field"><label>1st follow-up after (days)</label><input type="number" name="Follow-up 1 After (Days)" min="1" value="{{ s.get('Follow-up 1 After (Days)', '') }}"></div>
     <div class="field"><label>2nd follow-up after (days)</label><input type="number" name="Follow-up 2 After (Days)" min="1" value="{{ s.get('Follow-up 2 After (Days)', '') }}"></div>
     <div class="field"><label>3rd follow-up after (days)</label><input type="number" name="Follow-up 3 After (Days)" min="1" value="{{ s.get('Follow-up 3 After (Days)', '') }}"></div>
   </div>
-  <label class="check field"><input type="checkbox" name="Follow-ups Must Add Something New" {{ 'checked' if s.get('Follow-ups Must Add Something New') }}>
-    <span>Every follow-up must bring something new<br><span class="muted tiny">A new date, price or reason, not just "bumping this up". Your old emails show plain nudges almost never got a reply.</span></span></label>
-  <div class="field"><label>Leave a company alone for (days) before pitching it again</label><input type="number" name="Days Before Re-pitching A Company" min="0" value="{{ s.get('Days Before Re-pitching A Company', '') }}" style="max-width:140px"></div>
+  <label class="switch"><input type="checkbox" name="Follow-ups Must Add Something New" {{ 'checked' if s.get('Follow-ups Must Add Something New') }}>
+    <span><strong>Every follow-up must bring something new</strong>
+    <span class="muted tiny">A new date, price or reason, not just "bumping this up". Your old emails show plain nudges almost never got a reply.</span></span></label>
+  <div class="field"><label>Leave a company alone for (days) before pitching it again</label><input type="number" name="Days Before Re-pitching A Company" min="0" value="{{ s.get('Days Before Re-pitching A Company', '') }}" style="max-width:140px">
+    <div class="hint">Counts from the last ping that got no reply. Anyone who asked for a specific time is handled by "Do what they ask for" instead.</div></div>
 </div>
 
 <div class="card">
   <h2 style="margin-bottom:16px">When someone's gone</h2>
-  <label class="check field"><input type="checkbox" name="Gone-Contact Rescue" {{ 'checked' if s.get('Gone-Contact Rescue') }}>
-    <span>Find someone else at the company and ask for the right person<br><span class="muted tiny">"I was in a convo with Sam who doesn't appear to be around anymore! Can I get the best address for whoever handles partnerships?"</span></span></label>
+  <label class="switch"><input type="checkbox" name="Gone-Contact Rescue" {{ 'checked' if s.get('Gone-Contact Rescue') }}>
+    <span><strong>Find someone else at the company and ask for the right person</strong>
+    <span class="muted tiny">It writes a fresh ask every time, in your voice, and keeps whichever kinds of ask actually get answered. Something like: "I was chatting with Sam, who doesn't seem to be around anymore! Who's the best person for partnerships these days?"</span></span></label>
   <div class="field"><label>Tries per company</label><input type="number" name="Rescue Tries Per Company" min="0" max="5" value="{{ s.get('Rescue Tries Per Company', '') }}" style="max-width:140px">
-    <div class="hint">Addresses that bounce or have left are never emailed again.</div></div>
+    <div class="hint">How many different people at one company it will ask before it gives up on that company. At 2: if the first person doesn't answer or can't help, it asks one more person, then stops and leaves that company alone. Addresses that bounce or have left are never emailed again.</div></div>
 </div>
 
 <div class="card">
@@ -52,4 +63,36 @@
 </div>
 <button type="submit">Save rules</button>
 </form>
+
+<div class="card" id="voice" style="margin-top:32px">
+  <div class="draft-meta" style="margin-bottom:6px">
+    <h2>Karlie's voice</h2>
+    <span class="tag green">Kept up to date by the system</span>
+  </div>
+  <p class="muted tiny" style="margin:0 0 14px">This is how every email gets written. Nobody edits it directly, so it stays in the right shape. It rewrites itself from your edits, notes, replies and results.{% if s.get('Voice Updated At') %} Last updated {{ s['Voice Updated At']|when }}.{% endif %}</p>
+  <div class="voice">{{ s.get("Karlie's Voice") or "Not written yet." }}</div>
+  <form method="post" action="{{ url_for('voice_note') }}" style="margin-top:18px">
+    <div class="field"><label>Leave a note about the voice</label>
+      <input type="text" name="note" placeholder="e.g. never use the 🙏 emoji" required>
+      <div class="hint">It takes effect on the very next draft, and gets written into the guide above on the next update. For example: "never use the 🙏 emoji", "less exclamation marks", "I say 'reach out', never 'touch base'", "sign off with just Karlie on follow-ups".</div></div>
+    <button>Add note</button>
+  </form>
+</div>
+
+<div class="card" id="learned">
+  <h2 style="margin-bottom:6px">What it's learned</h2>
+  <p class="muted tiny" style="margin:0 0 8px">Every rule it follows, from your notes, your edits and what actually got replies. Switch off anything that's wrong.</p>
+  {% for l in lessons %}{% set f = l.fields %}
+  <div class="lesson {{ '' if f.get('Active') else 'off' }}">
+    <div><div class="txt">{{ f.get('Lesson') }}</div>
+      <div class="muted tiny">{{ f.get('Source', '') }}{% if f.get('Learned At') %} · {{ f['Learned At']|when }}{% endif %}{% if f.get('About') %} · {{ f['About'] }}{% endif %}{% if f.get('Source') in ("Karlie's Note", "Rule From Danny") and not f.get('Folded Into Voice') %} · live now, joins the guide on the next update{% endif %}</div></div>
+    <form method="post" action="{{ url_for('lesson_toggle', rid=l.id) }}">
+      <input type="hidden" name="active" value="{{ '0' if f.get('Active') else '1' }}">
+      <button class="{{ 'ghost' if f.get('Active') else '' }} small">{{ 'Switch off' if f.get('Active') else 'Switch on' }}</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">Nothing yet. It starts learning from your first edits.</p>
+  {% endfor %}
+</div>
 {% endblock %}

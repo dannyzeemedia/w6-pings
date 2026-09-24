@@ -7,7 +7,9 @@ TABLES = {
     "contacts": "tblS5yU6mINsHeVX0",
     "drafts": "tblPOhostHQMYHYJ6",
     "log": "tblIepjDgookM42p1",
+    "lessons": "tblgMPagOFFHzNpxC",
     "partners": "tbl7OH9U8ed4ZLLvI",
+    "sales": "tblakxHy3Dke93A3b",
 }
 API = f"https://api.airtable.com/v0/{BASE}"
 
@@ -52,6 +54,10 @@ def get(table, rid):
 
 def update(table, rid, fields):
     return _req("PATCH", f"{API}/{TABLES[table]}/{rid}", json={"fields": fields, "typecast": False})
+
+
+def create(table, fields):
+    return _req("POST", f"{API}/{TABLES[table]}", json={"fields": fields, "typecast": False})
 
 
 def settings():

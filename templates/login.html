@@ -1,12 +1,18 @@
-{% extends "base.html" %}{% block title %}Sign in{% endblock %}
-{% block body %}
-<div class="login card">
-  <img src="{{ url_for('static', filename='logo-pings.png') }}" alt="Workspace6 Pings">
-  <h2>Sign in</h2>
-  <form method="post" style="margin-top:20px">
-    <div class="field"><label>Name</label><input type="text" name="user" autocomplete="username" autocapitalize="none" required></div>
-    <div class="field"><label>Password</label><input type="password" name="password" autocomplete="current-password" required></div>
-    <button type="submit" style="width:100%">Sign in</button>
-  </form>
+{% extends "base.html" %}{% block title %}Sign in{% endblock %}{% block bodyclass %}login-page{% endblock %}
+{% block page %}
+<div class="login-bg" aria-hidden="true"></div><div class="login-glow" aria-hidden="true"></div>
+<div class="login-box">
+  <div class="login-logo" role="img" aria-label="Workspace6 Pings"></div>
+  <div class="login-card">
+    {% for m in get_flashed_messages() %}<div class="flash">{{ m }}</div>{% endfor %}
+    <h1>Welcome back</h1>
+    <p class="lede">Your sponsor pings, all in one place.</p>
+    <form method="post">
+      <div class="field"><label>Name</label><input type="text" name="user" autocomplete="username" autocapitalize="none" required autofocus></div>
+      <div class="field"><label>Password</label><input type="password" name="password" autocomplete="current-password" required></div>
+      <button type="submit">Sign in</button>
+    </form>
+  </div>
+  <div class="login-foot">Workspace6 · Partnerships</div>
 </div>
 {% endblock %}

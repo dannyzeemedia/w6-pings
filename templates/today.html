@@ -5,7 +5,7 @@
 <div class="status {{ 'off' if s.get('Paused') else 'on' }}">
   <div>
     <strong><span class="dot"></span>{{ 'Paused. Nothing is going out.' if s.get('Paused') else 'Running.' }}</strong>
-    <div class="muted tiny">{% if s.get('Paused') %}Drafts still get written for you to look at.{% else %}Sends {{ s.get('Send Days', [])|join(', ') }}, {{ s.get('Send Window Start (Hour)', 8) }}:00 to {{ s.get('Send Window End (Hour)', 17) }}:00 {{ zone_label.get(s.get('Send Timezone'), '') }} time.{% endif %}</div>
+    <div class="muted tiny">{% if s.get('Paused') %}Drafts still get written for you to look at.{% else %}Sends {{ s.get('Send Days', [])|join(', ') }}{% if s.get('Optimise Send Timing') %}, at the time each person is most likely to reply{% else %}, {{ s.get('Send Window Start (Hour)', 8) }}:00 to {{ s.get('Send Window End (Hour)', 17) }}:00 {{ zone_label.get(s.get('Send Timezone'), '') }} time{% endif %}.{% endif %}</div>
   </div>
   <form method="post" action="{{ url_for('quick_settings') }}">
     <input type="hidden" name="paused" value="{{ '0' if s.get('Paused') else '1' }}">
@@ -16,27 +16,87 @@
 <div class="grid">
   <div class="card">
     <div class="label">Pings sent today</div>
-    <div class="big">{{ sent_today }} <small>of {{ s.get('Daily Ping Limit', 0) }}</small></div>
-    <form method="post" action="{{ url_for('quick_settings') }}">
-      <div class="muted tiny">Daily limit</div>
-      <div class="stepper">
-        <button type="button" onclick="step(-5)" aria-label="Less">−</button>
-        <input id="limit" type="number" name="limit" min="0" max="200" value="{{ s.get('Daily Ping Limit', 0) }}">
-        <button type="button" onclick="step(5)" aria-label="More">+</button>
-        <button type="submit" class="ghost save">Save</button>
-      </div>
-    </form>
+    <div class="big">{{ sent_today }} <small>of <span id="limit-show">{{ s.get('Daily Ping Limit', 0) }}</span></small></div>
+    <div class="muted tiny">Daily limit <span class="saved" id="saved">Saved</span></div>
+    <div class="stepper">
+      <button type="button" onclick="step(-5)" aria-label="Five fewer">−</button>
+      <input id="limit" type="number" min="0" max="200" value="{{ s.get('Daily Ping Limit', 0) }}" aria-label="Daily limit" onchange="saveLimit()">
+      <button type="button" onclick="step(5)" aria-label="Five more">+</button>
+    </div>
   </div>
-  <a class="card" href="{{ url_for('approve') }}" style="text-decoration:none;color:inherit">
+  <a class="card" href="{{ url_for('approve') }}">
     <div class="label">Waiting for your OK</div>
-    <div class="big">{{ n_pending }}</div>
-    <div class="muted">{{ 'Nothing to check.' if not n_pending else 'Emails to approve, tweak or bin →' }}</div>
+    <div class="big">{{ n_to_approve or 0 }}</div>
+    <div class="muted">{{ 'Nothing to check.' if not n_to_approve else 'Emails to approve, tweak or bin →' }}</div>
   </a>
-  <a class="card" href="{{ url_for('yours') }}" style="text-decoration:none;color:inherit">
+  <a class="card" href="{{ url_for('yours') }}">
     <div class="label">Your turn</div>
     <div class="big">{{ n_yours }}</div>
     <div class="muted">{{ 'No one waiting on you.' if not n_yours else 'People replied. Over to you →' }}</div>
   </a>
 </div>
-<script>function step(n){const i=document.getElementById('limit');i.value=Math.max(0,Math.min(200,(+i.value||0)+n));}</script>
+
+<div class="card">
+  <h2>Coming up</h2>
+  <p class="muted tiny" style="margin:4px 0 8px">Pings planned for later, like when someone said "try me next quarter". Each one lands in To approve two days before it's due. If they get in touch first, it changes the plan instead of sending.</p>
+  {% for d in upcoming %}{% set f = d.fields %}
+  <div class="plan">
+    <div>
+      <strong>{% for p in f.get('Partner', []) %}{{ names.get(p) }}{% endfor %}{% if not f.get('Partner') %}{{ f.get('To Name') or f.get('To Email') }}{% endif %}</strong>
+      <span class="muted"> · {{ f.get('Scheduled For')|when }}</span>
+      {% if f.get('They Asked For') %}<div class="muted tiny">They said: "{{ f['They Asked For'] }}"</div>{% elif f.get('Why This Email') %}<div class="muted tiny">{{ f['Why This Email'] }}</div>{% endif %}
+    </div>
+    <form method="post" action="{{ url_for('planned', rid=d.id) }}">
+      <input type="date" name="date" value="{{ f.get('Scheduled For')|datevalue }}" aria-label="Move to">
+      <button class="ghost small" name="action" value="move">Move</button>
+      <button class="danger small" name="action" value="cancel">Cancel</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">Nothing planned yet.</p>
+  {% endfor %}
+</div>
+
+<div class="card quote" id="quote">
+  <div class="quote-mark" aria-hidden="true">“</div>
+  <blockquote id="q-text"></blockquote>
+  <div class="translate"><span class="label">Workspace6 translation</span><div id="q-w6"></div></div>
+  <div class="row" style="justify-content:space-between">
+    <div class="muted" id="q-who"></div>
+    <button type="button" class="ghost small" onclick="nextQuote()">Another</button>
+  </div>
+</div>
+
+<script>
+const QUOTES = [
+  ["If I am not for myself, who will be for me? And if I am only for myself, what am I? And if not now, when?", "Hillel, Pirkei Avot 1:14", "Next week's Marquee slots are not going to fill themselves ... 😅"],
+  ["Who is wise? One who learns from every person.", "Ben Zoma, Pirkei Avot 4:1", "Even the ones who reply 'unsubscribe'. Especially them."],
+  ["Who is rich? One who is happy with their portion.", "Ben Zoma, Pirkei Avot 4:1", "Happy with our portion. Also happy to sell them a bigger portion. 3 for $4K."],
+  ["It is not your duty to finish the work, but neither are you free to desist from it.", "Rabbi Tarfon, Pirkei Avot 2:16", "You don't have to close them all today. You do have to send the follow-up."],
+  ["Where focus goes, energy flows.", "Tony Robbins", "Close the 47 tabs. Open To approve."],
+  ["Setting goals is the first step in turning the invisible into the visible.", "Tony Robbins", "The invisible: the budget they swear they don't have."],
+  ["You can have everything in life you want, if you will just help enough other people get what they want.", "Zig Ziglar", "They want operators. We have 1,400 of them. Everybody wins. 🤝"],
+  ["Every sale has five basic obstacles: no need, no money, no hurry, no desire, no trust.", "Zig Ziglar", "Sixth obstacle: it's in their Promotions tab."],
+  ["Everyone has an invisible sign hanging from their neck saying, 'Make me feel important.'", "Mary Kay Ash", "Use their first name. 'Hey Team' has a 6% reply rate. We checked."],
+  ["Approach each customer with the idea of helping him or her solve a problem or achieve a goal, not of selling a product or service.", "Brian Tracy", "Don't send the menu. Ask what they're pushing for Q4."],
+  ["You can make more friends in two months by becoming interested in other people than you can in two years by trying to get other people interested in you.", "Dale Carnegie", "Ask about their launch before you mention yours."],
+  ["People don't buy what you do; they buy why you do it.", "Simon Sinek", "They buy the room. The room is very good. 🌴"],
+  ["I never dreamed about success. I worked for it.", "Estée Lauder", "Also: she followed up."],
+  ["Success is your duty, obligation, and responsibility.", "Grant Cardone", "So is the second follow-up."],
+  ["Be obsessed or be average.", "Grant Cardone", "Obsessed, but in a warm, 'just nudging this back up 😊' kind of way."],
+  ["Either you run the day or the day runs you.", "Jim Rohn", "Approve three drafts before you open Slack. That's running the day."],
+  ["Discipline is the bridge between goals and accomplishment.", "Jim Rohn", "The bridge is also known as 'the follow-up'."]
+];
+let qi = Math.floor(Math.random() * QUOTES.length);
+function showQuote(){ const [t,w,x]=QUOTES[qi]; const q=document.getElementById('quote'); q.classList.add('swap');
+  setTimeout(()=>{ document.getElementById('q-text').textContent=t; document.getElementById('q-who').textContent='— '+w; document.getElementById('q-w6').textContent=x; q.classList.remove('swap'); }, 200); }
+function nextQuote(){ qi=(qi+1+Math.floor(Math.random()*(QUOTES.length-1)))%QUOTES.length; showQuote(); }
+showQuote();
+
+let tmr;
+function step(n){ const i=document.getElementById('limit'); i.value=Math.max(0,Math.min(200,(+i.value||0)+n)); document.getElementById('limit-show').textContent=i.value; clearTimeout(tmr); tmr=setTimeout(saveLimit,600); }
+function saveLimit(){ const i=document.getElementById('limit'); document.getElementById('limit-show').textContent=i.value;
+  fetch("{{ url_for('quick_settings') }}",{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'limit='+encodeURIComponent(i.value)})
+    .then(r=>{ const s=document.getElementById('saved'); s.textContent=r.ok?'Saved':'Not saved, try again'; s.classList.add('show'); setTimeout(()=>s.classList.remove('show'),1600); }); }
+</script>
 {% endblock %}

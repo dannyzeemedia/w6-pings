@@ -1,3 +1,4 @@
 flask==3.*
 gunicorn==23.*
 requests==2.*
+google-auth==2.*
