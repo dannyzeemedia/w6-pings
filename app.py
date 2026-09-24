@@ -8,6 +8,7 @@ from werkzeug.security import check_password_hash
 import airtable as at
 import gmail
 import engine
+from ops_log import OpsLog
 
 app = Flask(__name__)
 app.secret_key = os.environ["SECRET_KEY"]
@@ -441,7 +442,12 @@ def task_tick():
     if not engine_auth():
         return {"error": "unauthorised"}, 401
     try:
-        return engine.tick()
+        with OpsLog("w6_pings_tick", job_name="W6 Pings: inbox sync + send", platform="Render", log_runs=False) as ops:
+            out = engine.tick()
+            for s in out.get("send", {}).get("skipped", []) or []:
+                if str(s).startswith("failed"):
+                    ops.warn(f"send {s}")
+            return out
     except Exception as ex:
         import traceback
         return {"error": str(ex), "trace": traceback.format_exc()[-2000:]}, 500
@@ -459,7 +465,10 @@ def engine_context():
 def engine_apply():
     if not engine_auth():
         return {"error": "unauthorised"}, 401
-    return engine.apply(request.get_json(force=True))
+    with OpsLog("w6_pings_brain", job_name="W6 Pings: brain (drafts + learning)", platform="Render") as ops:
+        out = engine.apply(request.get_json(force=True))
+        ops.step(json.dumps(out))
+        return out
 
 
 @app.route("/healthz")
