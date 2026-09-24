@@ -102,7 +102,8 @@ def inject():
             ny = len(at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}))", fields=["Event"]))
         except Exception:
             ny = None
-    return {"user": session.get("user"), "zone_label": ZONE_LABEL, "n_to_approve": n, "more_pending": mp, "n_yours": ny}
+    return {"user": session.get("user"), "zone_label": ZONE_LABEL, "n_to_approve": n, "more_pending": mp, "n_yours": ny,
+            "version": VERSION}
 
 
 def celebrate(title, msg="", emoji="🎉", big=False):
@@ -777,6 +778,14 @@ def engine_apply():
         out = engine.apply(request.get_json(force=True))
         ops.step(json.dumps(out))
         return out
+
+
+VERSION = (os.environ.get("RENDER_GIT_COMMIT") or "dev")[:12]
+
+
+@app.route("/version")
+def version():
+    return VERSION, 200, {"Cache-Control": "no-store", "Content-Type": "text/plain"}
 
 
 @app.route("/healthz")

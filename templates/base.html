@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head>
+<html lang="en" data-version="{{ version }}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="view-transition" content="same-origin">
 <title>{% block title %}Pings{% endblock %} · W6</title>
@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=13">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=15" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -62,6 +62,44 @@ window.flipTheme=function(){
   const go=()=>{r.dataset.theme=next;try{localStorage.setItem('theme',next);}catch(e){}};
   document.startViewTransition?document.startViewTransition(go):go();
 };
-document.querySelectorAll('textarea.grow').forEach(t=>{const f=()=>{t.style.height='auto';t.style.height=(t.scrollHeight+4)+'px'};t.addEventListener('input',f);f();});
+// email boxes grow to fit everything (re-measured once fonts load, or the last lines hide below the fold)
+(function(){
+  const grow=t=>{ t.style.height='auto'; t.style.height=(t.scrollHeight+6)+'px'; };
+  const all=()=>document.querySelectorAll('textarea.grow').forEach(grow);
+  document.querySelectorAll('textarea.grow').forEach(t=>t.addEventListener('input',()=>grow(t)));
+  all(); requestAnimationFrame(all); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(all); window.addEventListener('load',all,{once:true});
+  document.addEventListener('toggle',all,true);
+})();
+
+// Never lose her typing: every text box on the page is saved as she types and put back after a refresh,
+// unless the server's copy has changed underneath (e.g. a rewrite finished), in which case the new version wins.
+(function(){
+  const KEY='w6-unsaved:'+location.pathname;
+  let store={}; try{ store=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){}
+  const idOf=el=>{ const f=el.form; return (f?(f.getAttribute('action')||f.id||''):'')+'|'+(el.name||el.id); };
+  const fields=[...document.querySelectorAll('form input[type=text], form textarea')].filter(el=>el.name||el.id);
+  let restored=0;
+  fields.forEach(el=>{
+    const k=idOf(el), saved=store[k];
+    if(saved && saved.orig===el.defaultValue && saved.val!==el.value && Date.now()-saved.t<3*86400000){ el.value=saved.val; restored++; el.dispatchEvent(new Event('input')); }
+    el.addEventListener('input',()=>{ store[k]={val:el.value,orig:el.defaultValue,t:Date.now()}; try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){} });
+    if(el.form) el.form.addEventListener('submit',()=>{ delete store[k]; try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){} });
+  });
+  if(restored){ const n=document.createElement('div'); n.className='flash'; n.textContent='Put back your unsaved edits from before the refresh.'; const m=document.querySelector('main'); m&&m.prepend(n); setTimeout(()=>n.remove(),5000); }
+})();
+
+// A new version went live: tell her, but don't reload on her (her typing is saved above).
+(function(){
+  const mine=document.documentElement.dataset.version; if(!mine||window.__verPoll) return; window.__verPoll=1;
+  const check=()=>fetch('/version',{cache:'no-store'}).then(r=>r.text()).then(v=>{
+    v=v.trim();
+    if(v && v!==mine && !document.getElementById('update-bar')){
+      const b=document.createElement('div'); b.id='update-bar'; b.className='update-bar';
+      b.innerHTML='<span>✨ There’s an update to Pings. Your work is saved. Press <b>Ctrl+R</b> (or <b>⌘R</b>) when you’re ready.</span><button type="button" onclick="location.reload()">Refresh now</button>';
+      document.body.appendChild(b);
+    }
+  }).catch(()=>{});
+  setInterval(check,60000); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) check(); });
+})();
 </script>
 </body></html>
