@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Your turn{% endblock %}
 {% block body %}
-<div class="head"><h1>Your turn</h1><p>These people replied with something real. Reply right here, or open the thread in Gmail.</p></div>
+<div class="head"><h1>Your turn</h1><p>These people replied with something real. Reply here or in Gmail. "I've got it from here" keeps the system away from them, even if you move to WhatsApp.</p></div>
 {% for e in events %}{% set f = e.fields %}{% set th = threads.get(f.get('Gmail Thread ID')) %}
 <div class="card">
   <div class="draft-meta">
@@ -24,7 +24,8 @@
     <div class="why">{{ f['Snippet'] }}</div>
     <form><div class="row">
   {% else %}<form><div class="row">{% endif %}
-        <button class="ghost" formaction="{{ url_for('yours_done', rid=e.id) }}" formmethod="post" formnovalidate>Done, I've handled it</button>
+        <button class="ghost" formaction="{{ url_for('yours_done', rid=e.id) }}" formmethod="post" formnovalidate name="outcome" value="mine" title="The system won't email this company until you hand it back">I've got it from here</button>
+        <button class="ghost" formaction="{{ url_for('yours_done', rid=e.id) }}" formmethod="post" formnovalidate name="outcome" value="back" title="Let the system carry on with them">Hand back to the system</button>
       </div>
     </form>
 </div>

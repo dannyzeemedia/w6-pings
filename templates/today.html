@@ -57,14 +57,30 @@
   {% endfor %}
 </div>
 
-<div class="card quote" id="quote">
-  <div class="quote-mark" aria-hidden="true">“</div>
-  <blockquote id="q-text"></blockquote>
-  <div class="translate"><span class="label">Workspace6 translation</span><div id="q-w6"></div></div>
-  <div class="row" style="justify-content:space-between">
-    <div class="muted" id="q-who"></div>
-    <button type="button" class="ghost small" onclick="nextQuote()">Another</button>
+<div class="card" id="handsoff">
+  <h2>Hands off</h2>
+  <p class="muted tiny" style="margin:4px 0 12px">Talking to someone on WhatsApp or anywhere else it can't see? Add them here and the system won't email anyone at that company until you release them. It also stays away from anyone with a live deal in Sales (Discussion or being invoiced).</p>
+  <form method="post" action="{{ url_for('handsoff_add') }}" class="handsoff-form">
+    <input type="text" name="company" list="partner-list" placeholder="Company name" required autocomplete="off">
+    <select name="reason" aria-label="Why"><option>Talking On WhatsApp</option><option>Deal In Progress</option><option>Karlie Took Over</option><option>Other</option></select>
+    <input type="date" name="until" aria-label="Until (optional)" title="Until (optional). Leave blank to keep them until you release them.">
+    <button class="small">Add</button>
+  </form>
+  <datalist id="partner-list">{% for pid, n in partners %}<option value="{{ n }}">{% endfor %}</datalist>
+  {% for h in handsoff %}{% set f = h.fields %}
+  <div class="plan">
+    <div><strong>{{ f.get('Company') }}</strong> <span class="muted">· {{ f.get('Reason', '') }}{% if f.get('Until') %} · until {{ f['Until'] }}{% endif %}</span>
+      {% if f.get('Note') %}<div class="muted tiny">{{ f['Note'] }}</div>{% endif %}</div>
+    <form method="post" action="{{ url_for('handsoff_release', rid=h.id) }}"><button class="ghost small">Release</button></form>
   </div>
+  {% endfor %}
+</div>
+
+<div class="card quote" id="quote">
+  <button type="button" class="ghost small again" onclick="nextQuote()" aria-label="Another quote">↻ Another</button>
+  <blockquote id="q-text"></blockquote>
+  <div class="who" id="q-who"></div>
+  <div class="translate"><span class="label">Workspace6 translation</span><div id="q-w6"></div></div>
 </div>
 
 <script>

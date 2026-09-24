@@ -65,16 +65,16 @@ h3 { font-size: 19px; }
 /* ---------- top bar ---------- */
 .top { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; view-transition-name: topbar; }
 .top .wrap { display: flex; align-items: center; gap: 16px; padding-top: 14px; padding-bottom: 0; flex-wrap: wrap; animation: none; }
-.brand { display: block; width: 156px; height: 24px; margin-bottom: 12px; background: var(--logo) left center / contain no-repeat; }
+.brand { display: block; width: 180px; height: 28px; margin-bottom: 12px; background: var(--logo) left center / contain no-repeat; }
 .brand span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 nav { display: flex; gap: 2px; margin-left: auto; overflow-x: auto; scrollbar-width: none; }
 nav::-webkit-scrollbar { display: none; }
-nav a { position: relative; text-decoration: none; color: var(--ink-2); font-size: 15px; padding: 8px 12px 13px; white-space: nowrap; transition: color .2s; }
+nav a { position: relative; text-decoration: none; color: var(--ink-2); font-size: 16.5px; padding: 10px 14px 15px; white-space: nowrap; transition: color .2s; }
 nav a:hover { color: var(--ink); }
 nav a.on { color: var(--green); font-weight: 500; }
 nav a.on::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--green); view-transition-name: tabline; }
 nav .pill { background: var(--green); color: var(--on-green); border-radius: 99px; font-size: 11px; font-weight: 600; padding: 1px 7px; margin-left: 5px; vertical-align: 1px; }
-.theme { background: transparent; border: 1px solid var(--line); color: var(--ink-2); width: 36px; height: 36px; padding: 0; border-radius: 50%;
+.theme { background: transparent; border: 1px solid var(--line); color: var(--ink-2); width: 40px; height: 40px; padding: 0; border-radius: 50%;
   display: grid; place-items: center; margin-bottom: 10px; letter-spacing: 0; cursor: pointer; }
 .theme:hover { background: var(--mint-2); color: var(--green); }
 .theme svg { width: 18px; height: 18px; }
@@ -225,14 +225,31 @@ body.login-page { min-height: 100vh; min-height: 100dvh; display: grid; place-it
 .login-foot { text-align: center; color: rgba(255,255,255,.6); font-size: 13px; margin-top: 20px; }
 
 /* quote */
-.quote { position: relative; overflow: hidden; background: linear-gradient(135deg, var(--mint-2), var(--card) 70%); }
-.quote-mark { position: absolute; top: -28px; right: 18px; font: 400 160px/1 Gambetta, Georgia, serif; color: var(--mint); pointer-events: none; }
-.quote blockquote { position: relative; margin: 0 0 16px; font: 400 24px/1.35 Gambetta, Georgia, serif; min-height: 2.7em; }
-.quote blockquote, .quote .translate, #q-who { transition: opacity .2s, transform .2s; }
-.quote.swap blockquote, .quote.swap .translate, .quote.swap #q-who { opacity: 0; transform: translateY(6px); }
-.translate { position: relative; background: var(--card); border: 1px dashed var(--green); border-radius: var(--r-sm); padding: 10px 14px; margin-bottom: 14px; }
-.translate .label { color: var(--green); font-size: 11px; display: block; margin-bottom: 2px; }
+.quote { position: relative; overflow: hidden; background: linear-gradient(135deg, var(--mint-2), var(--card) 70%); padding: 20px 24px; }
+.quote blockquote { margin: 0 110px 4px 0; font: 400 22px/1.35 Gambetta, Georgia, serif; }
+.quote .who { color: var(--ink-2); font-size: 14px; margin-bottom: 12px; }
+.quote .again { position: absolute; top: 16px; right: 16px; }
+.quote blockquote, .quote .translate, .quote .who { transition: opacity .2s, transform .2s; }
+.quote.swap blockquote, .quote.swap .translate, .quote.swap .who { opacity: 0; transform: translateY(6px); }
+.translate { background: var(--card); border: 1px dashed var(--green); border-radius: var(--r-sm); padding: 8px 12px; }
+.translate .label { color: var(--green); font-size: 11px; display: block; margin-bottom: 1px; }
 .translate div { font-size: 15px; }
+@media (max-width: 640px) { .quote blockquote { margin-right: 0; margin-top: 36px; } }
+
+/* hands off */
+.handsoff-form { display: grid; grid-template-columns: 2fr 1.3fr 1fr auto; gap: 8px; margin-bottom: 8px; }
+.handsoff-form input[type=date] { padding: 9px 10px; }
+@media (max-width: 640px) { .handsoff-form { grid-template-columns: 1fr 1fr; } .handsoff-form input[name=company] { grid-column: 1 / -1; } }
+
+/* voice + lessons */
+.auto-note { font-size: 13px; color: var(--green); margin: 4px 0 10px; }
+.auto-note .spark { display: inline-block; animation: twinkle 2.4s ease-in-out infinite; }
+@keyframes twinkle { 50% { transform: rotate(90deg) scale(1.25); opacity: .6; } }
+.lesson-main { min-width: 0; }
+.fix { margin: 6px 0 0; font-size: 13px; }
+.fix summary { color: var(--green); display: inline; }
+.fix summary::-webkit-details-marker { display: none; }
+.fix[open] summary { color: var(--ink-2); }
 
 /* celebrations */
 .toast { position: fixed; left: 50%; bottom: 28px; z-index: 50; transform: translate(-50%, 140%); background: var(--card); color: var(--ink);
@@ -244,3 +261,4 @@ body.login-page { min-height: 100vh; min-height: 100dvh; display: grid; place-it
 @keyframes toast-in { 0% { transform: translate(-50%, 140%); } 10%, 88% { transform: translate(-50%, 0); } 100% { transform: translate(-50%, 180%); } }
 @keyframes wiggle { 25% { transform: rotate(-14deg) scale(1.15); } 75% { transform: rotate(12deg) scale(1.1); } }
 @media (prefers-reduced-motion: reduce) { .toast { transform: translate(-50%, 0); animation: none; } }
+.handsoff-form button { align-self: stretch; }

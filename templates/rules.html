@@ -17,17 +17,16 @@
   <div class="field"><label>Days</label><div class="days">
     {% for d in days %}<label><input type="checkbox" name="day_{{ d }}" {{ 'checked' if d in s.get('Send Days', []) }}><span>{{ d }}</span></label>{% endfor %}
   </div></div>
-  <label class="switch"><input type="checkbox" name="Optimise Send Timing" id="opt" {{ 'checked' if s.get('Optimise Send Timing') }}>
-    <span><strong>Send at the time each person is most likely to reply</strong>
-    <span class="muted tiny">It learns when people like them tend to answer and picks the hour for each email. The hours below are the outer limits it stays inside.</span></span></label>
-  <div id="hours">
-    <div class="inline">
-      <div class="field"><label>Not before (hour)</label><input type="number" name="Send Window Start (Hour)" min="0" max="23" value="{{ s.get('Send Window Start (Hour)', '') }}"></div>
-      <div class="field"><label>Not after (hour)</label><input type="number" name="Send Window End (Hour)" min="1" max="24" value="{{ s.get('Send Window End (Hour)', '') }}"></div>
-      <div class="field"><label>In whose time</label><select name="Send Timezone">
-        {% for z in zones %}<option value="{{ z }}" {{ 'selected' if s.get('Send Timezone')==z }}>{{ zone_label[z] }}</option>{% endfor %}</select></div>
-    </div>
+  <label class="switch"><input type="checkbox" name="Optimise Send Timing" {{ 'checked' if s.get('Optimise Send Timing') }}>
+    <span><strong>Send when each person usually replies</strong>
+    <span class="muted tiny">It learns every person's own habits from their replies. If someone has answered at 9:30am and 11:30am, it aims for that window next time. Until it knows someone's habits, it uses the best time for people like them.</span></span></label>
+  <div class="inline">
+    <div class="field"><label>Never before (hour)</label><input type="number" name="Send Window Start (Hour)" min="0" max="23" value="{{ s.get('Send Window Start (Hour)', '') }}"></div>
+    <div class="field"><label>Never after (hour)</label><input type="number" name="Send Window End (Hour)" min="1" max="24" value="{{ s.get('Send Window End (Hour)', '') }}"></div>
+    <div class="field"><label>If we don't know their time zone</label><select name="Send Timezone">
+      {% for z in zones %}<option value="{{ z }}" {{ 'selected' if s.get('Send Timezone')==z }}>{{ zone_label[z] }}</option>{% endfor %}</select></div>
   </div>
+  <div class="hint" style="margin-top:-6px">These hours are always in the other person's own time zone, so 8 means 8am wherever they are.</div>
 </div>
 
 <div class="card">
@@ -65,10 +64,8 @@
 </form>
 
 <div class="card" id="voice" style="margin-top:32px">
-  <div class="draft-meta" style="margin-bottom:6px">
-    <h2>Karlie's voice</h2>
-    <span class="tag green">Kept up to date by the system</span>
-  </div>
+  <h2>Karlie's voice</h2>
+  <div class="auto-note"><span class="spark">✦</span> Written by the system</div>
   <p class="muted tiny" style="margin:0 0 14px">This is how every email gets written. Nobody edits it directly, so it stays in the right shape. It rewrites itself from your edits, notes, replies and results.{% if s.get('Voice Updated At') %} Last updated {{ s['Voice Updated At']|when }}.{% endif %}</p>
   <div class="voice">{{ s.get("Karlie's Voice") or "Not written yet." }}</div>
   <form method="post" action="{{ url_for('voice_note') }}" style="margin-top:18px">
@@ -84,8 +81,17 @@
   <p class="muted tiny" style="margin:0 0 8px">Every rule it follows, from your notes, your edits and what actually got replies. Switch off anything that's wrong.</p>
   {% for l in lessons %}{% set f = l.fields %}
   <div class="lesson {{ '' if f.get('Active') else 'off' }}">
-    <div><div class="txt">{{ f.get('Lesson') }}</div>
-      <div class="muted tiny">{{ f.get('Source', '') }}{% if f.get('Learned At') %} · {{ f['Learned At']|when }}{% endif %}{% if f.get('About') %} · {{ f['About'] }}{% endif %}{% if f.get('Source') in ("Karlie's Note", "Rule From Danny") and not f.get('Folded Into Voice') %} · live now, joins the guide on the next update{% endif %}</div></div>
+    <div class="lesson-main">
+      <div class="txt">{{ f.get('Lesson') }}</div>
+      <div class="muted tiny">{{ f.get('Source', '') }}{% if f.get('Learned At') %} · {{ f['Learned At']|when }}{% endif %}{% if f.get('About') %} · {{ f['About'] }}{% endif %}{% if (f.get('Evidence') or '').startswith('Corrected by') %} · corrected{% endif %}{% if f.get('Source') in ("Karlie's Note", "Rule From Danny") and not f.get('Folded Into Voice') %} · live now, joins the guide on the next update{% endif %}</div>
+      <details class="fix"><summary>Correct it</summary>
+        <form method="post" action="{{ url_for('lesson_fix', rid=l.id) }}" class="row" style="margin-top:8px">
+          <input type="text" name="lesson" value="{{ f.get('Lesson') }}" style="flex:1;min-width:220px">
+          <button class="small">Save</button>
+        </form>
+        <div class="hint">Rewrite it the way it should be. The new wording applies to the very next draft.</div>
+      </details>
+    </div>
     <form method="post" action="{{ url_for('lesson_toggle', rid=l.id) }}">
       <input type="hidden" name="active" value="{{ '0' if f.get('Active') else '1' }}">
       <button class="{{ 'ghost' if f.get('Active') else '' }} small">{{ 'Switch off' if f.get('Active') else 'Switch on' }}</button>

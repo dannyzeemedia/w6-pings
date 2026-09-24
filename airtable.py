@@ -10,6 +10,7 @@ TABLES = {
     "lessons": "tblgMPagOFFHzNpxC",
     "partners": "tbl7OH9U8ed4ZLLvI",
     "sales": "tblakxHy3Dke93A3b",
+    "handsoff": "tblUuIEQoMGOAv8r0",
 }
 API = f"https://api.airtable.com/v0/{BASE}"
 
@@ -71,3 +72,16 @@ def partner_names(ids):
         return {}
     formula = "OR(" + ",".join(f"RECORD_ID()='{i}'" for i in ids[:90]) + ")"
     return {r["id"]: r["fields"].get("Name", "") for r in list_records("partners", formula, fields=["Name"])}
+
+
+_names_cache = {"at": 0, "rows": []}
+
+
+def all_partners():
+    """[(id, name)] for every partner, cached for 10 minutes (used for the company picker)."""
+    if time.time() - _names_cache["at"] > 600:
+        rows = list_records("partners", fields=["Name"])
+        _names_cache.update(at=time.time(), rows=sorted(
+            [(r["id"], r["fields"]["Name"].strip()) for r in rows if r["fields"].get("Name", "").strip()],
+            key=lambda x: x[1].lower()))
+    return _names_cache["rows"]

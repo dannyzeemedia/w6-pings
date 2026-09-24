@@ -141,10 +141,13 @@ def today():
         "drafts", f"AND({{Status}}='Pending Approval', IS_AFTER({{Scheduled For}}, '{horizon}'))",
         sort=[("Scheduled For", "asc")], max_records=30)
     names = at.partner_names([p for d in upcoming for p in d["fields"].get("Partner", [])])
+    today_d = dt.date.today().isoformat()
+    handsoff = [h for h in at.list_records("handsoff", "{Active}", sort=[("Added At", "desc")])
+                if not h["fields"].get("Until") or h["fields"]["Until"] >= today_d]
     if session.get("user") == "karlie" or request.args.get("party"):
         _today_parties(f, sent_today, yours, tz)
     return render_template("today.html", s=f, sent_today=sent_today, n_yours=len(yours),
-                           upcoming=upcoming, names=names)
+                           upcoming=upcoming, names=names, handsoff=handsoff, partners=at.all_partners())
 
 
 def _today_parties(f, sent_today, yours, tz):
@@ -263,8 +266,44 @@ def yours():
 @app.post("/yours/<rid>/done")
 @login_required
 def yours_done(rid):
+    e = at.get("log", rid)["fields"]
     at.update("log", rid, {"Handled": True})
+    if request.form.get("outcome") == "mine":
+        names = at.partner_names(e.get("Partner", []))
+        company = ", ".join(names.values()) or e.get("Email", "")
+        at.create("handsoff", {"Company": company, "Partner": e.get("Partner", []), "Active": True,
+                               "Reason": "Karlie Took Over", "Added By": session["user"], "Added At": iso(now_utc()),
+                               "Note": "Taken over from Your turn."})
+        flash(f"{company} is all yours. The system won't email them until you hand them back.")
+    else:
+        flash("Handed back. The system will carry on with them.")
     return redirect(url_for("yours"))
+
+
+# ---------- hands off ----------
+@app.post("/handsoff")
+@login_required
+def handsoff_add():
+    name = request.form.get("company", "").strip()
+    if not name:
+        return redirect(url_for("today") + "#handsoff")
+    match = [pid for pid, n in at.all_partners() if n.lower() == name.lower()]
+    until = request.form.get("until") or None
+    at.create("handsoff", {"Company": name, "Partner": match[:1], "Active": True,
+                           "Reason": request.form.get("reason") or "Talking On WhatsApp",
+                           "Until": until, "Note": request.form.get("note", "").strip(),
+                           "Added By": session["user"], "Added At": iso(now_utc())})
+    flash(f"Got it. Hands off {name}" + (f" until {dt.date.fromisoformat(until).strftime('%-d %b')}." if until else " until you release them."))
+    return redirect(url_for("today") + "#handsoff")
+
+
+@app.post("/handsoff/<rid>/release")
+@login_required
+def handsoff_release(rid):
+    at.update("handsoff", rid, {"Active": False, "Note": (at.get("handsoff", rid)["fields"].get("Note", "") +
+                                f"\nReleased by {session['user']} {dt.date.today().isoformat()}").strip()})
+    flash("Released. The system can email them again.")
+    return redirect(url_for("today") + "#handsoff")
 
 
 @app.post("/yours/<rid>/reply")
@@ -340,6 +379,19 @@ def voice_note():
                               "Added By": u, "Learned At": iso(now_utc())})
         flash("Got it. Every new draft follows this from now on, and it'll be written into the voice guide on the next update.")
     return redirect(url_for("rules") + "#voice")
+
+
+@app.post("/lessons/<rid>/fix")
+@login_required
+def lesson_fix(rid):
+    new = request.form.get("lesson", "").strip()
+    old = at.get("lessons", rid)["fields"]
+    if new and new != old.get("Lesson"):
+        stamp = f"Corrected by {session['user']} on {dt.date.today().isoformat()}. Was: {old.get('Lesson', '')}"
+        at.update("lessons", rid, {"Lesson": new[:250], "Active": True, "Folded Into Voice": False,
+                                   "Evidence": (stamp + "\n" + (old.get("Evidence") or "")).strip()})
+        flash("Corrected. Every new draft follows the new wording from now on.")
+    return redirect(url_for("rules") + "#learned")
 
 
 @app.post("/lessons/<rid>")
