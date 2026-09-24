@@ -141,7 +141,7 @@ class World:
 def log(event, direction, by, email="", partner=None, sale=None, contact=None, draft=None, summary="", snippet="",
         msg_id="", thread_id="", at_time=None, handled=None, reviewed=None):
     f = {"Event": event, "Direction": direction, "By": by, "Email": email or None, "Summary": summary[:250],
-         "Snippet": snippet[:1500], "Gmail Message ID": msg_id, "Gmail Thread ID": thread_id,
+         "Snippet": snippet[:10000], "Gmail Message ID": msg_id, "Gmail Thread ID": thread_id,
          "At": iso(at_time or now())}
     for k, v in (("Partner", partner), ("Sale", sale), ("Contact", contact), ("Draft", draft)):
         if v:
@@ -476,7 +476,8 @@ def summaries_queue():
     if not out:
         return {"items": []}
     lessons = [l["fields"].get("Lesson") for l in at.list_records("lessons", "{Active}", fields=["Lesson"])]
-    return {"items": out, "voice": (w or World()).s.get("Karlie's Voice"), "lessons": lessons, "calendar": _calendar()}
+    ws = (w or World()).s
+    return {"items": out, "voice": ws.get("Karlie's Voice"), "offer_rules": ws.get("Offer Rules"), "lessons": lessons, "calendar": _calendar()}
 
 
 # ---------------------------------------------------------------- on-the-fly rewrites
@@ -493,7 +494,7 @@ def remix_queue():
         return {"items": [], "more_requested": int(w.s.get("More Drafts Requested") or 0),
                 "ping_requests": bool((w.s.get("Ping Requests") or "").strip())}
     lessons = [l["fields"].get("Lesson") for l in at.list_records("lessons", "{Active}", fields=["Lesson"])]
-    return {"items": out, "voice": w.s.get("Karlie's Voice"), "lessons": lessons,
+    return {"items": out, "voice": w.s.get("Karlie's Voice"), "offer_rules": w.s.get("Offer Rules"), "lessons": lessons,
             "more_requested": int(w.s.get("More Drafts Requested") or 0),
             "ping_requests": bool((w.s.get("Ping Requests") or "").strip())}
 
@@ -749,7 +750,7 @@ def context(max_new=None, more=0, requests_only=False):
     weekly = not s.get("Voice Updated At") or now() - pts(s["Voice Updated At"]) > dt.timedelta(days=7)
     return {"now": iso(now()), "settings": {k: v for k, v in s.items() if k not in ("Karlie's Voice", "Gmail History ID")},
             "voice": s.get("Karlie's Voice"), "lessons": lessons, "events_to_review": events, "decisions_to_learn": decided,
-            "work": work, "requests": asks, "voice_rewrite_due": weekly and not requests_only, "calendar": _calendar(),
+            "work": work, "requests": asks, "offer_rules": s.get("Offer Rules"), "voice_rewrite_due": weekly and not requests_only, "calendar": _calendar(),
             "results": results_summary() if weekly else None,
             "pending_voice_notes": [{"id": l["id"], "note": l["fields"].get("Lesson")} for l in
                                     at.list_records("lessons", "AND({Active}, NOT({Folded Into Voice}))")]}

@@ -533,6 +533,17 @@ def rules():
     return render_template("rules.html", s=s["fields"], days=DAYS, zones=ZONES, modes=MODES, lessons=lessons)
 
 
+@app.post("/offers")
+@login_required
+def offers_save():
+    text = request.form.get("offers", "").strip()
+    if text:
+        s = at.settings()
+        at.update("settings", s["id"], {"Offer Rules": text})
+        flash("Saved. Every new draft, rewrite and suggested reply follows these prices and rules from now on.")
+    return redirect(url_for("rules") + "#offers")
+
+
 @app.post("/voice/note")
 @login_required
 def voice_note():

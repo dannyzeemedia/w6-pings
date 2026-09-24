@@ -412,3 +412,5 @@ html .turbo-progress-bar { height: 3px; background: linear-gradient(90deg, #265c
 .more-txt { margin-top: 6px; }
 
 .ask-card { padding: 16px; } .ask-wait { margin-top: 10px; font-size: 14px; color: var(--green); }
+
+.offers-text { font-size: 14px; line-height: 1.55; min-height: 320px; }

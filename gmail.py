@@ -39,10 +39,33 @@ def _body(p):
 _QUOTE = re.compile(r"\n(On .{5,200}wrote:|-{2,} ?Original Message|From: .+\nSent: )", re.S)
 
 
+_LIST = re.compile(r"^\s*(?:[-*•–]|\d+[.)]|[a-z][.)])\s")
+
+
+def tidy(t):
+    """Readable email text: undo plain-text hard wraps (~76 chars), one blank line between paragraphs, no stray spaces."""
+    t = t.replace("\r\n", "\n").replace("\r", "\n").replace("\u00a0", " ").replace("\u200b", "").replace("\u200c", "").replace("\ufeff", "")
+    lines = [re.sub(r"[ \t]+", " ", l).strip() for l in t.split("\n")]
+    out, last_raw = [], ""
+    for l in lines:
+        prev = out[-1] if out else ""
+        # join when the previous RAW line looks hard-wrapped (55-80 chars) and this one continues the paragraph
+        joinable = (prev and l and 55 <= len(last_raw) <= 80 and not last_raw.endswith(":")
+                    and not _LIST.match(l) and not _LIST.match(last_raw) and not re.match(r"^(--|—)\s*$", l))
+        if joinable:
+            out[-1] = prev + " " + l
+        else:
+            out.append(l)
+        last_raw = l
+    text = "\n".join(out)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def _strip(t):
     m = _QUOTE.search(t)
     t = t[:m.start()] if m else t
-    return "\n".join(l for l in t.splitlines() if not l.startswith(">")).strip()
+    return tidy("\n".join(l for l in t.splitlines() if not l.startswith(">")))
 
 
 _tcache = {}

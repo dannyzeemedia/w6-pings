@@ -23,7 +23,7 @@
       <div class="field"><label>{{ 'Suggested reply' if f.get('Suggested Reply') else 'Your reply' }} {% if f.get('Suggested Reply') %}<span class="muted tiny">(written in your voice, change anything)</span>{% endif %}</label>
         <textarea class="grow" name="body" placeholder="{{ 'Write it like you normally would. It goes from your inbox, in this same thread.' if not f.get('Suggested Reply') else '' }}" style="min-height:120px">{{ f.get('Suggested Reply', '') }}</textarea>
         {% if not f.get('Suggested Reply') %}<div class="hint"><span class="spin"></span> A suggested reply is being written. It usually appears within a few minutes.</div>
-        {% elif '[' in f.get('Suggested Reply') %}<div class="hint">Fill in the [bracketed] bits before you send. It left those because it doesn't know the answer.</div>{% endif %}</div>
+        {% else %}<div class="hint">It suggests real options using your prices and how you usually discount. Tweak anything before you send.</div>{% endif %}</div>
       <div class="row">
         <button>Send reply</button>
   {% elif f.get('Snippet') %}

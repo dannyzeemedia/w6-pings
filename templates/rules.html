@@ -63,7 +63,16 @@
 <button type="submit">Save rules</button>
 </form>
 
-<div class="card" id="voice" style="margin-top:32px">
+<div class="card" id="offers" style="margin-top:32px">
+  <h2>What we sell and how we discount</h2>
+  <p class="muted tiny" style="margin:4px 0 12px">Every offer the system writes (drafts, rewrites and suggested replies) sticks to these prices and discount rules. Built from what you've actually charged. Change anything here and it applies to the very next email.</p>
+  <form method="post" action="{{ url_for('offers_save') }}">
+    <textarea name="offers" class="grow offers-text">{{ s.get('Offer Rules', '') }}</textarea>
+    <button style="margin-top:10px">Save prices and rules</button>
+  </form>
+</div>
+
+<div class="card" id="voice">
   <h2>Karlie's voice</h2>
   <div class="auto-note"><span class="spark">✦</span> Written by the system</div>
   <p class="muted tiny" style="margin:0 0 14px">This is how every email gets written. Nobody edits it directly, so it stays in the right shape. It rewrites itself from your edits, notes, replies and results.{% if s.get('Voice Updated At') %} Last updated {{ s['Voice Updated At']|when }}.{% endif %}</p>
