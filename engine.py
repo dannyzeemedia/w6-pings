@@ -719,6 +719,13 @@ def results_summary(days=56):
 
 
 # ---------------------------------------------------------------- applying the brain's decisions
+def _txt(v, bullets=True):
+    """The brain sometimes sends a list where we want text; accept both."""
+    if isinstance(v, list):
+        return "\n".join((("- " if bullets and not str(x).lstrip().startswith("-") else "") + str(x)) for x in v)
+    return "" if v is None else str(v)
+
+
 def apply(payload):
     w = World()
     t = iso(now())
@@ -749,10 +756,11 @@ def apply(payload):
         if not contact:
             continue
         cf = contact["fields"]
-        f = {"Subject": d["subject"], "AI Original Subject": d["subject"], "Body": d["body"], "AI Original Body": d["body"],
+        f = {"Subject": d.get("subject") or "", "AI Original Subject": d.get("subject") or "", "Body": _txt(d["body"], False),
+             "AI Original Body": _txt(d["body"], False),
              "Status": "Pending Approval", "Kind": d["kind"], "To Email": cf["Email"], "To Name": d.get("to_name") or cf.get("Name"),
-             "Why This Email": d.get("why", "")[:3000], "AI-Tell Check": d.get("ai_tell_check", "")[:3000],
-             "Brief": d.get("brief", "")[:6000], "Contact": [contact["id"]]}
+             "Why This Email": _txt(d.get("why"), False)[:3000], "AI-Tell Check": _txt(d.get("ai_tell_check"), False)[:3000],
+             "Brief": _txt(d.get("brief"))[:6000], "Contact": [contact["id"]]}
         if d.get("partner_id"):
             f["Partner"] = [d["partner_id"]]
         if d.get("thread_id"):

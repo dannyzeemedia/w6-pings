@@ -36,7 +36,8 @@ def _req(method, url, **kw):
         if r.status_code == 429:
             time.sleep(1 + attempt)
             continue
-        r.raise_for_status()
+        if r.status_code >= 400:
+            raise requests.HTTPError(f"{r.status_code} {r.text[:500]}", response=r)
         j = r.json()
         if method == "GET":
             _cache[key] = (time.time(), j)
