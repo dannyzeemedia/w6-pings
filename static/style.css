@@ -261,4 +261,6 @@ body.login-page { min-height: 100vh; min-height: 100dvh; display: grid; place-it
 @keyframes toast-in { 0% { transform: translate(-50%, 140%); } 10%, 88% { transform: translate(-50%, 0); } 100% { transform: translate(-50%, 180%); } }
 @keyframes wiggle { 25% { transform: rotate(-14deg) scale(1.15); } 75% { transform: rotate(12deg) scale(1.1); } }
 @media (prefers-reduced-motion: reduce) { .toast { transform: translate(-50%, 0); animation: none; } }
-.handsoff-form button { align-self: stretch; }
+.handsoff-form { align-items: end; }
+.handsoff-form label { font-size: 13px; font-weight: 500; display: flex; flex-direction: column; gap: 4px; }
+.handsoff-form button { align-self: end; height: 46px; }

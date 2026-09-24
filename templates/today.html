@@ -61,11 +61,12 @@
   <h2>Hands off</h2>
   <p class="muted tiny" style="margin:4px 0 12px">Talking to someone on WhatsApp or anywhere else it can't see? Add them here and the system won't email anyone at that company until you release them. It also stays away from anyone with a live deal in Sales (Discussion or being invoiced).</p>
   <form method="post" action="{{ url_for('handsoff_add') }}" class="handsoff-form">
-    <input type="text" name="company" list="partner-list" placeholder="Company name" required autocomplete="off">
-    <select name="reason" aria-label="Why"><option>Talking On WhatsApp</option><option>Deal In Progress</option><option>Karlie Took Over</option><option>Other</option></select>
-    <input type="date" name="until" aria-label="Until (optional)" title="Until (optional). Leave blank to keep them until you release them.">
+    <label>Company<input type="text" name="company" list="partner-list" placeholder="e.g. Omnisend" required autocomplete="off"></label>
+    <label>Why<select name="reason"><option>Talking On WhatsApp</option><option>Deal In Progress</option><option>Karlie Took Over</option><option>Other</option></select></label>
+    <label>Until <span class="muted">(optional)</span><input type="date" name="until"></label>
     <button class="small">Add</button>
   </form>
+  <div class="hint" style="margin:-2px 0 8px">Leave "Until" blank and they stay hands off until you press Release. Pick a date and they're released automatically that day.</div>
   <datalist id="partner-list">{% for pid, n in partners %}<option value="{{ n }}">{% endfor %}</datalist>
   {% for h in handsoff %}{% set f = h.fields %}
   <div class="plan">
