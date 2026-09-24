@@ -489,3 +489,23 @@ nav a.on::after { content: ""; position: absolute; left: 14px; right: 14px; top:
 
 .top .theme { align-self: center; }
 .sync-form { align-self: center; display: flex; }
+
+/* ---------- header v3: one centred line, pages in a pill bar, current page is a solid green pill ---------- */
+.top .wrap { height: 66px; align-items: center; gap: 14px; }
+nav { align-self: center; align-items: center; gap: 2px; margin-left: auto; padding: 4px; border-radius: 99px;
+  background: color-mix(in srgb, var(--mint) 30%, var(--card)); border: 1px solid var(--line); }
+nav a { padding: 8px 14px; margin: 0; border: 0; border-radius: 99px; background: transparent; line-height: 1; font-size: 15px; }
+nav a:hover { background: color-mix(in srgb, var(--mint) 55%, transparent); }
+nav a.on { background: transparent; color: var(--on-green); font-weight: 600; border: 0; }
+nav a.on::after { content: ""; position: absolute; inset: 0; top: 0; left: 0; right: 0; bottom: 0; height: auto; border-radius: 99px;
+  background: var(--green); box-shadow: 0 2px 8px -3px rgba(38,92,81,.5); z-index: -1; view-transition-name: tabline; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) nav a.on { color: var(--on-green); } :root:not([data-theme="light"]) nav a.on::after { background: var(--green); } }
+:root[data-theme="dark"] nav a.on { color: var(--on-green); } :root[data-theme="dark"] nav a.on::after { background: var(--green); }
+nav a.on .pill { background: var(--on-green); color: var(--green); }
+.sync-form { margin: 0 0 0 4px; } .top .theme { margin: 0; }
+@media (max-width: 640px) { .top .wrap { height: auto; flex-wrap: wrap; padding: 10px 16px 10px; } nav { order: 3; width: 100%; margin: 0; overflow-x: auto; }
+  .sync-form { margin-left: auto; } }
+
+.band.blockout { cursor: default; color: var(--ink-2); border-left-color: var(--ink-2); border-color: color-mix(in srgb, var(--ink-2) 35%, transparent);
+  background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--ink-2) 14%, var(--card)) 0 6px, var(--card) 6px 11px); }
+.sw.blocked { background: repeating-linear-gradient(45deg, var(--ink-2) 0 2px, transparent 2px 4px); border: 1px solid var(--ink-2); }

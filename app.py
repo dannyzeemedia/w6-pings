@@ -630,26 +630,32 @@ def bookings_page():
         bands, seen = [], {}
         for i, day in enumerate(days):
             for b in by_day.get(day, []):
-                if b["kind"] == "welcome":
-                    k = (b["sponsor"], b["state"])
+                if b["kind"] == "welcome" or b["state"] == "blockout":
+                    k = (b["sponsor"], b["state"], b["kind"])
                     if k in seen and seen[k]["end"] == i - 1:
                         seen[k]["end"] = i
                     else:
-                        seen[k] = {"sponsor": b["sponsor"], "state": b["state"], "start": i, "end": i, "id": b["id"]}
+                        seen[k] = {"sponsor": b["sponsor"], "state": b["state"], "kind": b["kind"], "start": i, "end": i, "id": b["id"]}
                         bands.append(seen[k])
         cells = [{"date": day, "in_month": day.month == month.month, "today": day == today, "past": day < today,
-                  "entries": [b for b in by_day.get(day, []) if b["kind"] != "welcome"],
+                  "entries": [b for b in by_day.get(day, []) if b["kind"] != "welcome" and b["state"] != "blockout"],
                   } for day in days]
         weeks.append({"cells": cells, "bands": bands})
         d += dt.timedelta(days=7)
-    upcoming = [b for b in rows if today <= b["date"] <= list_end]
+    upcoming = [b for b in rows if today <= b["date"] <= list_end and b["state"] != "blockout"]
+    blockouts = []
+    for b in sorted([b for b in rows if b["state"] == "blockout" and b["date"] >= today], key=lambda x: (x["kind"], x["date"])):
+        if blockouts and blockouts[-1]["kind"] == b["kind"] and (b["date"] - blockouts[-1]["end"]).days == 1:
+            blockouts[-1]["end"] = b["date"]; blockouts[-1]["ids"].append(b["id"])
+        else:
+            blockouts.append({"kind": b["kind"], "start": b["date"], "end": b["date"], "ids": [b["id"]]})
     groups = {}
     for b in upcoming:
         wk = b["date"] - dt.timedelta(days=b["date"].weekday())
         groups.setdefault(wk, []).append(b)
     bbrands = brand.for_partners([b["partner"] for b in upcoming])
     return render_template("bookings.html", view=view, month=month, prev=prev, nxt=nxt, weeks=weeks, groups=sorted(groups.items()), bbrands=bbrands,
-                           types=bk.TYPES, partners=at.all_partners(), today=today,
+                           types=bk.TYPES, partners=at.all_partners(), today=today, blockouts=blockouts,
                            n_pencilled=sum(1 for b in upcoming if b["state"] == "pencilled"), n_paid=sum(1 for b in upcoming if b["state"] == "paid"),
                            counts={k: sum(1 for b in upcoming if b["kind"] == k) for k in bk.TYPES})
 
@@ -677,6 +683,15 @@ def bookings_understand():
 @login_required
 def bookings_confirm():
     fm = request.form
+    if fm.get("state") == "blockout":
+        kind = fm.get("kind") if fm.get("kind") in bk.TYPES or fm.get("kind") == "all" else None
+        ds = [d for d in fm.get("dates", "").split(",") if re.match(r"\d{4}-\d{2}-\d{2}$", d)]
+        if not kind or len(ds) < 2:
+            flash("Something went wrong reading that blockout. Nothing was added.")
+            return redirect(url_for("bookings_page"))
+        days = bk.add_blockout(kind, dt.date.fromisoformat(ds[0]), dt.date.fromisoformat(ds[-1]))
+        flash(f"Blocked out {'everything' if kind == 'all' else bk.TYPES[kind]['label']} for {len(days)} day{'s' if len(days) > 1 else ''}. Nothing will be booked or pitched for those dates.")
+        return redirect(url_for("bookings_page", month=ds[0][:7]))
     kind = fm.get("kind") if fm.get("kind") in bk.TYPES else None
     dates = [d for d in fm.get("dates", "").split(",") if re.match(r"\d{4}-\d{2}-\d{2}$", d)]
     if not kind or not dates:
@@ -702,11 +717,34 @@ def bookings_add():
     except (TypeError, ValueError):
         flash("Pick a start date first.")
         return redirect(url_for("bookings_page"))
+    if fm.get("state") == "blockout":
+        kind = fm.get("kind") if fm.get("kind") in bk.TYPES or fm.get("kind") == "all" else "marquee"
+        end = start + dt.timedelta(days=max(1, min(count, 366)) - 1)
+        days = bk.add_blockout(kind, start, end)
+        flash(f"Blocked out {'everything' if kind == 'all' else bk.TYPES[kind]['label']} from {start.strftime('%-d %b')} to {end.strftime('%-d %b')}.")
+        return redirect(url_for("bookings_page", month=start.strftime("%Y-%m")))
+    if not name:
+        flash("Add the sponsor's name (or choose ⛔ Block out for dates with no sponsor).")
+        return redirect(url_for("bookings_page"))
+    clash = bk.blocked_dates(kind, bk.dates_for(start, max(1, min(count, 120)), fm.get("cadence", "once")))
+    if clash:
+        flash(f"{bk.TYPES[kind]['label']} is blocked out on " + ", ".join(d.strftime('%a %-d %b') for d in clash[:5]) + ". Nothing was booked.")
+        return redirect(url_for("bookings_page", month=start.strftime("%Y-%m")))
     pid, created = _ensure_partner(name)
     ds = bk.add(name or "Sponsor", pid, kind, fm.get("state", "pencilled"), start, count, fm.get("cadence", "once"))
     celebrate("Booked!", f"{name} · {bk.TYPES[kind]['label']} · {len(ds)} date{'s' if len(ds) > 1 else ''} from {ds[0].strftime('%a %-d %b')}", "📅",
               big=fm.get("state") == "paid")
     return redirect(url_for("bookings_page", month=ds[0].strftime("%Y-%m"), view=fm.get("view", "calendar")))
+
+
+@app.post("/bookings/unblock")
+@login_required
+def bookings_unblock():
+    ids = [i for i in request.form.get("ids", "").split(",") if i.startswith("rec")]
+    for i in ids:
+        at.delete("promo", i)
+    flash("Blockout removed. Those dates are open again.")
+    return redirect(request.referrer or url_for("bookings_page"))
 
 
 @app.post("/bookings/<rid>/edit")

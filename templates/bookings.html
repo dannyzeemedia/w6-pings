@@ -16,7 +16,7 @@
 
 <div class="legend bk-legend" id="legend">
   {% for k, t in types.items() %}<label><input type="checkbox" checked data-kind="{{ k }}"><i class="sw k-{{ k }}"></i>{{ t.label }}</label>{% endfor %}
-  <span class="leg-state"><i class="sw paid"></i>🤑 Paid</span><span class="leg-state"><i class="sw pencilled"></i>✏️ Pencilled in</span>
+  <span class="leg-state"><i class="sw paid"></i>🤑 Paid</span><span class="leg-state"><i class="sw pencilled"></i>✏️ Pencilled in</span><span class="leg-state"><i class="sw blocked"></i>⛔ Blocked out</span>
 </div>
 
 <turbo-frame id="bk-main" data-turbo-action="advance">
@@ -43,9 +43,13 @@
       {% endfor %}
       <div class="cal-layer">
         {% for b in w.bands %}
+        {% if b.state == 'blockout' %}
+        <div class="band blockout k-{{ b.kind }}" data-kind="{{ b.kind }}" style="grid-column:{{ b.start + 1 }} / {{ b.end + 2 }}" title="⛔ {{ types[b.kind].label }} blocked out">⛔ {{ types[b.kind].label }} blocked out</div>
+        {% else %}
         <button type="button" class="band k-welcome {{ b.state }}" data-kind="welcome" style="grid-column:{{ b.start + 1 }} / {{ b.end + 2 }}"
           title="Welcome Flow · {{ b.sponsor }} · {{ '🤑 Paid' if b.state=='paid' else '✏️ Pencilled in' }}" onclick="openEdit('{{ b.id }}','{{ b.sponsor|e }}','Welcome Flow','','{{ b.state }}')">
           {{ b.sponsor }}</button>
+        {% endif %}
         {% endfor %}
       </div>
       <div class="cal-items">
@@ -86,9 +90,19 @@
 {% endif %}
 </turbo-frame>
 
+{% if blockouts %}
+<div class="card" id="blockouts">
+  <h2 style="margin-bottom:8px">Blocked out</h2>
+  {% for bo in blockouts %}
+  <div class="plan"><div><strong>⛔ {{ types[bo.kind].label }}</strong> <span class="muted">· {{ bo.start.strftime('%a %-d %b') }}{% if bo.end != bo.start %} to {{ bo.end.strftime('%a %-d %b %Y') }}{% endif %}</span></div>
+    <form method="post" action="{{ url_for('bookings_unblock') }}"><input type="hidden" name="ids" value="{{ bo.ids|join(',') }}"><button class="ghost small">Remove</button></form></div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="card" id="add">
   <h2 style="margin-bottom:6px">Add a booking</h2>
-  <p class="muted tiny" style="margin:0 0 12px">Just say it. For example: "Pencil in Omnisend for 3 weeks of Welcome Flow starting Oct 6, 2026", "Doss paid for 3 Marquees starting next Tuesday", "Pencil in Shoplift for a month of shout-outs from Nov 3". A sponsor you haven't worked with before gets added to your Partners list automatically.</p>
+  <p class="muted tiny" style="margin:0 0 12px">Just say it. For example: "Pencil in Omnisend for 3 weeks of Welcome Flow starting Oct 6, 2026", "Doss paid for 3 Marquees starting next Tuesday", "Pencil in Shoplift for a month of shout-outs from Nov 3", "Block out DTC Marquee from 25 June to 30 June". A sponsor you haven't worked with before gets added to your Partners list automatically.</p>
   <form id="say-form" class="say" onsubmit="return understand(event)">
     <input type="text" id="say" placeholder="Tell it what to book…" autocomplete="off">
     <button id="say-btn">Check it</button>
@@ -97,8 +111,8 @@
   <details class="manual"><summary>Or fill it in yourself</summary>
   <form method="post" action="{{ url_for('bookings_add') }}" class="bk-form" style="margin-top:12px">
     <input type="hidden" name="view" value="{{ view }}">
-    <label class="f-sponsor">Sponsor<input type="text" name="sponsor" list="bk-partners" required placeholder="e.g. Omnisend" autocomplete="off"></label>
-    <label class="f-what">What<select name="kind" id="add-kind">{% for k, t in types.items() %}{% if k != '7fc' %}<option value="{{ k }}">{{ t.label }}</option>{% endif %}{% endfor %}</select></label>
+    <label class="f-sponsor">Sponsor<input type="text" name="sponsor" list="bk-partners" placeholder="e.g. Omnisend (not needed for a blockout)" autocomplete="off"></label>
+    <label class="f-what">What<select name="kind" id="add-kind">{% for k, t in types.items() %}{% if k != '7fc' %}<option value="{{ k }}">{{ t.label }}</option>{% endif %}{% endfor %}<option value="all">Everything (for a blockout)</option></select></label>
     <label class="f-date">First date<input type="date" name="start" id="add-start" required value="{{ today.isoformat() }}"></label>
     <label class="f-count">How many<input type="number" name="count" id="add-count" min="1" max="120" value="1"></label>
     <label class="f-rep">Repeats<select name="cadence" id="add-cadence">
@@ -106,10 +120,10 @@
       <option value="sends">Next DTC News sends (Tue + Thu)</option>
       <option value="weekly">Weekly</option>
       <option value="daily">Every day (Welcome Flow)</option></select></label>
-    <label class="f-state">Status<select name="state"><option value="pencilled">✏️ Pencilled in</option><option value="paid">🤑 Paid</option></select></label>
+    <label class="f-state">Status<select name="state" id="add-state"><option value="pencilled">✏️ Pencilled in</option><option value="paid">🤑 Paid</option><option value="blockout">⛔ Block out (no sponsor)</option></select></label>
     <button class="f-go">Add to calendar</button>
   </form>
-  <div class="hint">A 3-Marquee package: pick the first date, "How many" = 3, "Repeats" = Next DTC News sends. A month of Welcome Flow: 30, every day. New sponsor? Just type their name.</div>
+  <div class="hint">A 3-Marquee package: pick the first date, "How many" = 3, "Repeats" = Next DTC News sends. A month of Welcome Flow: 30, every day. New sponsor? Just type their name. A blockout: pick ⛔ Block out, the first date, and "How many" = number of days.</div>
   </details>
   <datalist id="bk-partners">{% for pid, n in partners %}<option value="{{ n }}">{% endfor %}</datalist>
 </div>

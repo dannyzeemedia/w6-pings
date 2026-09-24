@@ -15,8 +15,17 @@ TYPES = {
 MARQUEE_DAYS = (1, 3)  # DTC News goes out Tuesday and Thursday; one Marquee per send
 
 
+BLOCK = "⛔ Blockout: "   # Status prefix for a no-sponsor blockout, e.g. "⛔ Blockout: DTC News: Marquee"
+MAIN_KINDS = ["marquee", "shoutout", "welcome", "groupbuy", "takeover"]
+
+
 def parse_status(st):
     st = st or ""
+    if st.startswith("⛔"):
+        for key, t in TYPES.items():
+            if t["status"] in st:
+                return key, "blockout"
+        return None, None
     paid = "🤑" in st
     swap = "SWAP" in st
     for key, t in TYPES.items():
@@ -38,6 +47,10 @@ def load(start, end):
         if not kind or not f.get("Publish Date"):
             continue
         nm = f.get("Name", "")
+        if state == "blockout":
+            out.append({"id": r["id"], "date": dt.date.fromisoformat(f["Publish Date"]), "kind": kind, "state": state,
+                        "sponsor": "Blocked out", "name": f.get("Name", ""), "seq": "", "partner": None})
+            continue
         sponsor = (", ".join(names.get(p, "") for p in f.get("Sponsor", []))
                    or (nm.split(" · ")[0] if " · " in nm else re.sub(r"\s*(Package|DTC News|W6|Marquee|Welcome|Shout.?Out|Group Buy).*$", "", nm, flags=re.I))
                    or "Unknown")
@@ -48,7 +61,7 @@ def load(start, end):
 
 
 def open_marquees(bookings, start, end):
-    taken = {b["date"] for b in bookings if b["kind"] == "marquee"}
+    taken = {b["date"] for b in bookings if b["kind"] == "marquee"}  # booked, pencilled or blocked out
     d, out = max(start, dt.date.today()), []
     while d <= end:
         if d.weekday() in MARQUEE_DAYS and d not in taken:
@@ -58,8 +71,10 @@ def open_marquees(bookings, start, end):
 
 
 def dates_for(start, count, cadence):
-    """Publish dates for a new booking: 'sends' = next Tue/Thu sends, 'daily', 'weekly', or 'once'."""
+    """Publish dates for a new booking: 'sends' = the date she picked, then the next Tue/Thu sends; 'daily', 'weekly', or 'once'."""
     out, d = [], start
+    if cadence == "sends" and count >= 1:
+        out, d = [start], start + dt.timedelta(days=1)
     while len(out) < count:
         if cadence == "sends":
             if d.weekday() in MARQUEE_DAYS:
@@ -85,11 +100,31 @@ def add(sponsor_name, partner_id, kind, state, start, count, cadence):
     return ds
 
 
+def blocked_dates(kind, dates):
+    """Which of these dates are blocked out for this placement."""
+    if not dates:
+        return []
+    ds = sorted(dt.date.fromisoformat(d) if isinstance(d, str) else d for d in dates)
+    b = load(ds[0], ds[-1])
+    blocked = {x["date"] for x in b if x["state"] == "blockout" and x["kind"] == kind}
+    return [d for d in ds if d in blocked]
+
+
+def add_blockout(kind, start, end, note=""):
+    kinds = MAIN_KINDS if kind == "all" else [kind]
+    days = [start + dt.timedelta(days=i) for i in range((end - start).days + 1)]
+    rows = [{"Name": f"Blockout · {TYPES[k]['label']}" + (f" · {note}" if note else ""), "Status": BLOCK + TYPES[k]["status"],
+             "Publish Date": d.isoformat()} for k in kinds for d in days]
+    at.create_many("promo", rows, typecast=True)
+    return days
+
+
 def upcoming_for_brain(days=42):
     """Taken and open Marquee dates for the next few weeks, so drafts only offer real openings."""
     today = dt.date.today()
     b = load(today, today + dt.timedelta(days=days))
-    return {"booked": [{"date": x["date"].isoformat(), "type": TYPES[x["kind"]]["label"], "sponsor": x["sponsor"], "state": x["state"]} for x in b],
+    return {"booked": [{"date": x["date"].isoformat(), "type": TYPES[x["kind"]]["label"], "sponsor": x["sponsor"], "state": x["state"]} for x in b if x["state"] != "blockout"],
+            "blocked_out": [{"date": x["date"].isoformat(), "type": TYPES[x["kind"]]["label"]} for x in b if x["state"] == "blockout"],
             "open_marquee_dates": [d.isoformat() for d in open_marquees(b, today, today + dt.timedelta(days=days))]}
 
 
@@ -154,6 +189,14 @@ def _start(text, today):
             ahead = (target - today.weekday()) % 7 or 7
             return today + dt.timedelta(days=ahead + (7 if wd.group(1) and ahead < 7 and False else 0))
         MON = r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+        bare = re.search(r"\b(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b(?:\s+of\s+(this|next)\s+month)?", c, re.I)
+        if bare and not re.search(r"\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?[A-Za-z]{3,9}", c.replace("of this month", "").replace("of next month", "")) or (bare and bare.group(2)):
+            import calendar
+            dday, which = int(bare.group(1)), (bare.group(2) or "").lower()
+            y, m = today.year, today.month
+            if which == "next" or (not which and dday < today.day - 7):
+                y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+            return dt.date(y, m, min(dday, calendar.monthrange(y, m)[1]))
         dm = re.search(r"(\d{4}-\d{2}-\d{2}|\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?" + MON + r"\.?(?:,?\s+\d{4})?|" + MON + r"\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?|\d{1,2}/\d{1,2}(?:/\d{2,4})?)", c, re.I)
         if dm:
             try:
@@ -166,12 +209,65 @@ def _start(text, today):
     return None
 
 
+_MON_RE = r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+
+
+def _date_range(t, today):
+    """'from the 25th of June to the 31st', 'June 25 - July 3', '25/6 to 1/7' -> (start, end)."""
+    import calendar
+    day = r"(\d{1,2})(?:st|nd|rd|th)?"
+    pats = [re.compile(day + r"\s+(?:of\s+)?(" + _MON_RE + r")\.?(?:,?\s+(\d{4}))?", re.I),
+            re.compile(r"(" + _MON_RE + r")\.?\s+" + day + r"(?:,?\s+(\d{4}))?", re.I)]
+    found = []
+    for p in pats:
+        for m in p.finditer(t):
+            g = m.groups()
+            d, mon, yr = (g[0], g[1], g[2]) if p is pats[0] else (g[1], g[0], g[2])
+            found.append((m.start(), m.end(), int(d), mon, yr))
+    found.sort()
+    if not found:
+        return None
+    _, e1, d1, mon1, yr1 = found[0]
+    mnum = lambda mon: [x.lower()[:3] for x in calendar.month_abbr[1:]].index(mon.lower()[:3]) + 1
+    y = int(yr1) if yr1 else today.year
+    m1 = mnum(mon1)
+    if len(found) > 1:
+        _, _, d2, mon2, yr2 = found[1]
+        m2, y2 = mnum(mon2), int(yr2) if yr2 else y
+    else:
+        bare = re.search(r"(?:to|until|till|through|thru|-|–)\s*(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\b", t[e1:], re.I)
+        if not bare:
+            return None
+        d2, m2, y2 = int(bare.group(1)), m1, y
+    clamp = lambda yy, mm, dd: dt.date(yy, mm, min(dd, calendar.monthrange(yy, mm)[1]))
+    start, end = clamp(y, m1, d1), clamp(y2, m2, d2)
+    if not yr1 and start < today - dt.timedelta(days=60):
+        start, end = start.replace(year=start.year + 1), clamp(end.year + 1, end.month, end.day)
+    if end < start:
+        end = clamp(end.year + 1, end.month, end.day)
+    return start, end
+
+
 def parse_request(text, partners, today=None):
     """Turn 'Pencil in Omnisend for 3 weeks of welcome flow starting Oct 6, 2026' into a concrete booking plan."""
     today = today or dt.date.today()
     t = " ".join(text.split())
     low = t.lower()
     kind = next((k for k, pat in _KIND_WORDS if re.search(pat, low)), None)
+    if re.search(r"\bblock\s*-?\s*out|\bblock(?:ed)?\b|\bno bookings\b|\bunavailable\b|\bclosed\b", low):
+        if not kind and re.search(r"\b(everything|all|every publication|all placements)\b", low):
+            kind = "all"
+        if not kind:
+            return {"ok": False, "error": "Which placement should be blocked out? Say Marquee, Shout-Out, Welcome Flow, Group Buy, or \"everything\"."}
+        rng = _date_range(t, today)
+        if not rng:
+            return {"ok": False, "error": "I need a start and end date, e.g. \"block out DTC Marquee from 25 June to 30 June\"."}
+        start, end = rng
+        label = "Everything" if kind == "all" else TYPES[kind]["label"]
+        n = (end - start).days + 1
+        return {"ok": True, "blockout": True, "kind": kind, "label": label, "state": "blockout", "sponsor": "",
+                "start": start.isoformat(), "end": end.isoformat(), "dates": [start.isoformat(), end.isoformat()],
+                "summary": f"⛔ Block out: {label} · {start.strftime('%a %-d %b %Y')} to {end.strftime('%a %-d %b %Y')} · {n} day{'s' if n > 1 else ''}"}
     state = "paid" if re.search(r"\bpaid\b|\bconfirmed\b|🤑|locked in|has paid", low) else "pencilled"
     sponsor, pid = _match_sponsor(t, partners)
     start = _start(t, today)
@@ -199,7 +295,7 @@ def parse_request(text, partners, today=None):
         elif sends_kind:
             d = start
             while d <= end:
-                if d.weekday() in MARQUEE_DAYS:
+                if d.weekday() in MARQUEE_DAYS or d == start:
                     dates.append(d)
                 d += dt.timedelta(days=1)
         else:  # group buy: one DM a week for the period
@@ -216,6 +312,10 @@ def parse_request(text, partners, today=None):
             dates = dates_for(start, n, "weekly")
     if not dates:
         return {"ok": False, "error": "That works out to no dates. Try giving a start date and how long."}
+    clash = blocked_dates(kind, dates)
+    if clash:
+        return {"ok": False, "error": f"{TYPES[kind]['label']} is blocked out on " + ", ".join(d.strftime('%a %-d %b') for d in clash[:5])
+                + (" and more" if len(clash) > 5 else "") + ". Pick other dates or remove the blockout first."}
     label = TYPES[kind]["label"]
     span = dates[0].strftime("%a %-d %b %Y") + ("" if len(dates) == 1 else " to " + dates[-1].strftime("%a %-d %b %Y"))
     return {"ok": True, "sponsor": sponsor, "partner_id": pid, "new_sponsor": pid is None, "kind": kind, "label": label,
