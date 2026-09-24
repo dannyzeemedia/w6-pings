@@ -116,7 +116,11 @@ def _num(tok):
 
 def _match_sponsor(text, partners):
     """Best partner name mentioned in the text; else the words after 'in'/'for' as a new sponsor."""
-    low = text.lower()
+    # the command words ("pencil in", "book", "paid") and placement words are never the sponsor
+    # (there's a real partner called "Pencil")
+    low = re.sub(r"\b(pencil(?:led)?(?:\s+in)?|book(?:ed)?|add|paid(?:\s+for)?|lock(?:ed)?\s+in|confirm(?:ed)?|"
+                 r"welcome\s+flow|welcome|marquees?|shout\s*-?\s*outs?|group\s*buys?|takeover|dtc\s+news|sponsorship|weeks?|months?|days?)\b",
+                 " ", text.lower())
     hits = [(len(n), pid, n) for pid, n in partners if len(n) > 2 and re.search(r"\b" + re.escape(n.lower()) + r"\b", low)]
     if hits:
         _, pid, n = max(hits)
