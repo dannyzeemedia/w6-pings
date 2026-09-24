@@ -60,6 +60,28 @@ def load(start, end):
     return out
 
 
+def group_of(rid):
+    """Every date that belongs to the same booking as this row (same name, type, sponsor, 'x/N' run, created together)."""
+    r = at.get("promo", rid)
+    f = r["fields"]
+    seq = f.get("# / #") or ""
+    m = re.match(r"\s*\d+\s*/\s*(\d+)\s*$", seq)
+    if not m or int(m.group(1)) <= 1:
+        return [r]
+    total = m.group(1)
+    kind, _ = parse_status(f.get("Status"))
+    base = TYPES[kind]["status"] if kind else (f.get("Status") or "")
+    name = (f.get("Name") or "").replace("'", "\\'")
+    formula = (f"AND({{Name}}='{name}', FIND('{base}', {{Status}}), REGEX_MATCH({{# / #}}&'', '/\\s*{total}\\s*$'))")
+    rows = at.list_records("promo", formula, sort=[("Publish Date", "asc")])
+    sp = f.get("Sponsor") or []
+    rows = [x for x in rows if (x["fields"].get("Sponsor") or []) == sp]
+    # two separate bookings can share a name and length: keep the ones created the same day as this row
+    day = r.get("createdTime", "")[:10]
+    same = [x for x in rows if x.get("createdTime", "")[:10] == day]
+    return same if any(x["id"] == rid for x in same) else [r]
+
+
 def open_marquees(bookings, start, end):
     taken = {b["date"] for b in bookings if b["kind"] == "marquee"}  # booked, pencilled or blocked out
     d, out = max(start, dt.date.today()), []

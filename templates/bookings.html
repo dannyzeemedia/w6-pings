@@ -136,10 +136,13 @@
       <label class="field">Status<select name="state" id="edit-state"><option value="pencilled">✏️ Pencilled in</option><option value="paid">🤑 Paid</option></select></label>
       <label class="field" id="edit-date-wrap">Date<input type="date" name="date" id="edit-date"></label>
     </div>
+    <label class="check field" id="edit-scope-wrap"><input type="checkbox" name="scope" value="all" id="edit-scope" checked>
+      <span>Apply to the whole booking <span class="muted tiny" id="edit-scope-n"></span><br><span class="muted tiny">Untick to change only this one date.</span></span></label>
     <div class="row" style="justify-content:space-between">
       <button name="action" value="save">Save</button>
       <div class="row"><button type="button" class="ghost" onclick="document.getElementById('edit').close()">Close</button>
-      <button name="action" value="delete" class="danger" onclick="return confirm('Remove this date from the calendar?')">Remove</button></div>
+      <button name="action" value="delete_one" class="ghost danger" id="edit-del-one" onclick="return confirm('Remove just this date?')">Remove this date</button>
+      <button name="action" value="delete" class="danger" id="edit-del-all" onclick="return confirm(this.dataset.confirm||'Remove this booking?')">Remove booking</button></div>
     </div>
   </form>
 </dialog>
@@ -154,6 +157,18 @@
     document.getElementById('edit-state').value=state==='paid'?'paid':'pencilled';
     document.getElementById('edit-date').value=date||'';
     document.getElementById('edit-date-wrap').style.display=date?'':'none';
+    // how big is this booking? (so "Remove booking" takes every date with it)
+    const scopeWrap=document.getElementById('edit-scope-wrap'), n=document.getElementById('edit-scope-n'), one=document.getElementById('edit-del-one'), all=document.getElementById('edit-del-all');
+    scopeWrap.style.display='none'; one.style.display='none'; all.textContent='Remove'; all.dataset.confirm='Remove this date from the calendar?';
+    fetch('/bookings/'+id+'/group').then(r=>r.json()).then(g=>{
+      if(g.count>1){
+        const f=x=>new Date(x+'T12:00').toLocaleDateString(undefined,{day:'numeric',month:'short'});
+        scopeWrap.style.display=''; document.getElementById('edit-scope').checked=true;
+        n.textContent='('+g.count+' dates, '+f(g.first)+' to '+f(g.last)+')';
+        one.style.display=''; all.textContent='Remove whole booking ('+g.count+' dates)';
+        all.dataset.confirm='Remove all '+g.count+' dates of this booking?';
+      }
+    }).catch(()=>{});
     d.showModal();
   };
   window.understand=function(e){

@@ -767,15 +767,40 @@ def bookings_unblock():
     return redirect(request.referrer or url_for("bookings_page"))
 
 
+@app.get("/bookings/<rid>/group")
+@login_required
+def bookings_group(rid):
+    g = bk.group_of(rid)
+    ds = sorted(x["fields"].get("Publish Date", "") for x in g)
+    return {"count": len(g), "first": ds[0] if ds else "", "last": ds[-1] if ds else ""}
+
+
 @app.post("/bookings/<rid>/edit")
 @login_required
 def bookings_edit(rid):
     fm = request.form
     r = at.get("promo", rid)["fields"]
     kind, state = bk.parse_status(r.get("Status"))
-    if fm.get("action") == "delete":
-        at.delete("promo", rid)
-        flash("Removed that date.")
+    whole = fm.get("scope") != "one"
+    if fm.get("action") in ("delete", "delete_one"):
+        if fm.get("action") == "delete_one":
+            whole = False
+        rows = bk.group_of(rid) if whole else [{"id": rid}]
+        for x in rows:
+            at.delete("promo", x["id"])
+        flash(f"Removed the whole booking ({len(rows)} dates)." if len(rows) > 1 else "Removed that date.")
+    elif whole and fm.get("state") in ("paid", "pencilled") and kind:
+        rows = bk.group_of(rid)
+        new = ("🤑 " if fm["state"] == "paid" else "✏️ ") + bk.TYPES[kind]["status"]
+        for x in rows:
+            if x["fields"].get("Status") != new:
+                at.update("promo", x["id"], {"Status": new})
+        if fm.get("date") and fm["date"] != r.get("Publish Date"):
+            at.update("promo", rid, {"Publish Date": fm["date"]})
+        if fm["state"] == "paid" and state != "paid":
+            celebrate("Paid! 🤑", f"{r.get('Name', '')} · all {len(rows)} dates", "💸", big=True)
+        else:
+            flash(f"Updated the whole booking ({len(rows)} dates)." if len(rows) > 1 else "Updated.")
     else:
         fields = {}
         if fm.get("state") in ("paid", "pencilled") and kind:
