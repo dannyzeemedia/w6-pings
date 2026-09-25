@@ -649,7 +649,7 @@ def rescue_targets(w):
     return out
 
 
-def fates_to_check(w, limit=5):
+def fates_to_check(w, limit=8):
     """Companies whose website died, got hijacked or now points somewhere else, not yet looked into.
     The brain searches the web for what happened (acquired? rebranded? closed?) so a real lead isn't lost."""
     out = []
@@ -686,11 +686,24 @@ def follow_fate(w, x):
     src = x.get("sources") or []
     story = told + (("\nSources: " + ", ".join(src[:4])) if src else "")
     at.update("partners", pid, {"🤖 What Happened": story[:5000] or f"Looked it up on {today}: nothing clear.", "🤖 Fate Checked": today})
+    if fate == "still trading" and x.get("new_website") and old.get("Stage") == "Out of Service":
+        # false alarm: we had the wrong website. Fix it and put them back into outreach, contacts and all.
+        note = f"🤖 {today}: back in outreach, still trading at {x['new_website']} (the old website on this row was wrong)."
+        at.update("partners", pid, {"Website": x["new_website"], "Stage": "Contacted",
+                                    "Notes": ((old.get("Notes") or "").rstrip() + "\n\n" + note).strip()})
+        for c in w.contacts.values():
+            cf = c["fields"]
+            if pid in cf.get("Partner", []) and cf.get("Status") == "Do Not Contact" and "retired from outreach" in (cf.get("Dead Reason") or ""):
+                at.update("contacts", c["id"], {"Status": "Active", "Dead Reason": ""})
+        return {"partner": old.get("Name"), "fate": fate, "note": "back in outreach"}
     if fate not in ("acquired", "rebranded", "merged") or not x.get("new_website"):
         return {"partner": old.get("Name"), "fate": fate}
     dom = brand.domain_from(x["new_website"])
     new_name = (x.get("new_company") or dom).strip()
-    npid = w.dom2partner.get(dom) or next((i for i, p in w.partners.items() if p["fields"].get("Name", "").strip().lower() == new_name.lower()), None)
+    npid = w.dom2partner.get(dom)
+    if npid == pid:  # someone we knew there already uses the new domain; that mapping points back at the old row
+        npid = None
+    npid = npid or next((i for i, p in w.partners.items() if i != pid and p["fields"].get("Name", "").strip().lower() == new_name.lower()), None)
     link = f"🤖 {today}: {old.get('Name')} is now part of {new_name} ({told[:300]})"
     if npid:
         nf = w.partners[npid]["fields"]
@@ -707,6 +720,13 @@ def follow_fate(w, x):
         pass
     if w.blocked(npid) or w.partners[npid]["fields"].get("Stage") in ("Denied", "Blacklist"):
         return {"partner": old.get("Name"), "fate": fate, "new": new_name, "note": "new company is off limits"}
+    moved_people = []
+    for c in w.contacts.values():  # people we knew at the old company who now have an address at the new one
+        cf = c["fields"]
+        if pid in cf.get("Partner", []) and (cf.get("Email") or "").lower().endswith("@" + dom):
+            at.update("contacts", c["id"], {"Partner": [npid], "Status": "Active", "Dead Reason": ""})
+            c["fields"] = {**cf, "Partner": [npid], "Status": "Active"}
+            moved_people.append(cf.get("Name") or cf.get("Email"))
     have = [c for c in w.contacts.values() if npid in c["fields"].get("Partner", []) and c["fields"].get("Status") in (None, "Active")]
     if not have and os.environ.get("APOLLO_API_KEY"):
         try:
@@ -720,7 +740,13 @@ def follow_fate(w, x):
         return {"partner": old.get("Name"), "fate": fate, "new": new_name, "note": "no contacts found"}
     knew = ", ".join(filter(None, [c["fields"].get("Name") or c["fields"].get("Email") for c in w.contacts.values()
                                    if pid in c["fields"].get("Partner", [])][:3])) or "the team"
-    ask = (f"[auto {today}] Write to {new_name}: {told[:400]} Karlie was talking to {knew} at {old.get('Name')}. "
+    if moved_people:
+        ask = (f"[auto {today}] Write to {', '.join(moved_people)} at {new_name}: {told[:400]} Karlie knew them at {old.get('Name')} "
+               f"and they're now at {new_name}. A warm catch-up: say we just heard the news, congratulate them, and ask if "
+               f"they're still the right person for sponsorships at {new_name} or who is. Short, no pitch.")
+    else:
+        ask = None
+    ask = ask or (f"[auto {today}] Write to {new_name}: {told[:400]} Karlie was talking to {knew} at {old.get('Name')}. "
            f"Open with the good news, that we were chatting with {knew} at {old.get('Name')} and just heard about it, "
            f"then ask who the best person is at {new_name} now for sponsorships and partnerships. Short, warm, no pitch.")
     at.update("settings", w.settings_rec["id"], {"Ping Requests": ((at.settings()["fields"].get("Ping Requests") or "").rstrip() + "\n" + ask).strip()})
