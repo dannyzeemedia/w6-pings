@@ -38,7 +38,7 @@
         <div class="who">{{ 'You' if m.is_me else m['from'].split('<')[0].strip(' "') }} · {{ m.ts|mswhen }}</div>
         <div class="text">{{ m.body }}</div></div>{% endfor %}
     </div>
-    <form method="post" action="{{ url_for('yours_reply', rid=e.id) }}" class="draft {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ e.id }}">
+    <form method="post" action="{{ url_for('yours_reply', rid=e.id) }}" class="draft {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ e.id }}" data-autosave="{{ url_for('yours_save', rid=e.id) }}">
       <div class="email-zone">
         <div class="field"><label>{{ 'Suggested reply' if f.get('Suggested Reply') else 'Your reply' }} {% if f.get('Suggested Reply') %}<span class="muted tiny">(written in your voice, change anything)</span>{% endif %}</label>
           <textarea class="grow" name="body" placeholder="{{ 'Write it like you normally would. It goes from your inbox, in this same thread.' if not f.get('Suggested Reply') else '' }}" style="min-height:120px">{{ f.get('Suggested Reply', '') }}</textarea>
@@ -59,17 +59,26 @@
       </details>{% endif %}
       <div class="field"><label>Note for next time <span class="muted tiny">(optional)</span></label>
         <input type="text" name="feedback" placeholder="What should it do differently from now on?">
-        <div class="hint">This becomes a rule for every future reply and email, e.g. "answer their questions in the order they asked", "always offer the community code to agencies".</div></div>
+        <div class="hint">Only for things that should <em>always</em> apply from now on, e.g. "answer their questions in the order they asked", "always offer the community code to agencies". It's saved when you send, and tonight it becomes a rule for every future reply and email (you'll see it under Rules → What it's learned). You don't need to repeat your edits or rewrites here: it already learns from those.</div></div>
+      <div class="autosaved muted tiny" aria-live="polite"></div>
       <div class="row">
         <button>Send reply</button>
-        <button class="ghost" formaction="{{ url_for('yours_save', rid=e.id) }}">Save edits</button>
   {% elif f.get('Snippet') %}
     <div class="why">{{ f['Snippet'] }}</div>
     <form><div class="row">
   {% else %}<form><div class="row">{% endif %}
-        <button class="ghost" formaction="{{ url_for('yours_done', rid=e.id) }}" formmethod="post" formnovalidate name="outcome" value="mine" title="The system won't email this company until you hand it back">I've got it from here</button>
-        <button class="ghost" formaction="{{ url_for('yours_done', rid=e.id) }}" formmethod="post" formnovalidate name="outcome" value="back" title="Let the system carry on with them">Hand back to the system</button>
+        <button class="ghost" formaction="{{ url_for('yours_done', rid=e.id) }}" formmethod="post" formnovalidate name="outcome" value="back">No reply needed</button>
       </div>
+      <div class="hint" style="margin-top:6px">"No reply needed" clears it from here and the system carries on with them as normal.</div>
+      <details class="offline"><summary>📵 Taking this offline?</summary>
+        <p class="muted tiny" style="margin:6px 0 12px">Moving to WhatsApp, a call or a meeting? The system stops emailing anyone at {{ names.get((f.get('Partner') or [''])[0]) or 'this company' }} until the date you pick, or until you press Release under Hands off on the Today page.</p>
+        <div class="handsoff-form">
+          <label>Where<select name="where"><option>WhatsApp</option><option>Phone or video call</option><option>In person</option><option>Somewhere else</option></select></label>
+          <label>Until <span class="muted">(optional)</span><input type="date" name="until"></label>
+          <label style="flex:2 1 220px">Note <span class="muted">(optional)</span><input type="text" name="note" placeholder="e.g. call booked for Tuesday"></label>
+          <button class="small" formaction="{{ url_for('yours_done', rid=e.id) }}" formmethod="post" formnovalidate name="outcome" value="mine">Hands off</button>
+        </div>
+      </details>
     </form>
 </div>
 {% else %}

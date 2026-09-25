@@ -514,8 +514,11 @@ def remix_queue():
 
 def remix_apply(item):
     if item.get("log_id"):
+        lg = at.get("log", item["log_id"])["fields"]
+        hist = (f"[{dt.date.today().isoformat()}] Asked: {lg.get('Remix Request', '')}\nBefore:\n{lg.get('Suggested Reply', '')}\n\n"
+                + (lg.get("Remix History") or ""))[:20000]
         at.update("log", item["log_id"], {"Suggested Reply": _txt(item["body"], False)[:8000], "Remix Request": "",
-                                          "Suggestion Check": _txt(item.get("ai_tell_check"), False)[:3000]})
+                                          "Remix History": hist, "Suggestion Check": _txt(item.get("ai_tell_check"), False)[:3000]})
         return {"ok": True}
     d = at.get("drafts", item["draft_id"])["fields"]
     hist = (d.get("Remix History") or "")
@@ -985,7 +988,8 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
         f = d["fields"]
         decided.append({"draft_id": d["id"], "kind": f.get("Kind"), "status": f.get("Status"), "written_by_karlie": bool(f.get("Written By Karlie")),
                         "ai_subject": f.get("AI Original Subject"), "ai_body": f.get("AI Original Body"),
-                        "final_subject": f.get("Subject"), "final_body": f.get("Body"), "her_note": f.get("Karlie Feedback")})
+                        "final_subject": f.get("Subject"), "final_body": f.get("Body"), "her_note": f.get("Karlie Feedback"),
+                        "her_rewrite_requests": (f.get("Remix History") or "")[:6000] or None})
     # capacity
     queued = len(at.list_records("drafts", "AND(OR({Status}='Pending Approval', {Status}='Approved'), OR({Scheduled For}='', IS_BEFORE({Scheduled For}, DATEADD(NOW(), 2, 'days'))))", fields=["Status"]))
     # explicit asks from the dashboard ("make a ping to Recharge"): always written, ahead of everything else

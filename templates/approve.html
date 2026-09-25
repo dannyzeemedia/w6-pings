@@ -14,7 +14,7 @@
 <div id="drafts">
 {% for d in drafts %}{% set f = d.fields %}
 <div class="draft-wrap" id="w-{{ d.id }}">
-<form class="card draft {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ d.id }}" method="post" action="{{ url_for('decide', rid=d.id) }}">
+<form class="card draft {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ d.id }}" method="post" action="{{ url_for('decide', rid=d.id) }}" data-autosave="{{ url_for('decide', rid=d.id) }}">
   <div class="draft-meta">
     <div class="who-row">{{ chip(brands.get(d.id), names.get((f.get('Partner') or [''])[0]) or f.get('To Email')) }}
       <div><h3>{{ f.get('To Name') or f.get('To Email') }}</h3>
@@ -56,10 +56,10 @@
   </details>
   <div class="field"><label>Note for next time <span class="muted tiny">(optional)</span></label>
     <input type="text" name="feedback" placeholder="What should it do differently from now on?" value="{{ f.get('Karlie Feedback', '') }}">
-    <div class="hint">This becomes a rule for every future email, not just this one. For example: "too long, keep cold emails under 80 words", "don't offer the digest to agencies", "always mention the NYC event to software companies", "never open with 'I hope you're well'".</div></div>
+    <div class="hint">Only for things that should <em>always</em> apply from now on, e.g. "keep cold emails under 80 words", "don't offer the digest to agencies", "never open with 'I hope you're well'". It's saved when you send or bin this, and tonight it becomes a rule for every future email (see Rules → What it's learned). You don't need to repeat your edits or rewrites here: it already learns from those.</div></div>
+  <div class="autosaved muted tiny" aria-live="polite"></div>
   <div class="row">
     <button name="action" value="send" data-send>Looks good, send</button>
-    <button name="action" value="save" class="ghost">Save edits</button>
     <button name="action" value="reject" class="danger">Bin it</button>
   </div>
 </form>

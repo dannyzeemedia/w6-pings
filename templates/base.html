@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=27" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=29" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -107,6 +107,23 @@ window.flipTheme=function(){
     if(el.form) el.form.addEventListener('submit',()=>{ delete store[k]; try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){} });
   });
   if(restored){ const n=document.createElement('div'); n.className='flash'; n.textContent='Put back your unsaved edits from before the refresh.'; const m=document.querySelector('main'); m&&m.prepend(n); setTimeout(()=>n.remove(),5000); }
+})();
+
+// Save to the server as she types too (a couple of seconds after she stops), so edits survive a new device.
+(function(){
+  document.querySelectorAll('form[data-autosave]').forEach(form=>{
+    let t=null, busy=false, again=false; const note=form.querySelector('.autosaved');
+    const save=()=>{
+      if(busy){ again=true; return; } busy=true;
+      const data=new FormData(form); data.set('action','save'); data.delete('instruction');
+      if(note) note.textContent='Saving…';
+      fetch(form.dataset.autosave,{method:'POST',body:data,headers:{'X-Fetch':'1'}}).then(r=>r.ok?r.json():Promise.reject())
+        .then(()=>{ if(note) note.textContent='✓ Saved'; }).catch(()=>{ if(note) note.textContent='Not saved yet, it will keep trying'; setTimeout(save,8000); })
+        .finally(()=>{ busy=false; if(again){ again=false; save(); } });
+    };
+    form.querySelectorAll('textarea[name=body], input[name=subject], input[name=feedback]').forEach(el=>
+      el.addEventListener('input',()=>{ clearTimeout(t); if(note) note.textContent=''; t=setTimeout(save,2000); }));
+  });
 })();
 
 // Pinned ping bar: climbs as she approves and replies, and celebrates when she hits her goal.

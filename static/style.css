@@ -524,9 +524,16 @@ nav a.on .pill { background: var(--on-green); color: var(--green); }
 /* pinned ping bar (all pages) */
 .pingbar { max-width: 940px; margin: 0 auto; padding: 0 16px 8px; display: flex; align-items: center; gap: 12px; }
 .pingbar-track { flex: 1; height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--mint) 45%, transparent); overflow: hidden; }
-.pingbar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--green), #7fc4b6); transition: width .7s cubic-bezier(.2,.7,.2,1); }
+.pingbar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--green), #7fc4b6); transition: width 1.6s cubic-bezier(.25,.8,.25,1); }
 .pingbar-label { font: 600 12px Inter; color: var(--green); white-space: nowrap; }
-.pingbar.done .pingbar-fill { background: linear-gradient(90deg, #265c51, #7fc4b6, #e2dbbe, #7fc4b6); background-size: 200% 100%; animation: shine 2.4s linear infinite; }
+/* goal hit: a calm, solid "winner" fill with a soft gold glint that drifts across now and then (not a loading bar) */
+.pingbar.done .pingbar-track { background: color-mix(in srgb, #e2dbbe 55%, transparent); }
+.pingbar.done .pingbar-fill { position: relative; overflow: hidden; background: linear-gradient(90deg, #265c51, #2f7064 60%, #3d8676);
+  box-shadow: 0 0 10px color-mix(in srgb, #e2dbbe 70%, transparent); }
+.pingbar.done .pingbar-fill::after { content: ""; position: absolute; inset: 0; width: 35%;
+  background: linear-gradient(90deg, transparent, rgba(240,232,200,.55), transparent); transform: translateX(-120%); animation: glint 9s ease-in-out infinite; }
+@keyframes glint { 0%, 70% { transform: translateX(-120%); } 100% { transform: translateX(320%); } }
+@media (prefers-reduced-motion: reduce) { .pingbar.done .pingbar-fill::after { animation: none; display: none; } }
 .pingbar.bump .pingbar-label { animation: pop .6s cubic-bezier(.3,1.6,.4,1) both; }
 @keyframes shine { to { background-position: -200% 0; } }
 @media (max-width: 640px) { .pingbar { padding-bottom: 8px; } }
@@ -574,3 +581,11 @@ nav a.on .pill { background: var(--on-green); color: var(--green); }
   :root:not([data-theme="light"]) .msg.me .text { background: var(--card); } :root:not([data-theme="light"]) .msg.them .text { border-color: var(--cream); } }
 :root[data-theme="dark"] .thread { background: color-mix(in srgb, var(--ink) 5%, var(--card)); }
 :root[data-theme="dark"] .msg.me .text { background: var(--card); } :root[data-theme="dark"] .msg.them .text { border-color: var(--cream); }
+
+/* Your turn: "Taking this offline?" panel */
+details.offline { margin-top: 14px; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 14px; background: var(--card); }
+details.offline > summary { cursor: pointer; font-weight: 600; color: var(--green); }
+details.offline .handsoff-form { grid-template-columns: 1.2fr 1fr 2fr auto; align-items: end; margin-bottom: 0; }
+details.offline .handsoff-form label { display: grid; gap: 4px; font-size: 13px; }
+@media (max-width: 640px) { details.offline .handsoff-form { grid-template-columns: 1fr 1fr; } details.offline .handsoff-form label:nth-child(3) { grid-column: 1 / -1; } }
+.autosaved { min-height: 18px; margin: -4px 0 6px; }

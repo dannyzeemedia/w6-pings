@@ -315,6 +315,9 @@ def decide(rid):
     fields = {"Subject": subject, "Body": body, "Karlie Feedback": request.form.get("feedback", "").strip()}
     fields["Edited By Karlie"] = (_norm(body) != _norm(d.get("AI Original Body"))
                                   or _norm(subject) != _norm(d.get("AI Original Subject")))
+    if action == "save" and request.headers.get("X-Fetch") == "1":  # quiet background save while she types
+        at.update("drafts", rid, fields)
+        return {"ok": True}
     if action in ("send", "reject"):
         fields["Decided At"] = iso(now_utc())
     if action == "send":
@@ -509,12 +512,16 @@ def yours_done(rid):
     if request.form.get("outcome") == "mine":
         names = at.partner_names(e.get("Partner", []))
         company = ", ".join(names.values()) or e.get("Email", "")
+        where = request.form.get("where") or "Somewhere else"
+        until = request.form.get("until") or None
+        note = " ".join(filter(None, [f"Taken offline ({where}) from Your turn.", request.form.get("note", "").strip()]))
         at.create("handsoff", {"Company": company, "Partner": e.get("Partner", []), "Active": True,
-                               "Reason": "Karlie Took Over", "Added By": session["user"], "Added At": iso(now_utc()),
-                               "Note": "Taken over from Your turn."})
-        flash(f"{company} is all yours. The system won't email them until you hand them back.")
+                               "Reason": {"WhatsApp": "Talking On WhatsApp", "Somewhere else": "Other"}.get(where, "Karlie Took Over"),
+                               "Until": until, "Added By": session["user"], "Added At": iso(now_utc()), "Note": note})
+        when = f"until {dt.date.fromisoformat(until).strftime('%-d %b')}" if until else "until you press Release under Hands off on the Today page"
+        celebrate("All yours", f"The system won't email anyone at {company} {when}.", "📵")
     else:
-        flash("Handed back. The system will carry on with them.")
+        flash("Done. The system carries on with them as normal.")
     return redirect(url_for("yours"))
 
 
@@ -592,6 +599,8 @@ def autopilot_seen():
 @login_required
 def yours_save(rid):
     at.update("log", rid, {"Suggested Reply": request.form.get("body", "").strip()})
+    if request.headers.get("X-Fetch") == "1":  # quiet background save while she types
+        return {"ok": True}
     flash("Edits saved.")
     return redirect(url_for("yours") + f"#d-{rid}")
 
@@ -626,9 +635,12 @@ def yours_reply(rid):
     if e.get("Contact"):
         link["Contact"] = e["Contact"]
     sug = (e.get("Suggested Reply") or "").strip()
+    hist = e.get("Remix History") or ""
+    first = hist.rsplit("\nBefore:\n", 1)[-1].split("\n\n[", 1)[0].strip() if hist else ""  # the very first suggestion, before any rewrite
     draft = at.create("drafts", {"Subject": "Reply from Karlie", "Status": "Sent", "Kind": "Reply",
                                  "To Email": to, "Body": text, "Written By Karlie": not sug,
-                                 **({"AI Original Body": sug, "Edited By Karlie": _norm(text) != _norm(sug)} if sug else {}),
+                                 **({"AI Original Body": first or sug, "Edited By Karlie": bool(hist) or _norm(text) != _norm(sug)} if sug else {}),
+                                 **({"Remix History": hist} if hist else {}),
                                  **({"Karlie Feedback": request.form.get("feedback", "").strip()} if request.form.get("feedback", "").strip() else {}),
                                  "Gmail Thread ID": tid, "Sent At": t, "Decided At": t, **link})
     at.create("log", {"Summary": "Karlie replied from the dashboard", "Event": "Sent", "Direction": "Out",
