@@ -61,7 +61,7 @@ class World:
     @cached_property
     def partners(self):
         return {r["id"]: r for r in at.list_records("partners", fields=[
-            "Name", "Website", "Contact", "Stage", "Type", "Notes", "Sales", "Competitors"])}
+            "Name", "Website", "Contact", "Stage", "Type", "Notes", "Sales", "Competitors", "🤖 What Happened", "🤖 Fate Checked"])}
 
     @cached_property
     def sales(self):
@@ -649,6 +649,84 @@ def rescue_targets(w):
     return out
 
 
+def fates_to_check(w, limit=5):
+    """Companies whose website died, got hijacked or now points somewhere else, not yet looked into.
+    The brain searches the web for what happened (acquired? rebranded? closed?) so a real lead isn't lost."""
+    out = []
+    for pid, p in w.partners.items():
+        f = p["fields"]
+        if f.get("🤖 Fate Checked"):
+            continue
+        retired = f.get("Stage") == "Out of Service" and "retired from outreach" in (f.get("Notes") or "")
+        moved = (f.get("🤖 What Happened") or "").startswith("Website now goes to")
+        if not (retired or moved):
+            continue
+        people = [{"name": c["fields"].get("Name"), "email": c["fields"].get("Email"), "title": c["fields"].get("Title")}
+                  for c in w.contacts.values() if pid in c["fields"].get("Partner", [])]
+        sales = [{"opportunity": x["fields"].get("Opportunity"), "status": x["fields"].get("Status"), "value": x["fields"].get("Value")}
+                 for x in w.partner_sales(pid)]
+        clue = f.get("🤖 What Happened") or next((l for l in reversed((f.get("Notes") or "").splitlines()) if "retired from outreach" in l), "")
+        out.append({"partner_id": pid, "name": f.get("Name"), "website": f.get("Website"), "type": f.get("Type"),
+                    "what_we_saw": clue, "people_we_knew": people[:6], "sales": sales[:6], "has_history": bool(people or sales)})
+    out.sort(key=lambda x: not x["has_history"])  # real relationships first
+    return out[:limit]
+
+
+def follow_fate(w, x):
+    """Record what happened to a company. If it was acquired or rebranded, set up the new company (Partner row +
+    Apollo contacts) and queue a "we were talking to X at Y, congrats on the news" ask for the brain to write."""
+    import brand
+    pid = x.get("partner_id")
+    if pid not in w.partners:
+        return None
+    old = w.partners[pid]["fields"]
+    today = dt.date.today().isoformat()
+    fate = (x.get("fate") or "unknown").lower()
+    told = (x.get("what_happened") or "").strip()
+    src = x.get("sources") or []
+    story = told + (("\nSources: " + ", ".join(src[:4])) if src else "")
+    at.update("partners", pid, {"🤖 What Happened": story[:5000] or f"Looked it up on {today}: nothing clear.", "🤖 Fate Checked": today})
+    if fate not in ("acquired", "rebranded", "merged") or not x.get("new_website"):
+        return {"partner": old.get("Name"), "fate": fate}
+    dom = brand.domain_from(x["new_website"])
+    new_name = (x.get("new_company") or dom).strip()
+    npid = w.dom2partner.get(dom) or next((i for i, p in w.partners.items() if p["fields"].get("Name", "").strip().lower() == new_name.lower()), None)
+    link = f"🤖 {today}: {old.get('Name')} is now part of {new_name} ({told[:300]})"
+    if npid:
+        nf = w.partners[npid]["fields"]
+        if old.get("Name", "") not in (nf.get("Notes") or ""):
+            at.update("partners", npid, {"Notes": ((nf.get("Notes") or "").rstrip() + "\n\n" + link).strip()})
+    else:
+        npid = at.create("partners", {"Name": new_name, "Website": f"https://{dom}", "Stage": "New", "Notes": link,
+                                      **({"Type": old["Type"]} if old.get("Type") else {})})["id"]
+        w.partners[npid] = at.get("partners", npid)
+    at.update("partners", pid, {"Notes": ((old.get("Notes") or "").rstrip() + f"\n\n🤖 {today}: now part of {new_name}, handed on to that row.").strip()})
+    try:
+        brand.enrich_partner(npid)
+    except Exception:
+        pass
+    if w.blocked(npid) or w.partners[npid]["fields"].get("Stage") in ("Denied", "Blacklist"):
+        return {"partner": old.get("Name"), "fate": fate, "new": new_name, "note": "new company is off limits"}
+    have = [c for c in w.contacts.values() if npid in c["fields"].get("Partner", []) and c["fields"].get("Status") in (None, "Active")]
+    if not have and os.environ.get("APOLLO_API_KEY"):
+        try:
+            for c in apollo.people(dom, exclude=set(w.by_email)):
+                have.append(at.create("contacts", {"Email": c["email"], "Name": c.get("name"), "Title": c.get("title"),
+                                                   "Status": "Active", "Source": "Apollo", "Partner": [npid]}))
+        except Exception:
+            pass
+    if not have:
+        at.update("partners", pid, {"🤖 What Happened": (story + f"\nNo contacts found at {new_name} yet.")[:5000]})
+        return {"partner": old.get("Name"), "fate": fate, "new": new_name, "note": "no contacts found"}
+    knew = ", ".join(filter(None, [c["fields"].get("Name") or c["fields"].get("Email") for c in w.contacts.values()
+                                   if pid in c["fields"].get("Partner", [])][:3])) or "the team"
+    ask = (f"[auto {today}] Write to {new_name}: {told[:400]} Karlie was talking to {knew} at {old.get('Name')}. "
+           f"Open with the good news, that we were chatting with {knew} at {old.get('Name')} and just heard about it, "
+           f"then ask who the best person is at {new_name} now for sponsorships and partnerships. Short, warm, no pitch.")
+    at.update("settings", w.settings_rec["id"], {"Ping Requests": ((at.settings()["fields"].get("Ping Requests") or "").rstrip() + "\n" + ask).strip()})
+    return {"partner": old.get("Name"), "fate": fate, "new": new_name, "contacts": len(have), "queued_ask": True}
+
+
 # ---------------------------------------------------------------- context for the brain
 def company_history(w, pid, max_threads=8):
     """Everything Karlie would know about a company: her email threads with anyone there + the Airtable rows."""
@@ -768,6 +846,7 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
             "voice": s.get("Karlie's Voice"), "lessons": lessons, "events_to_review": events, "decisions_to_learn": decided,
             "work": work, "requests": asks, "offer_rules": s.get("Offer Rules"), "voice_rewrite_due": weekly and not requests_only, "calendar": _calendar(),
             "results": results_summary() if weekly else None,
+            "company_fates_to_check": [] if requests_only else fates_to_check(w),
             "pending_voice_notes": [{"id": l["id"], "note": l["fields"].get("Lesson")} for l in
                                     at.list_records("lessons", "AND({Active}, NOT({Folded Into Voice}))")]}
 
@@ -805,7 +884,7 @@ def _txt(v, bullets=True):
 def apply(payload):
     w = World()
     t = iso(now())
-    done = {"drafts": 0, "events": 0, "lessons": 0, "planned": 0, "contacts": 0}
+    done = {"drafts": 0, "events": 0, "lessons": 0, "planned": 0, "contacts": 0, "fates": []}
     for e in payload.get("events", []):
         if not e.get("log_id"):
             continue
@@ -870,6 +949,13 @@ def apply(payload):
             at.create("drafts", {"Subject": "(skipped)", "Status": "Cancelled", "Kind": sk.get("kind") or "Cold",
                                  "Partner": [sk["partner_id"]], "Replan Note": ("Skipped by the brain: " + sk.get("why", ""))[:1000],
                                  "Decided At": t})
+    for x in payload.get("company_fates", []):
+        try:
+            r = follow_fate(w, x)
+        except Exception as ex:
+            r = {"partner_id": x.get("partner_id"), "error": str(ex)[:200]}
+        if r:
+            done["fates"].append(r)
     for did in payload.get("learned_from", []):
         at.update("drafts", did, {"Learned From": True})
     for lid in payload.get("lessons_off", []):

@@ -49,16 +49,23 @@ def is_gone(domain):
         return False
 
 
+def _root(d):
+    """Registered domain, roughly: shop.centro.com -> centro.com, foo.co.uk -> foo.co.uk."""
+    parts = (d or "").lower().removeprefix("www.").split(".")
+    return ".".join(parts[-3:] if len(parts) > 2 and len(parts[-2]) <= 3 and len(parts[-1]) == 2 else parts[-2:])
+
+
 def lookup(domain):
-    """(logo_url, description, dead_reason) from the homepage. dead_reason is set when the site is hijacked, parked or gone."""
+    """(logo_url, description, dead_reason, moved_to) from the homepage. dead_reason is set when the site is hijacked,
+    parked or gone; moved_to when it now lands on a different company's domain (a possible acquisition or rebrand)."""
     try:
         r = requests.get(f"https://{domain}", headers=UA, timeout=8, allow_redirects=True)
         r.encoding = r.encoding if r.encoding and r.encoding.lower() not in ("iso-8859-1", "latin-1") else "utf-8"
         page, base = r.text[:400000], r.url
     except Exception:
         if is_gone(domain) and is_gone("www." + domain):
-            return None, "⚠️ Their website no longer exists. The company has likely closed.", f"{domain} no longer exists (no DNS record)"
-        return None, None, None
+            return None, "⚠️ Their website no longer exists. The company has likely closed.", f"{domain} no longer exists (no DNS record)", None
+        return None, None, None, None
     logo = None
     if not logo:
         icons = []
@@ -87,7 +94,9 @@ def lookup(domain):
         logo = None
     if desc and len(desc) > 220 and not desc.startswith("⚠️"):
         desc = desc[:217].rsplit(" ", 1)[0] + "…"
-    return logo, desc, dead
+    landed = urlparse(base).netloc.lower()
+    moved = landed.removeprefix("www.") if landed and _root(landed) != _root(domain) and not dead else None
+    return logo, desc, dead, moved
 
 
 def retire_partner(pid, reason):
@@ -118,7 +127,9 @@ def enrich_partner(pid):
     fields = {"🤖 Brand Checked": dt.date.today().isoformat()}
     dead = None
     if dom:
-        logo, desc, dead = lookup(dom)
+        logo, desc, dead, moved = lookup(dom)
+        if moved and not f.get("🤖 Fate Checked"):
+            fields["🤖 What Happened"] = f"Website now goes to {moved}. Not looked into yet (the overnight run searches what happened)."
         if logo:
             fields["🤖 Logo URL"] = logo
         if desc:
