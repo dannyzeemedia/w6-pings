@@ -276,6 +276,10 @@ def approve():
     sale_ids = [sid for d in drafts if d["fields"].get("Kind") == "Deal Nudge" for sid in d["fields"].get("Sale", [])]
     deals = {r["id"]: r["fields"] for r in at.list_records("sales", "OR(" + ",".join(f"RECORD_ID()='{i}'" for i in sale_ids) + ")",
                                                           fields=["Opportunity", "Status", "Created", "Value"])} if sale_ids else {}
+    for v in deals.values():
+        v["Opportunity"] = re.sub(r"^[?\s]*//\s*", "", v.get("Opportunity") or "")
+        if v.get("Created"):
+            v["Created"] = dt.date.fromisoformat(v["Created"][:10]).strftime("%-d %b %Y")
     return render_template("approve.html", drafts=drafts, names=names, queued=queued, asks=asks, short_eta=lambda s: _short_eta(parse_ts(s)),
                            brands=brands_for(drafts + queued, "To Email"), deals=deals)
 
