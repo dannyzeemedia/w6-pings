@@ -672,6 +672,93 @@ def fates_to_check(w, limit=8):
     return out[:limit]
 
 
+def find_people(w, pid, dom, names=(), emails=(), org=None):
+    """Find someone to write to at a company, the way Karlie would: the people research named (founders etc.),
+    then partnership/marketing titles in Apollo, then anyone verified there, then an address the company publishes
+    itself (hello@, partnerships@) that the research found. Creates Contacts; returns them."""
+    found, known = [], set(w.by_email)
+    if os.environ.get("APOLLO_API_KEY") and dom:
+        for n in list(names)[:4]:
+            try:
+                nm = (n.get("name") if isinstance(n, dict) else str(n)) or ""
+                parts = nm.split()
+                c = apollo.person(parts[0], " ".join(parts[1:]) or None, dom, org) if parts else None
+                if c and c["email"] not in known:
+                    found.append({**c, "title": c.get("title") or (n.get("title") if isinstance(n, dict) else None), "src": "Apollo"})
+            except Exception:
+                pass
+        for fn in (lambda: apollo.people(dom, exclude=known), lambda: apollo.anyone(dom, exclude=known)):
+            if found:
+                break
+            try:
+                found = [{**c, "src": "Apollo"} for c in fn()]
+            except Exception:
+                found = []
+    if not found:
+        for e in list(emails)[:2]:
+            e = (e or "").strip().lower()
+            if "@" in e and e not in known and (not dom or e.endswith("@" + dom)):
+                found.append({"email": e, "name": None, "title": None, "src": "Website"})
+    out = []
+    for c in found:
+        rec = at.create("contacts", {"Email": c["email"], "Name": c.get("name"), "Title": c.get("title"), "Status": "Active",
+                                     "Source": c["src"], "Partner": [pid]}, typecast=True)
+        w.contacts[rec["id"]] = rec
+        w.by_email[c["email"]] = rec
+        out.append(rec)
+    at.update("partners", pid, {"🤖 People Hunted": dt.date.today().isoformat()})
+    return out
+
+
+def people_to_find(w, limit=8):
+    """Live companies where the person we knew bounced or left and nobody else is on file. Never retire these:
+    people swap out all the time. Search again every 30 days until someone turns up."""
+    out = []
+    for pid, p in w.partners.items():
+        f = p["fields"]
+        if w.blocked(pid) or f.get("Stage") in ("Denied", "Blacklist"):
+            continue
+        hunted = f.get("🤖 People Hunted")
+        if hunted and (dt.date.today() - dt.date.fromisoformat(hunted)).days < 30:
+            continue
+        cs = [c["fields"] for c in w.contacts.values() if pid in c["fields"].get("Partner", [])]
+        if any(c.get("Status") == "Active" for c in cs):
+            continue
+        gone = [c for c in cs if c.get("Status") in ("Bounced", "Left Company")]
+        handed = "is now part of" in (f.get("Notes") or "") or "now goes by" in (f.get("Notes") or "")
+        if not (gone or handed):
+            continue
+        worth = handed or w.partner_sales(pid) or any(c.get("Last Pinged") and now() - pts(c["Last Pinged"]) < dt.timedelta(days=120) for c in gone)
+        if not worth:
+            continue
+        out.append({"partner_id": pid, "name": f.get("Name"), "website": f.get("Website"), "type": f.get("Type"),
+                    "people_we_knew": [{"name": c.get("Name"), "email": c.get("Email"), "title": c.get("Title"), "status": c.get("Status")} for c in cs][:6],
+                    "story": (f.get("🤖 What Happened") or "")[:600], "had_sales": bool(w.partner_sales(pid))})
+    out.sort(key=lambda x: not x["had_sales"])
+    return out[:limit]
+
+
+def apply_people_found(w, x):
+    """The brain searched the web for someone at a company where our person left. Look them up, then queue the ask."""
+    import brand
+    pid = x.get("partner_id")
+    if pid not in w.partners:
+        return None
+    f = w.partners[pid]["fields"]
+    dom = brand.domain_from(f.get("Website")) or next(iter(w.partner_domains(pid)), None)
+    got = find_people(w, pid, dom, x.get("people") or [], x.get("emails") or [], f.get("Name"))
+    if not got:
+        return {"partner": f.get("Name"), "found": 0, "note": "nobody yet, tries again in 30 days"}
+    gone = [c["fields"].get("Name") or c["fields"].get("Email") for c in w.contacts.values()
+            if pid in c["fields"].get("Partner", []) and c["fields"].get("Status") in ("Bounced", "Left Company")][:2]
+    who = ", ".join(f"{c['fields'].get('Name') or ''} ({c['fields']['Email']})".strip() for c in got)
+    ask = (f"[auto {dt.date.today().isoformat()}] Write to {who} at {f.get('Name')}: Karlie was talking to "
+           f"{' and '.join(gone) or 'someone there'}, who isn't there any more. {x.get('context') or ''} Mention who she was "
+           f"talking to and ask who the right person is now for sponsorships and partnerships. Short, warm, no pitch.")
+    at.update("settings", w.settings_rec["id"], {"Ping Requests": ((at.settings()["fields"].get("Ping Requests") or "").rstrip() + "\n" + ask).strip()})
+    return {"partner": f.get("Name"), "found": len(got), "queued_ask": True}
+
+
 def follow_fate(w, x):
     """Record what happened to a company. If it was acquired or rebranded, set up the new company (Partner row +
     Apollo contacts) and queue a "we were talking to X at Y, congrats on the news" ask for the brain to write."""
@@ -728,39 +815,19 @@ def follow_fate(w, x):
             c["fields"] = {**cf, "Partner": [npid], "Status": "Active"}
             moved_people.append(cf.get("Name") or cf.get("Email"))
     have = [c for c in w.contacts.values() if npid in c["fields"].get("Partner", []) and c["fields"].get("Status") in (None, "Active")]
-    if not have and os.environ.get("APOLLO_API_KEY"):
-        # 1) the people the research named (founders etc.), 2) partnership/marketing titles, 3) anyone verified there
-        found = []
-        for n in (x.get("people") or [])[:4]:
-            try:
-                parts = (n.get("name") or "").split() if isinstance(n, dict) else str(n).split()
-                c = apollo.person(parts[0] if parts else None, " ".join(parts[1:]) or None, dom, new_name) if parts else None
-                if c and c["email"] not in w.by_email:
-                    found.append({**c, "title": c.get("title") or (n.get("title") if isinstance(n, dict) else None)})
-            except Exception:
-                pass
-        for fn in (lambda: apollo.people(dom, exclude=set(w.by_email)), lambda: apollo.anyone(dom, exclude=set(w.by_email))):
-            if found:
-                break
-            try:
-                found = fn()
-            except Exception:
-                found = []
+    if not have:
         olds = [c["fields"] for c in w.contacts.values() if pid in c["fields"].get("Partner", [])]
-        for c in found:
-            have.append(at.create("contacts", {"Email": c["email"], "Name": c.get("name"), "Title": c.get("title"),
-                                               "Status": "Active", "Source": "Apollo", "Partner": [npid]}))
+        for c in find_people(w, npid, dom, x.get("people") or [], x.get("emails") or [], new_name):
+            have.append(c)
             # same person Karlie knew at the old company (same name, or same tom@ before the domain)? then it's a catch-up
-            first = (c.get("name") or "").split(" ")[0].lower()
-            if any((o.get("Name") or "").lower() == (c.get("name") or "").lower() or
-                   (o.get("Email") or "").split("@")[0].lower() in (first, c["email"].split("@")[0]) for o in olds):
-                moved_people.append(f"{c.get('name') or c['email']} ({c['email']})")
-    if not have:  # trail went cold: stay retired, quietly. Plenty of other fish.
-        at.update("partners", pid, {"🤖 What Happened": (story + f"\nTrail went cold: no email for anyone at {new_name}, so it stays retired.")[:5000]})
-        if not w.partners[npid]["fields"].get("Sales"):
-            at.update("partners", npid, {"Stage": "Out of Service", "🤖 Fate Checked": today, "Notes": ((w.partners[npid]["fields"].get("Notes") or "").rstrip()
-                      + f"\n\n🤖 {today}: retired from outreach, no contacts found.").strip()})
-        return {"partner": old.get("Name"), "fate": fate, "new": new_name, "note": "trail went cold, retired"}
+            cf = c["fields"]
+            first = (cf.get("Name") or "").split(" ")[0].lower()
+            if any(cf.get("Name") and (o.get("Name") or "").lower() == cf["Name"].lower() or
+                   (o.get("Email") or "").split("@")[0].lower() in (first, cf["Email"].split("@")[0]) for o in olds):
+                moved_people.append(f"{cf.get('Name') or cf['Email']} ({cf['Email']})")
+    if not have:  # a live company with nobody findable yet: keep it, and people_to_find searches again in 30 days
+        at.update("partners", pid, {"🤖 What Happened": (story + f"\nNobody findable at {new_name} yet; the system keeps looking monthly.")[:5000]})
+        return {"partner": old.get("Name"), "fate": fate, "new": new_name, "note": "kept, still looking for a person"}
     knew = ", ".join(filter(None, [c["fields"].get("Name") or c["fields"].get("Email") for c in w.contacts.values()
                                    if pid in c["fields"].get("Partner", [])][:3])) or "the team"
     if moved_people:
@@ -882,7 +949,7 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
         if not others and os.environ.get("APOLLO_API_KEY"):
             for d in w.partner_domains(x["partner"])[:1]:
                 try:
-                    found = apollo.people(d, exclude=known)
+                    found = apollo.people(d, exclude=known) or apollo.anyone(d, exclude=known)
                 except Exception:
                     found = []
         gone = w.contacts[x["gone_contact"]]["fields"]
@@ -896,6 +963,8 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
             "work": work, "requests": asks, "offer_rules": s.get("Offer Rules"), "voice_rewrite_due": weekly and not requests_only, "calendar": _calendar(),
             "results": results_summary() if weekly else None,
             "company_fates_to_check": [] if requests_only else fates_to_check(w),
+            "people_to_find": [] if requests_only else [x for x in people_to_find(w) if x["partner_id"] not in
+                               {r["partner"] for r in work if r["kind"] == "Gone-Contact Rescue" and (r.get("apollo_candidates") or r.get("other_known_people"))}],
             "pending_voice_notes": [{"id": l["id"], "note": l["fields"].get("Lesson")} for l in
                                     at.list_records("lessons", "AND({Active}, NOT({Folded Into Voice}))")]}
 
@@ -1001,6 +1070,13 @@ def apply(payload):
     for x in payload.get("company_fates", []):
         try:
             r = follow_fate(w, x)
+        except Exception as ex:
+            r = {"partner_id": x.get("partner_id"), "error": str(ex)[:200]}
+        if r:
+            done["fates"].append(r)
+    for x in payload.get("people_found", []):
+        try:
+            r = apply_people_found(w, x)
         except Exception as ex:
             r = {"partner_id": x.get("partner_id"), "error": str(ex)[:200]}
         if r:
