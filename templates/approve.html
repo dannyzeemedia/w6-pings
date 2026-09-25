@@ -10,7 +10,7 @@
   {% if asks %}<div class="ask-wait"><span class="spin"></span> Writing {{ asks|length }} requested ping{{ 's' if asks|length > 1 }}: {% for a in asks %}"{{ a.split('] ',1)[-1] }}"{{ ', ' if not loop.last }}{% endfor %}. It'll appear here in a couple of minutes.</div>
   <script>(function(){ const poll=()=>fetch("{{ url_for('approve_status') }}").then(r=>r.json()).then(j=>{ if(!j.asks){ window.Turbo?Turbo.visit(location.href,{action:'replace'}):location.reload(); } else setTimeout(poll,10000); }).catch(()=>setTimeout(poll,20000)); setTimeout(poll,10000); })();</script>{% endif %}
 </div>
-{% set KIND = {'Cold': 'New pitch', 'Follow-up': 'Follow-up', 'Gone-Contact Rescue': 'Finding the right person', 'Reply': 'Reply'} %}
+{% set KIND = {'Cold': 'New pitch', 'Follow-up': 'Follow-up', 'Gone-Contact Rescue': 'Finding the right person', 'Reply': 'Reply', 'Deal Nudge': 'Stalled deal?'} %}
 <div id="drafts">
 {% for d in drafts %}{% set f = d.fields %}
 <div class="draft-wrap" id="w-{{ d.id }}">
@@ -19,8 +19,14 @@
     <div class="who-row">{{ chip(brands.get(d.id), names.get((f.get('Partner') or [''])[0]) or f.get('To Email')) }}
       <div><h3>{{ f.get('To Name') or f.get('To Email') }}</h3>
       <div class="muted tiny">{% for p in f.get('Partner', []) %}{{ names.get(p) }} · {% endfor %}{{ f.get('To Email') }}{% if f.get('Scheduled For') %} · goes {{ f['Scheduled For']|when }}{% endif %} {{ site(brands.get(d.id)) }}</div></div></div>
-    <div><span class="tag {{ 'green' if f.get('Kind')=='Cold' }}">{{ KIND.get(f.get('Kind'), f.get('Kind') or 'Email') }}</span></div>
+    <div><span class="tag {{ 'green' if f.get('Kind')=='Cold' }}{{ 'amber' if f.get('Kind')=='Deal Nudge' }}">{{ KIND.get(f.get('Kind'), f.get('Kind') or 'Email') }}</span></div>
   </div>
+  {% if f.get('Kind') == 'Deal Nudge' %}{% set sale = deals.get((f.get('Sale') or [''])[0]) %}
+  <div class="deal-flag">
+    <div><strong>⚠️ Possible conflict: is this sale still in progress?</strong></div>
+    <div class="tiny">{% if sale %}Sales has "{{ sale.get('Opportunity') }}" marked <strong>{{ sale.get('Status') }}</strong>{% if sale.get('Created') %} since {{ sale['Created'] }}{% endif %}, {% else %}There's an open deal in Sales, {% endif %}but nobody has emailed either way in a while. This is a suggested nudge. Send it if the deal has stalled, or tell it the deal is still moving.</div>
+    <button class="ghost small" formaction="{{ url_for('approve_hold', rid=d.id) }}" formnovalidate>It's still moving, hold off</button>
+  </div>{% endif %}
   {% if f.get('They Asked For') %}<div class="why"><strong>They asked for this:</strong> "{{ f['They Asked For'] }}"</div>{% endif %}
   {% if f.get('Why This Email') %}<div class="why"><strong>Why this one:</strong> {{ f['Why This Email'] }}</div>{% endif %}
   {% set bd = brands.get(d.id) %}

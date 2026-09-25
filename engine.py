@@ -17,6 +17,8 @@ import gmail
 ME = gmail.ME
 JESSE = "usrhUhvPEfKVofPL8"  # Karlie's Airtable login (Jesse Zee)
 LIVE_DEAL = {"Discussion", "To Be Invoiced", "Invoiced", "Overdue", "WG: Feedback Plz"}
+BRIS = ZoneInfo("Australia/Brisbane")
+UNDECIDED = {"Discussion", "WG: Feedback Plz"}  # talked about, not sold: these can stall
 WON = {"Paid", "Invoiced", "To Be Invoiced", "Overdue"}
 FREE_MAIL = {"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com", "me.com", "aol.com", "live.com", "googlemail.com"}
 INTERNAL = ("workspace6.io", "zee.media")
@@ -112,8 +114,9 @@ class World:
     def partner_sales(self, pid):
         return [self.sales[s] for s in self.partners.get(pid, {}).get("fields", {}).get("Sales", []) if s in self.sales]
 
-    def blocked(self, pid):
-        """Why the system must not email this company right now, or None."""
+    def blocked(self, pid, ignore_open_deals=False):
+        """Why the system must not email this company right now, or None. ignore_open_deals: a stalled-deal nudge
+        is allowed past an undecided deal (Discussion), never past a sold one."""
         if not pid:
             return None
         stage = self.partners.get(pid, {}).get("fields", {}).get("Stage")
@@ -125,7 +128,7 @@ class World:
             if pid in f.get("Partner", []) or f.get("Company", "").strip().lower() in names:
                 return f"Hands off: {f.get('Reason', 'Karlie is handling them')}"
         for s in self.partner_sales(pid):
-            if s["fields"].get("Status") in LIVE_DEAL:
+            if s["fields"].get("Status") in LIVE_DEAL and not (ignore_open_deals and s["fields"]["Status"] in UNDECIDED):
                 return f"Live deal in Sales ({s['fields']['Status']})"
         return None
 
@@ -362,7 +365,7 @@ def send_due(w, max_sends=SENDS_PER_TICK):
             continue  # being rewritten on Karlie's instruction
         pid = (f.get("Partner") or [None])[0]
         contact = w.contacts.get((f.get("Contact") or [None])[0]) or w.by_email.get((f.get("To Email") or "").lower())
-        why = w.blocked(pid)
+        why = w.blocked(pid, ignore_open_deals=f.get("Kind") == "Deal Nudge")
         if not why and contact and contact["fields"].get("Status") not in (None, "Active"):
             why = f"Contact is {contact['fields']['Status'].lower()}"
         if why:
@@ -526,9 +529,9 @@ def remix_apply(item):
 
 
 # ---------------------------------------------------------------- choosing who to ping
-def _last_touch(w, pid):
-    """Most recent email in or out with anyone at the company, from the log and her mailbox."""
-    latest = None
+def _last_touch(w, pid, who=False):
+    """Most recent email in or out with anyone at the company, from her mailbox. who=True: (when, it_was_them)."""
+    latest, them = None, False
     for d in w.partner_domains(pid)[:3]:
         try:
             ids = gmail.search(f"from:{d} OR to:{d}", 1)
@@ -536,8 +539,16 @@ def _last_touch(w, pid):
             ids = []
         if ids:
             m = gmail.message(ids[0], meta_only=True)
-            latest = max(latest or m["dt"], m["dt"])
-    return latest
+            if not latest or m["dt"] > latest:
+                latest, them = m["dt"], not m["is_me"]
+    return (latest, them) if who else latest
+
+
+def in_retry_window(t=None):
+    """Leads that never answered get tried again in the back half of a quarter's last month (15th of Mar, Jun, Sep,
+    Dec to month end), so Karlie is top of mind when the new quarter's budget lands."""
+    t = (t or now()).astimezone(BRIS)
+    return t.month in (3, 6, 9, 12) and t.day >= 15
 
 
 def pick_prospects(w, n):
@@ -575,13 +586,21 @@ def pick_prospects(w, n):
         scored.append((score, pid, people))
     scored.sort(reverse=True)
     out = []
+    rest = dt.timedelta(days=w.s.get("Rest After No Reply (Days)") or 60)
+    window = in_retry_window()
     for score, pid, people in scored:
-        last = _last_touch(w, pid)
-        if last and now() - last < repitch:
+        last, them = _last_touch(w, pid, who=True)
+        if last and not them:
+            # the last email was ours and got no answer (the 3 pings ran out): rest a quarter, retry in the window
+            if now() - last < rest or not window:
+                continue
+        elif last and now() - last < repitch:
             continue
         people.sort(key=lambda c: (c["fields"].get("Source") != "Partners Table", c["fields"].get("Pings Sent") or 0))
         out.append({"partner": pid, "contact": people[0]["id"], "score": round(score, 2),
-                    "last_touch": last and iso(last)})
+                    "last_touch": last and iso(last),
+                    **({"quarter_retry": "They never answered the last round. This is the end-of-quarter retry: new budgets land "
+                        "in a few weeks, so tie it to planning next quarter."} if last and not them else {})})
         if len(out) >= n:
             break
     return out
@@ -623,6 +642,47 @@ def due_followups(w):
             continue
         out.append({"thread": tid, "partner": pid, "contact": c and c["id"], "followup_number": n_prior_followups + 1,
                     "previous_drafts": [d["id"] for d in ds]})
+    return out
+
+
+def last_contact(w, pid):
+    return _last_touch(w, pid)
+
+
+def stalled_deals(w, limit):
+    """Undecided deals (Sales = Discussion) where nobody has emailed either way for a while. Instead of leaving the
+    company off limits forever, bring it back to Karlie as a clearly-labelled nudge she can send or wave off."""
+    if limit <= 0:
+        return []
+    days = w.s.get("Stalled Deal After (Days)") or 21
+    queued = {p for d in at.list_records("drafts", "OR({Status}='Pending Approval', {Status}='Approved')", fields=["Partner"])
+              for p in d["fields"].get("Partner", [])}
+    since = (now() - dt.timedelta(days=days)).strftime("%Y-%m-%d")
+    recent = {p for d in at.list_records("drafts", f"AND({{Kind}}='Deal Nudge', IS_AFTER(CREATED_TIME(), '{since}'))", fields=["Partner"])
+              for p in d["fields"].get("Partner", [])}
+    cands = []
+    for pid in w.partners:
+        if pid in queued or pid in recent or w.blocked(pid, ignore_open_deals=True):
+            continue
+        open_ = [x for x in w.partner_sales(pid) if x["fields"].get("Status") in UNDECIDED]
+        if not open_ or any(x["fields"].get("Status") in LIVE_DEAL - UNDECIDED for x in w.partner_sales(pid)):
+            continue
+        sale = max(open_, key=lambda x: x["fields"].get("Created") or "")
+        if (sale["fields"].get("Created") or "") < (now() - dt.timedelta(days=400)).strftime("%Y-%m-%d"):
+            continue  # a "Discussion" row from years ago is just history
+        if not any(pid in c["fields"].get("Partner", []) and c["fields"].get("Status") == "Active" for c in w.contacts.values()):
+            continue
+        cands.append((sale["fields"].get("Created") or "", pid, sale))
+    out = []
+    for _, pid, sale in sorted(cands, reverse=True)[:limit * 6]:
+        last = last_contact(w, pid)
+        if last and now() - last < dt.timedelta(days=days):
+            continue  # still moving
+        out.append({"partner": pid, "sale": {"id": sale["id"], "opportunity": sale["fields"].get("Opportunity"),
+                    "status": sale["fields"].get("Status"), "created": sale["fields"].get("Created"), "value": sale["fields"].get("Value")},
+                    "last_email": last.strftime("%Y-%m-%d") if last else None, "quiet_days": (now() - last).days if last else None})
+        if len(out) >= limit:
+            break
     return out
 
 
@@ -874,7 +934,7 @@ def company_history(w, pid, max_threads=8):
             threads.append({"thread_id": m["thread_id"], "subject": msgs[0]["subject"], "messages": [
                 {"from": "Karlie" if x["is_me"] else x["from"], "date": dt.datetime.fromtimestamp(x["ts"] / 1000, dt.timezone.utc).strftime("%Y-%m-%d"),
                  "text": x["body"][:5000]} for x in msgs[-6:]], "earlier_messages": max(0, len(msgs) - 6)})
-    sales = [{"opportunity": s["fields"].get("Opportunity"), "status": s["fields"].get("Status"), "value": s["fields"].get("Value"),
+    sales = [{"id": s["id"], "opportunity": s["fields"].get("Opportunity"), "status": s["fields"].get("Status"), "value": s["fields"].get("Value"),
               "created": s["fields"].get("Created"), "pings": s["fields"].get("Ping")} for s in w.partner_sales(pid)]
     pings = [{"at": r["fields"].get("At"), "event": r["fields"].get("Event"), "by": r["fields"].get("By"), "summary": r["fields"].get("Summary")}
              for r in at.list_records("log", f"FIND('{pid}', ARRAYJOIN({{Partner}}))", sort=[("At", "desc")], max_records=15)]
@@ -933,7 +993,8 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
                 hits = [(0, pid, w.partners[pid]["fields"].get("Name"))]
             asks.append({"instruction": text, "partner_id": pid, "matched_name": hits[0][2] if hits else None,
                          "company": company_history(w, pid) if pid else None,
-                         "blocked": w.blocked(pid) if pid else None})
+                         "blocked": w.blocked(pid) if pid else None,
+                         "only_an_open_deal": bool(pid and w.blocked(pid) and not w.blocked(pid, ignore_open_deals=True))})
         at.update("settings", w.settings_rec["id"], {"Ping Requests": ""})
     goal = s.get("Daily Ping Limit") or 0
     room = max(0, 2 * goal - queued)  # keep twice the day's goal waiting, so she can overachieve
@@ -944,6 +1005,8 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
     room -= len(followups)
     rescues = rescue_targets(w)[:max(0, min(room, 3))]
     room -= len(rescues)
+    stalled = [] if (requests_only or learn_only) else stalled_deals(w, max(0, min(room, w.s.get("Stalled Deal Nudges Per Day") or 2)))
+    room -= len(stalled)
     if learn_only:  # "Sync now": read and learn, write nothing new
         at.update("settings", w.settings_rec["id"], {"Sync Requested": False})
     if requests_only or learn_only:
@@ -968,6 +1031,8 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
         gone = w.contacts[x["gone_contact"]]["fields"]
         work.append({"kind": "Gone-Contact Rescue", **x, "gone_name": gone.get("Name"), "gone_email": gone.get("Email"),
                      "other_known_people": others, "apollo_candidates": found, "company": company_history(w, x["partner"])})
+    for x in stalled:
+        work.append({"kind": "Deal Nudge", **x, "company": company_history(w, x["partner"])})
     for x in cold:
         work.append({"kind": "Cold", **x, "company": company_history(w, x["partner"])})
     weekly = not s.get("Voice Updated At") or now() - pts(s["Voice Updated At"]) > dt.timedelta(days=7)
@@ -1065,7 +1130,9 @@ def apply(payload):
             done["planned"] += 1
         if d.get("they_asked_for"):
             f["They Asked For"] = d["they_asked_for"][:1000]
-        at.create("drafts", f)
+        if d.get("sale_id"):
+            f["Sale"] = [d["sale_id"]]
+        at.create("drafts", f, typecast=d["kind"] == "Deal Nudge")
         if d["kind"] == "Gone-Contact Rescue":
             at.update("contacts", contact["id"], {"Rescue Tries": (cf.get("Rescue Tries") or 0) + 1})
         done["drafts"] += 1

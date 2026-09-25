@@ -273,8 +273,28 @@ def approve():
     queued = at.list_records("drafts", "{Status}='Approved'", sort=[("Expected Send", "asc")])
     asks = [l for l in (at.settings()["fields"].get("Ping Requests") or "").splitlines() if l.strip()]
     names = at.partner_names([p for d in drafts + queued for p in d["fields"].get("Partner", [])])
+    sale_ids = [sid for d in drafts if d["fields"].get("Kind") == "Deal Nudge" for sid in d["fields"].get("Sale", [])]
+    deals = {r["id"]: r["fields"] for r in at.list_records("sales", "OR(" + ",".join(f"RECORD_ID()='{i}'" for i in sale_ids) + ")",
+                                                          fields=["Opportunity", "Status", "Created", "Value"])} if sale_ids else {}
     return render_template("approve.html", drafts=drafts, names=names, queued=queued, asks=asks, short_eta=lambda s: _short_eta(parse_ts(s)),
-                           brands=brands_for(drafts + queued, "To Email"))
+                           brands=brands_for(drafts + queued, "To Email"), deals=deals)
+
+
+@app.post("/approve/<rid>/hold")
+@login_required
+def approve_hold(rid):
+    """'This deal is still moving': bin the nudge and leave the company alone for a while."""
+    d = at.get("drafts", rid)["fields"]
+    days = at.settings()["fields"].get("Stalled Deal After (Days)") or 21
+    until = (dt.date.today() + dt.timedelta(days=days)).isoformat()
+    pid = (d.get("Partner") or [None])[0]
+    at.create("handsoff", {"Company": d.get("To Name") or d.get("To Email"), **({"Partner": [pid]} if pid else {}), "Active": True,
+                           "Reason": "Deal In Progress", "Until": until, "Added By": session["user"], "Added At": iso(now_utc()),
+                           "Note": "Karlie said the deal is still moving (from a stalled-deal nudge)."})
+    at.update("drafts", rid, {"Status": "Cancelled", "Decided At": iso(now_utc()), "Learned From": True,
+                              "Replan Note": f"Karlie: deal still in progress. Leaving them alone until {until}."})
+    celebrate("Got it", f"Leaving them alone for {days} days. It'll check in again after that if the deal still hasn't closed.", "🤝")
+    return redirect(url_for("approve"))
 
 
 @app.post("/approve/<rid>")
@@ -620,7 +640,8 @@ def yours_reply(rid):
 # ---------- rules ----------
 NUM_FIELDS = ["Daily Ping Limit", "Send Window Start (Hour)", "Send Window End (Hour)", "Max Follow-ups",
               "Follow-up 1 After (Days)", "Follow-up 2 After (Days)", "Follow-up 3 After (Days)",
-              "Days Before Re-pitching A Company", "Rescue Tries Per Company"]
+              "Days Before Re-pitching A Company", "Rescue Tries Per Company", "Rest After No Reply (Days)",
+              "Stalled Deal After (Days)", "Stalled Deal Nudges Per Day"]
 CHECKS = ["Follow-ups Must Add Something New", "Gone-Contact Rescue", "Optimise Send Timing",
           "Honour Requested Timing"]
 

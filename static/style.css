@@ -551,3 +551,9 @@ nav a.on .pill { background: var(--on-green); color: var(--green); }
 @media (max-width: 640px) { .act { grid-template-columns: 1fr; gap: 2px; } }
 
 .login-card label, .login-card .field > label { color: rgba(255,255,255,.88) !important; }
+
+.tag.amber { background: color-mix(in srgb, #eda100 18%, transparent); color: #8a5d00; }
+.deal-flag { background: color-mix(in srgb, #eda100 12%, var(--card)); border: 1px solid color-mix(in srgb, #eda100 35%, transparent); border-radius: var(--r-sm); padding: 12px 14px; margin-bottom: 14px; display: grid; gap: 8px; justify-items: start; }
+.deal-flag .tiny { color: var(--ink-2, inherit); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tag.amber { color: #e2b04a; } }
+:root[data-theme="dark"] .tag.amber { color: #e2b04a; }

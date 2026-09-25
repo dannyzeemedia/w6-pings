@@ -44,7 +44,16 @@
     <span><strong>Every follow-up must bring something new</strong>
     <span class="muted tiny">A new date, price or reason, not just "bumping this up". Your old emails show plain nudges almost never got a reply.</span></span></label>
   <div class="field"><label>Leave a company alone for (days) before pitching it again</label><input type="number" name="Days Before Re-pitching A Company" min="0" value="{{ s.get('Days Before Re-pitching A Company', '') }}" style="max-width:140px">
-    <div class="hint">Counts from the last ping that got no reply. Anyone who asked for a specific time is handled by "Do what they ask for" instead.</div></div>
+    <div class="hint">For people who replied and then went quiet. Anyone who asked for a specific time is handled by "Do what they ask for" instead.</div></div>
+  <div class="field"><label>No reply at all: rest at least (days), then try again at the end of the quarter</label><input type="number" name="Rest After No Reply (Days)" min="0" value="{{ s.get('Rest After No Reply (Days)', '') }}" style="max-width:140px">
+    <div class="hint">When the first email and every follow-up get no answer, that lead rests. It's tried again from the 15th of March, June, September or December, so you're top of mind when the new quarter's budget lands.</div></div>
+</div>
+
+<div class="card">
+  <h2 style="margin-bottom:16px">Deals that stall</h2>
+  <div class="field"><label>A deal counts as stalled after (days) with no emails either way</label><input type="number" name="Stalled Deal After (Days)" min="1" value="{{ s.get('Stalled Deal After (Days)', '') }}" style="max-width:140px">
+    <div class="hint">For deals marked Discussion in Sales. Instead of leaving that company alone forever, it brings it back in To approve as a nudge marked "Stalled deal?". If the deal is actually still moving, press "It's still moving, hold off" and it waits this many days again.</div></div>
+  <div class="field"><label>Stalled-deal nudges per day</label><input type="number" name="Stalled Deal Nudges Per Day" min="0" max="10" value="{{ s.get('Stalled Deal Nudges Per Day', '') }}" style="max-width:140px"></div>
 </div>
 
 <div class="card">
