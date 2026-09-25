@@ -27,10 +27,12 @@
       <div class="muted tiny">{{ f.get('Email') }} · {{ f.get('At')|when }} {{ site(brands.get(e.id)) }}</div></div></div>
     {% if th and th.link %}<a class="btn ghost small" target="_blank" rel="noopener" href="{{ th.link }}">Open in Gmail ↗</a>{% endif %}
   </div>
-  {% if f.get('Summary') %}<p style="margin-top:0"><strong>What they want:</strong> {{ f['Summary'] }}</p>{% endif %}
-  {% set bd = brands.get(e.id) %}{% if bd and bd.desc %}<details class="brief"><summary>What they do</summary><div class="about"><div>{{ bd.desc }}</div></div></details>{% endif %}
+  {% set bd = brands.get(e.id) %}{% if f.get('Summary') or (bd and bd.desc) %}<div class="context-box">
+  {% if f.get('Summary') %}<p><strong>What they want:</strong> {{ f['Summary'] }}</p>{% endif %}
+  {% if bd and bd.desc %}<details class="brief"><summary>What they do</summary><div class="about"><div>{{ bd.desc }}</div></div></details>{% endif %}
+  </div>{% endif %}
   {% if th %}
-    <div class="thread">
+    <div class="thread"><div class="thread-label">The conversation</div>
       {% if th.earlier %}<div class="muted tiny" style="margin-bottom:10px">{{ th.earlier }} earlier message{{ 's' if th.earlier > 1 }} in Gmail</div>{% endif %}
       {% for m in th.msgs %}<div class="msg {{ 'me' if m.is_me else 'them' }}">
         <div class="who">{{ 'You' if m.is_me else m['from'].split('<')[0].strip(' "') }} · {{ m.ts|mswhen }}</div>

@@ -557,3 +557,20 @@ nav a.on .pill { background: var(--on-green); color: var(--green); }
 .deal-flag .tiny { color: var(--ink-2, inherit); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tag.amber { color: #e2b04a; } }
 :root[data-theme="dark"] .tag.amber { color: #e2b04a; }
+
+/* Your turn: context in a mint frame, the conversation in its own grey frame with a bubble per message */
+.context-box { background: var(--mint-2); border: 1px solid var(--mint); border-radius: var(--r-sm); padding: 12px 14px; margin-bottom: 14px; }
+.context-box p { margin: 0; }
+.context-box .brief { margin: 8px 0 0; }
+.context-box p + .brief { border-top: 1px solid color-mix(in srgb, var(--mint) 70%, transparent); padding-top: 8px; }
+.thread { background: #eeeeee; border: 0; border-radius: var(--r-sm); padding: 14px; margin: 0 0 16px; }
+.thread-label { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 10px; }
+.msg { margin-bottom: 12px; }
+.msg:last-child { margin-bottom: 0; }
+.msg .who { padding: 0 4px; }
+.msg.me .text { background: #ffffff; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; }
+.msg.them .text { background: color-mix(in srgb, #e2dbbe 60%, #ffffff); border: 1px solid color-mix(in srgb, #e2dbbe 80%, #b9ae84); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .thread { background: color-mix(in srgb, var(--ink) 5%, var(--card)); }
+  :root:not([data-theme="light"]) .msg.me .text { background: var(--card); } :root:not([data-theme="light"]) .msg.them .text { border-color: var(--cream); } }
+:root[data-theme="dark"] .thread { background: color-mix(in srgb, var(--ink) 5%, var(--card)); }
+:root[data-theme="dark"] .msg.me .text { background: var(--card); } :root[data-theme="dark"] .msg.them .text { border-color: var(--cream); }
