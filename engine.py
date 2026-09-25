@@ -762,7 +762,7 @@ def apply_people_found(w, x):
     gone = [c["fields"].get("Name") or c["fields"].get("Email") for c in w.contacts.values()
             if pid in c["fields"].get("Partner", []) and c["fields"].get("Status") in ("Bounced", "Left Company")][:2]
     who = ", ".join(f"{c['fields'].get('Name') or ''} ({c['fields']['Email']})".strip() for c in got)
-    ask = (f"[auto {dt.date.today().isoformat()}] Write to {who} at {f.get('Name')}: Karlie was talking to "
+    ask = (f"[auto {dt.date.today().isoformat()} {pid}] Write to {who} at {f.get('Name')}: Karlie was talking to "
            f"{' and '.join(gone) or 'someone there'}, who isn't there any more. {x.get('context') or ''} Mention who she was "
            f"talking to and ask who the right person is now for sponsorships and partnerships. Short, warm, no pitch.")
     at.update("settings", w.settings_rec["id"], {"Ping Requests": ((at.settings()["fields"].get("Ping Requests") or "").rstrip() + "\n" + ask).strip()})
@@ -841,12 +841,12 @@ def follow_fate(w, x):
     knew = ", ".join(filter(None, [c["fields"].get("Name") or c["fields"].get("Email") for c in w.contacts.values()
                                    if pid in c["fields"].get("Partner", [])][:3])) or "the team"
     if moved_people:
-        ask = (f"[auto {today}] Write to {', '.join(moved_people)} at {new_name}: {told[:400]} Karlie knew them at {old.get('Name')} "
+        ask = (f"[auto {today} {npid}] Write to {', '.join(moved_people)} at {new_name}: {told[:400]} Karlie knew them at {old.get('Name')} "
                f"and they're now at {new_name}. A warm catch-up: say we just heard the news, congratulate them, and ask if "
                f"they're still the right person for sponsorships at {new_name} or who is. Short, no pitch.")
     else:
         ask = None
-    ask = ask or (f"[auto {today}] Write to {new_name}: {told[:400]} Karlie was talking to {knew} at {old.get('Name')}. "
+    ask = ask or (f"[auto {today} {npid}] Write to {new_name}: {told[:400]} Karlie was talking to {knew} at {old.get('Name')}. "
            f"Open with the good news, that we were chatting with {knew} at {old.get('Name')} and just heard about it, "
            f"then ask who the best person is at {new_name} now for sponsorships and partnerships. Short, warm, no pitch.")
     at.update("settings", w.settings_rec["id"], {"Ping Requests": ((at.settings()["fields"].get("Ping Requests") or "").rstrip() + "\n" + ask).strip()})
@@ -927,7 +927,10 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
             text = re.sub(r"^\[[^\]]*\]\s*", "", line)
             low = text.lower()
             hits = sorted([(len(n), pid, n) for pid, n in partners if len(n) > 2 and re.search(r"\b" + re.escape(n.lower()) + r"\b", low)], reverse=True)
-            pid = hits[0][1] if hits else None
+            tag = re.match(r"^\[auto [^\]]*\b(rec[A-Za-z0-9]{14})\]", line)  # the system's own asks name the exact row
+            pid = tag.group(1) if tag and tag.group(1) in w.partners else (hits[0][1] if hits else None)
+            if tag and pid == tag.group(1):
+                hits = [(0, pid, w.partners[pid]["fields"].get("Name"))]
             asks.append({"instruction": text, "partner_id": pid, "matched_name": hits[0][2] if hits else None,
                          "company": company_history(w, pid) if pid else None,
                          "blocked": w.blocked(pid) if pid else None})
