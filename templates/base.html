@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=23" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=25" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -33,12 +33,28 @@
     <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
     <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
   </button>
-</div></header>
+</div>
+  {% if goal %}
+  <div class="pingbar" id="pingbar" data-n="{{ pings_today or 0 }}" data-goal="{{ goal }}" title="Pings you've actioned today (approvals and replies)">
+    <div class="pingbar-track"><div class="pingbar-fill" id="pingbar-fill" style="width:{{ [100, (100 * (pings_today or 0) / goal)|round|int]|min }}%"></div></div>
+    <div class="pingbar-label" id="pingbar-label">{{ pings_today or 0 }} of {{ goal }} pings today{% if (pings_today or 0) >= goal %} 🎉{% endif %}</div>
+  </div>
+  {% endif %}
+</header>
 <main class="wrap">
   {% for cat, m in get_flashed_messages(with_categories=true) %}{% if cat != 'celebrate' %}<div class="flash">{{ m }}</div>{% endif %}{% endfor %}
   {% block body %}{% endblock %}
 </main>
 {% endblock %}
+{% if autopilot_nudge %}
+<div class="nudge-back" id="nudge"><div class="nudge-card">
+  <div class="nudge-emoji">🏆</div>
+  <h2>Hey, we noticed something</h2>
+  <p>You've sent 50 pings in a row and made zero edits. Might be time to make this automatic.</p>
+  <p class="muted">Have a convo with that handsome hubby of yours to set this up. 😉</p>
+  <button type="button" onclick="fetch('/autopilot/seen',{method:'POST'});document.getElementById('nudge').remove()">Will do!</button>
+</div></div>
+{% endif %}
 {% set parties = [] %}{% for cat, m in get_flashed_messages(with_categories=true) %}{% if cat == 'celebrate' %}{% set _ = parties.append(m|safe) %}{% endif %}{% endfor %}
 {% if parties %}
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
@@ -92,6 +108,34 @@ window.flipTheme=function(){
   });
   if(restored){ const n=document.createElement('div'); n.className='flash'; n.textContent='Put back your unsaved edits from before the refresh.'; const m=document.querySelector('main'); m&&m.prepend(n); setTimeout(()=>n.remove(),5000); }
 })();
+
+// Pinned ping bar: climbs as she approves and replies, and celebrates when she hits her goal.
+window.toast=window.toast||function(emoji,title,msg){
+  const el=document.createElement('div'); el.className='toast'; el.setAttribute('role','status');
+  el.innerHTML='<div class="emoji"></div><div><strong></strong><span class="msg"></span></div>';
+  el.querySelector('.emoji').textContent=emoji; el.querySelector('strong').textContent=title; el.querySelector('.msg').textContent=msg;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),5400);
+};
+window.goalParty=function(n,goal){
+  if(!goal||n<goal||!window.confetti||matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const key='goal-party-'+new Date().toDateString()+'-'+n+'-'+goal;
+  try{ if(localStorage.getItem(key)) return; localStorage.setItem(key,'1'); }catch(e){}
+  const colors=['#265c51','#bee1de','#e2dbbe','#7fc4b6','#ffffff'];
+  confetti({particleCount:110,spread:90,startVelocity:34,origin:{x:.5,y:.08},colors,scalar:.9});
+  setTimeout(()=>confetti({particleCount:60,spread:130,startVelocity:24,origin:{x:.5,y:.1},colors,scalar:.8}),260);
+  if(window.toast) toast(n>goal?'🔥':'🎉', n>goal?'Overachiever!':'Daily goal hit!', n>goal?('That\'s '+(n-goal)+' over your goal. Unstoppable.'):('All '+goal+' pings done today. Go have a coffee.'));
+};
+window.updatePingBar=function(n,goal){
+  const b=document.getElementById('pingbar'); if(!b) return;
+  goal=goal||+b.dataset.goal; b.dataset.n=n; b.dataset.goal=goal;
+  document.getElementById('pingbar-fill').style.width=Math.min(100,Math.round(100*n/goal))+'%';
+  document.getElementById('pingbar-label').textContent=n+' of '+goal+' pings today'+(n>=goal?' 🎉':'');
+  b.classList.toggle('done',n>=goal); if(n>=goal){ b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
+  goalParty(n,goal);
+};
+(function(){ const b=document.getElementById('pingbar'); if(b){ b.classList.toggle('done',+b.dataset.n>=+b.dataset.goal);
+  if(!window.confetti){ const sc=document.createElement('script'); sc.src='https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js'; sc.onload=()=>goalParty(+b.dataset.n,+b.dataset.goal); document.head.appendChild(sc); }
+  else goalParty(+b.dataset.n,+b.dataset.goal); } })();
 
 // A new version went live: tell her, but don't reload on her (her typing is saved above).
 (function(){

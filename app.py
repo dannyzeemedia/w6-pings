@@ -1,6 +1,7 @@
 """Karlie's outbound dashboard: daily ping count, approvals, replies to handle, rules, voice, results.
 Airtable (W6 Media base) is the database; this app is only a friendlier screen over it."""
 import os, json, re, datetime as dt
+import requests
 from functools import wraps
 from zoneinfo import ZoneInfo
 from flask import Flask, render_template, request, redirect as _redirect, url_for, session, flash
@@ -102,8 +103,31 @@ def inject():
             ny = len(at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}))", fields=["Event"]))
         except Exception:
             ny = None
+    pa, goal, nudge = None, 0, False
+    if session.get("user") and request.endpoint not in ("login", "healthz", "static"):
+        try:
+            sf = at.settings()["fields"]
+            pa, goal = actions_today(), int(sf.get("Daily Ping Limit") or 0)
+            nudge = session.get("user") == "karlie" and bool(sf.get("Autopilot Nudge Sent")) and not sf.get("Autopilot Nudge Seen")
+        except Exception:
+            pass
     return {"user": session.get("user"), "zone_label": ZONE_LABEL, "n_to_approve": n, "more_pending": mp, "n_yours": ny,
-            "version": VERSION}
+            "version": VERSION, "pings_today": pa, "goal": goal, "autopilot_nudge": nudge}
+
+
+def actions_today():
+    """Pings Karlie actioned today (her day in Brisbane): drafts she approved + replies she sent herself."""
+    start = dt.datetime.now(BRIS).replace(hour=0, minute=0, second=0, microsecond=0)
+    since = iso(start.replace(minute=0))
+    approved = at.list_records("drafts", f"AND(IS_AFTER({{Decided At}}, '{since}'), OR({{Status}}='Approved', {{Status}}='Sent'), NOT({{Written By Karlie}}), {{Kind}}!='Reply')", fields=["Decided At"])
+    replies = at.list_records("log", f"AND({{Event}}='Sent', {{By}}='Karlie', IS_AFTER({{At}}, '{since}'))", fields=["At"])
+    return len(approved) + len(replies)
+
+
+def _norm(t):
+    """Compare text the way a person would: ignore line endings, trailing spaces and extra blank lines."""
+    t = (t or "").replace("\r\n", "\n").replace("\r", "\n")
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(l.rstrip() for l in t.split("\n"))).strip()
 
 
 def celebrate(title, msg="", emoji="🎉", big=False):
@@ -170,10 +194,7 @@ def today():
     s = at.settings()
     f = s["fields"]
     tz = ZoneInfo(f.get("Send Timezone") or "America/New_York")
-    since = (now_utc() - dt.timedelta(days=2)).strftime("%Y-%m-%d")
-    sent = at.list_records("log", f"AND({{Event}}='Sent', IS_AFTER({{At}}, '{since}'))", fields=["At"])
-    sent_today = sum(1 for r in sent if parse_ts(r["fields"].get("At")) and
-                     parse_ts(r["fields"]["At"]).astimezone(tz).date() == dt.datetime.now(tz).date())
+    sent_today = actions_today()
     yours = at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}))", fields=["Summary"])
     horizon = iso((now_utc() + dt.timedelta(days=APPROVE_AHEAD_DAYS)).replace(minute=0, second=0, microsecond=0))
     upcoming = at.list_records(
@@ -266,8 +287,8 @@ def decide(rid):
     action = request.form.get("action", "save")
     subject, body = request.form.get("subject", "").strip(), request.form.get("body", "").strip()
     fields = {"Subject": subject, "Body": body, "Karlie Feedback": request.form.get("feedback", "").strip()}
-    fields["Edited By Karlie"] = (body != (d.get("AI Original Body") or "").strip()
-                                  or subject != (d.get("AI Original Subject") or "").strip())
+    fields["Edited By Karlie"] = (_norm(body) != _norm(d.get("AI Original Body"))
+                                  or _norm(subject) != _norm(d.get("AI Original Subject")))
     if action in ("send", "reject"):
         fields["Decided At"] = iso(now_utc())
     if action == "send":
@@ -278,8 +299,10 @@ def decide(rid):
         left = len(pending_drafts(fields=["Subject"])) - 1
         if request.headers.get("X-Fetch") == "1":
             at.update("drafts", rid, fields)
+            _check_autopilot()
             return {"ok": True, "eta": eta, "left": max(left, 0), "subject": subject,
-                    "eta_short": _short_eta(eta_t)}
+                    "eta_short": _short_eta(eta_t), "pings_today": actions_today(),
+                    "goal": int(at.settings()["fields"].get("Daily Ping Limit") or 0)}
         if left <= 0:
             celebrate("All clear!", eta + " Every draft's dealt with.", "✨", big=True)
         else:
@@ -495,6 +518,50 @@ def handsoff_release(rid):
     return redirect(url_for("today") + "#handsoff")
 
 
+AUTOPILOT_STREAK = 50
+
+
+def approval_streak():
+    """How many of her most recent approvals in a row went out exactly as written (no edits, no note, no bins)."""
+    n = 0
+    for d in at.list_records("drafts", "AND({Decided At}!='', {Kind}!='Reply', NOT({Written By Karlie}), OR({Status}='Approved', {Status}='Sent', {Status}='Rejected'))",
+                             sort=[("Decided At", "desc")], fields=["Status", "Edited By Karlie", "Karlie Feedback"], max_records=AUTOPILOT_STREAK + 5):
+        f = d["fields"]
+        if f.get("Status") == "Rejected" or f.get("Edited By Karlie") or (f.get("Karlie Feedback") or "").strip():
+            break
+        n += 1
+    return n
+
+
+def _check_autopilot():
+    """50 approvals in a row with zero edits = phase 1 is done. Tell Danny on Slack and Karlie on her page (once)."""
+    try:
+        s = at.settings()
+        if s["fields"].get("Autopilot Nudge Sent") or s["fields"].get("Approval Mode") != "Approve Every Draft":
+            return
+        if approval_streak() < AUTOPILOT_STREAK:
+            return
+        at.update("settings", s["id"], {"Autopilot Nudge Sent": True})
+        tok = os.environ.get("SLACK_BOT_TOKEN")
+        if tok:
+            requests.post("https://slack.com/api/chat.postMessage", headers={"Authorization": f"Bearer {tok}"}, timeout=15, json={
+                "channel": os.environ.get("DANNY_SLACK_ID", "UJF18F3SA"),
+                "text": (f"🎉 Karlie has approved {AUTOPILOT_STREAK} pings in a row without changing a word. Phase 1 looks done: "
+                         "the drafts are good enough to send without her approval. Switch W6 Pings to "
+                         "\"Send new pitches on its own, ask me before replying to anyone\" on the Rules page "
+                         "(https://pings.workspace6.io/rules) when you two are ready. Takes 1 minute.")})
+    except Exception:
+        pass
+
+
+@app.post("/autopilot/seen")
+@login_required
+def autopilot_seen():
+    s = at.settings()
+    at.update("settings", s["id"], {"Autopilot Nudge Seen": True})
+    return {"ok": True}
+
+
 @app.post("/yours/<rid>/save")
 @login_required
 def yours_save(rid):
@@ -535,14 +602,18 @@ def yours_reply(rid):
     sug = (e.get("Suggested Reply") or "").strip()
     draft = at.create("drafts", {"Subject": "Reply from Karlie", "Status": "Sent", "Kind": "Reply",
                                  "To Email": to, "Body": text, "Written By Karlie": not sug,
-                                 **({"AI Original Body": sug, "Edited By Karlie": text.strip() != sug} if sug else {}),
+                                 **({"AI Original Body": sug, "Edited By Karlie": _norm(text) != _norm(sug)} if sug else {}),
                                  **({"Karlie Feedback": request.form.get("feedback", "").strip()} if request.form.get("feedback", "").strip() else {}),
                                  "Gmail Thread ID": tid, "Sent At": t, "Decided At": t, **link})
     at.create("log", {"Summary": "Karlie replied from the dashboard", "Event": "Sent", "Direction": "Out",
                       "Email": to, "At": t, "Snippet": text[:500], "Gmail Message ID": mid,
                       "Gmail Thread ID": tid, "Draft": [draft["id"]], "Handled": True, **link})
     at.update("log", rid, {"Handled": True})
-    celebrate("Sent!", f"On its way to {to}. Logged as a ping, and it'll learn from how you wrote it.", "💌")
+    try:
+        gmail.mark_done(tid)  # read + archived in her inbox, since she's dealt with it
+    except Exception:
+        pass
+    celebrate("Sent!", f"On its way to {to}. Marked read and archived in your inbox, and it'll learn from how you wrote it.", "💌")
     return redirect(url_for("yours"))
 
 
@@ -817,6 +888,55 @@ def bookings_edit(rid):
 
 
 # ---------- results ----------
+def activity(days=7):
+    """Everything Karlie actioned, with proof of what happened next (sent / waiting / not sent / failed) and what it learned."""
+    since = iso((dt.datetime.now(BRIS) - dt.timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0))
+    rows = at.list_records("drafts", f"IS_AFTER({{Decided At}}, '{since}')", sort=[("Decided At", "desc")], max_records=200)
+    lessons = {}
+    for l in at.list_records("lessons", f"IS_AFTER({{Learned At}}, '{since}')", fields=["Lesson", "Draft", "Source"]):
+        for d in l["fields"].get("Draft", []):
+            lessons.setdefault(d, []).append(l["fields"].get("Lesson"))
+    out, now = [], now_utc()
+    for d in rows:
+        f = d["fields"]
+        st, kind = f.get("Status"), f.get("Kind")
+        who = f.get("To Name") or f.get("To Email") or ""
+        if kind == "Reply":
+            what = f"Replied to {who}"
+        elif st == "Rejected":
+            what = f"Binned “{f.get('Subject') or 'draft'}”"
+        else:
+            what = f"Approved “{f.get('Subject') or 'follow-up'}” to {who}"
+        if st == "Sent":
+            level, proof = "ok", "Sent " + (when(f.get("Sent At")) if f.get("Sent At") else "")
+        elif st == "Approved":
+            exp = parse_ts(f.get("Expected Send"))
+            if exp and now - exp > dt.timedelta(hours=3):
+                level, proof = "warn", "Late: expected " + when(f.get("Expected Send")) + ". Check sending isn't paused."
+            else:
+                level, proof = "wait", "Waiting to send" + (", goes " + _short_eta(exp).replace("goes out ", "") if exp else "")
+        elif st == "Cancelled":
+            level, proof = "warn", "Not sent: " + (f.get("Replan Note") or "cancelled")
+        elif st == "Failed":
+            level, proof = "bad", "Failed: " + (f.get("Replan Note") or "unknown error")
+        elif st == "Rejected":
+            level, proof = "wait", "Binned. Nothing sent."
+        else:
+            level, proof = "wait", st or ""
+        edited = f.get("Edited By Karlie") and kind != "Reply" or (kind == "Reply" and f.get("AI Original Body") and f.get("Edited By Karlie"))
+        learned = lessons.get(d["id"], [])
+        learn_state = ("learned" if learned else ("done" if f.get("Learned From") else
+                       ("pending" if st != "Cancelled" and (edited or f.get("Karlie Feedback") or st == "Rejected" or f.get("Written By Karlie")) else "")))
+        out.append({"at": f.get("Decided At"), "what": what, "level": level, "proof": proof, "edited": bool(edited),
+                    "note": f.get("Karlie Feedback"), "learned": learned, "learn_state": learn_state})
+    for r in at.list_records("log", f"AND({{Event}}='Sent', {{By}}='Karlie', {{Summary}}='Karlie emailed them directly', IS_AFTER({{At}}, '{since}'))", fields=["At", "Email", "Reviewed"]):
+        f = r["fields"]
+        out.append({"at": f.get("At"), "what": f"Emailed {f.get('Email')} from Gmail", "level": "ok", "proof": "Seen by the system " + when(f.get("At")),
+                    "edited": False, "note": None, "learned": [], "learn_state": "done" if f.get("Reviewed") else "pending"})
+    out.sort(key=lambda x: x["at"] or "", reverse=True)
+    return out
+
+
 @app.route("/results")
 @login_required
 def results():
@@ -840,7 +960,8 @@ def results():
     dead = at.list_records("contacts", "AND({Status}!='Active', {Status}!='')", fields=["Status"])
     peak = max([w["sent"] for w in weeks] + [1])
     names = at.partner_names([p for e in ev[:40] for p in e["fields"].get("Partner", [])])
-    return render_template("results.html", weeks=weeks, peak=peak, totals=totals,
+    span = 1 if request.args.get("span", "today") == "today" else 7
+    return render_template("results.html", weeks=weeks, peak=peak, totals=totals, acts=activity(span), span=span,
                            n_dead=len(dead), recent=ev[:40], names=names)
 
 

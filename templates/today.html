@@ -17,12 +17,12 @@
 <div class="grid">
   <div class="card ping-card {{ 'goal-hit' if (s.get('Daily Ping Limit', 0) and sent_today >= s.get('Daily Ping Limit', 0)) }}" data-sent="{{ sent_today }}" data-goal="{{ s.get('Daily Ping Limit', 0) }}">
     {% set goal = s.get('Daily Ping Limit', 0) or 0 %}{% set hit = goal and sent_today >= goal %}
-    <div class="label">Pings sent today</div>
+    <div class="label">Pings today</div>
     <div class="goal-badge" id="goal-badge" {% if not hit %}hidden{% endif %}>{% if hit %}{% if sent_today > goal %}🔥 Overachiever! +{{ sent_today - goal }} over goal{% else %}🎉 Goal hit!{% endif %}{% endif %}</div>
     <div class="big">{{ sent_today }} <small>of <span id="limit-show">{{ goal }}</span></small></div>
     <div class="goal-bar"><div id="goal-fill" style="width:{{ [100, (100 * sent_today / goal)|round|int if goal else 0]|min }}%"></div></div>
     <div class="muted tiny" id="goal-togo" {% if hit or not goal %}hidden{% endif %}>{{ (goal - sent_today) if goal and not hit else '' }} to go</div>
-    <div class="muted tiny">Daily goal <span class="saved" id="saved">Saved</span></div>
+    <div class="muted tiny">Approvals and replies you've actioned today · Daily goal <span class="saved" id="saved">Saved</span></div>
     <div class="stepper">
       <button type="button" onclick="step(-1)" aria-label="One fewer">−</button>
       <input id="limit" type="number" min="0" max="200" value="{{ s.get('Daily Ping Limit', 0) }}" aria-label="Daily limit" onchange="saveLimit()">

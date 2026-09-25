@@ -520,3 +520,34 @@ nav a.on .pill { background: var(--on-green); color: var(--green); }
   font: 600 12px Inter; animation: pop .7s cubic-bezier(.3,1.6,.4,1) .2s both; }
 @keyframes goal-glow { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--mint) 45%, transparent), 0 16px 38px -18px rgba(38,92,81,.6); } }
 @media (prefers-reduced-motion: reduce) { .ping-card.goal-hit { animation: none; } }
+
+/* pinned ping bar (all pages) */
+.pingbar { max-width: 940px; margin: 0 auto; padding: 0 16px 8px; display: flex; align-items: center; gap: 12px; }
+.pingbar-track { flex: 1; height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--mint) 45%, transparent); overflow: hidden; }
+.pingbar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--green), #7fc4b6); transition: width .7s cubic-bezier(.2,.7,.2,1); }
+.pingbar-label { font: 600 12px Inter; color: var(--green); white-space: nowrap; }
+.pingbar.done .pingbar-fill { background: linear-gradient(90deg, #265c51, #7fc4b6, #e2dbbe, #7fc4b6); background-size: 200% 100%; animation: shine 2.4s linear infinite; }
+.pingbar.bump .pingbar-label { animation: pop .6s cubic-bezier(.3,1.6,.4,1) both; }
+@keyframes shine { to { background-position: -200% 0; } }
+@media (max-width: 640px) { .pingbar { padding-bottom: 8px; } }
+/* login fields: always readable on the dark glass card */
+.login-card input, .login-card input[type=text], .login-card input[type=password] { background: rgba(255,255,255,.10) !important; color: #fff !important;
+  border: 1.5px solid rgba(190,225,222,.45) !important; box-shadow: none !important; caret-color: #fff; }
+.login-card input::placeholder { color: rgba(255,255,255,.55); }
+.login-card input:-webkit-autofill { -webkit-text-fill-color: #fff; -webkit-box-shadow: 0 0 0 1000px #1f4a42 inset !important; transition: background-color 9999s; }
+/* autopilot nudge */
+.nudge-back { position: fixed; inset: 0; z-index: 80; background: rgba(10,20,18,.45); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; animation: rise .3s both; }
+.nudge-card { background: var(--card); border: 1px solid var(--mint); border-radius: 26px; padding: 30px 28px; max-width: 440px; text-align: center; box-shadow: 0 30px 80px -30px rgba(0,0,0,.6); }
+.nudge-emoji { font-size: 48px; animation: wiggle .9s ease-in-out .3s 2; } .nudge-card h2 { margin: 6px 0 10px; } .nudge-card p { margin: 0 0 10px; }
+
+.act { display: grid; grid-template-columns: 110px 1fr; gap: 12px; padding: 12px 10px; border-top: 1px solid var(--line); border-radius: 10px; }
+.act-when { color: var(--ink-2); font-size: 13px; padding-top: 2px; }
+.act-proof { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+.act-warn { background: color-mix(in srgb, #eda100 12%, transparent); } .act-warn .act-proof { color: #8a5d00; }
+.act-bad { background: color-mix(in srgb, #b3412f 12%, transparent); } .act-bad .act-proof { color: var(--red); }
+.act-learn { font-size: 13px; margin-top: 4px; color: var(--green); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .act-warn .act-proof { color: #e2b04a; } }
+:root[data-theme="dark"] .act-warn .act-proof { color: #e2b04a; }
+@media (max-width: 640px) { .act { grid-template-columns: 1fr; gap: 2px; } }
+
+.login-card label, .login-card .field > label { color: rgba(255,255,255,.88) !important; }

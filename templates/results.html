@@ -1,6 +1,27 @@
 {% extends "base.html" %}{% block title %}Results{% endblock %}
 {% block body %}
-<div class="head"><h1>Results</h1><p>The last 30 days.</p></div>
+<div class="head"><h1>Results</h1><p>What you actioned and proof of what happened next, then the last 30 days.</p></div>
+<div class="card" id="activity">
+  <div class="draft-meta" style="align-items:center">
+    <h2>Your activity</h2>
+    <div class="seg"><a href="{{ url_for('results', span='today') }}#activity" class="{{ 'on' if span == 1 }}">Today</a><a href="{{ url_for('results', span='week') }}#activity" class="{{ 'on' if span == 7 }}">Last 7 days</a></div>
+  </div>
+  <p class="muted tiny" style="margin:0 0 8px">✅ done · ⏳ waiting (normal) · 🟡 something needs a look · 🔴 something went wrong. 🧠 = what it learned from your edits (learning runs overnight, or straight away when you press ↻ Sync).</p>
+  {% for a in acts %}
+  <div class="act act-{{ a.level }}">
+    <div class="act-when">{{ a.at|when }}</div>
+    <div class="act-main"><div>{{ a.what }}{% if a.edited %} <span class="tag">edited</span>{% endif %}</div>
+      <div class="act-proof">{{ {'ok':'✅','wait':'⏳','warn':'🟡','bad':'🔴'}[a.level] }} {{ a.proof }}</div>
+      {% if a.note %}<div class="muted tiny">Your note: "{{ a.note }}"</div>{% endif %}
+      {% for l in a.learned %}<div class="act-learn">🧠 Learned: {{ l }}</div>{% endfor %}
+      {% if a.learn_state == 'pending' %}<div class="muted tiny">🧠 Will learn from this tonight (or press ↻ Sync).</div>
+      {% elif a.learn_state == 'done' and not a.learned %}<div class="muted tiny">🧠 Read. Nothing new to learn from this one.</div>{% endif %}
+    </div>
+  </div>
+  {% else %}
+  <p class="muted" style="margin:0">Nothing actioned {{ 'today' if span == 1 else 'this week' }} yet.</p>
+  {% endfor %}
+</div>
 <div class="grid">
   <div class="card"><div class="label">Pings sent</div><div class="big">{{ totals.sent }}</div></div>
   <div class="card"><div class="label">Replied</div><div class="big">{{ totals.replied }}</div><div class="muted">{{ (totals.rate|string + '% of pings') if totals.rate is not none else 'No pings yet' }}</div></div>

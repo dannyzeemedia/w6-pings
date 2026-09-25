@@ -116,6 +116,12 @@ def reply(tid, text):
     return r.json()["id"], to
 
 
+def mark_done(tid):
+    """Mark the thread read and archive it (take it out of the inbox). New replies from them bring it back as usual."""
+    r = requests.post(f"{API}/threads/{tid}/modify", headers=_h(), json={"removeLabelIds": ["UNREAD", "INBOX"]}, timeout=30)
+    return r.ok
+
+
 def open_link(msgid):
     """Gmail web link that opens this exact message in Karlie's inbox."""
     q = requests.utils.quote(f"rfc822msgid:{msgid.strip('<>')}")

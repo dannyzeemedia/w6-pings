@@ -109,6 +109,7 @@ document.querySelectorAll('[data-send]').forEach(btn=>btn.addEventListener('clic
       setTimeout(()=>{ document.getElementById('queued-block').hidden=false; document.getElementById('queued').prepend(row); wrap.remove();
         if(!document.querySelector('#drafts .draft')) document.getElementById('all-clear').hidden=false; },900);
     },420);
+    if(window.updatePingBar && j.pings_today!=null) updatePingBar(j.pings_today, j.goal);
     const last=j.left===0;
     toast(last?'✨':'🚀', last?'All clear!':'Off it goes!', j.eta+(last?'':' '+j.left+' more to look at.'));
     if(window.confetti && !matchMedia('(prefers-reduced-motion: reduce)').matches) confetti({particleCount:last?140:70,spread:last?100:70,startVelocity:32,origin:{y:.85},colors:COLORS,scalar:.9});
