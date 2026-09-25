@@ -728,6 +728,12 @@ def people_to_find(w, limit=8):
         handed = "is now part of" in (f.get("Notes") or "") or "now goes by" in (f.get("Notes") or "")
         if not (gone or handed):
             continue
+        import brand
+        dom = site_domain(f.get("Website"))
+        if dom and brand.is_gone(dom) and brand.is_gone("www." + dom):
+            # the company itself may be gone, not just the person: retire it and let the fate check look into it
+            brand.retire_partner(pid, f"{dom} no longer exists (no DNS record)")
+            continue
         worth = handed or w.partner_sales(pid) or any(c.get("Last Pinged") and now() - pts(c["Last Pinged"]) < dt.timedelta(days=120) for c in gone)
         if not worth:
             continue
@@ -745,6 +751,10 @@ def apply_people_found(w, x):
     if pid not in w.partners:
         return None
     f = w.partners[pid]["fields"]
+    if x.get("company_closed"):  # the research says the company itself is gone: retire quietly, no ask
+        brand.retire_partner(pid, "the company appears to have closed")
+        at.update("partners", pid, {"🤖 What Happened": (x.get("context") or "Looks closed.")[:5000], "🤖 Fate Checked": dt.date.today().isoformat()})
+        return {"partner": f.get("Name"), "note": "looks closed, retired"}
     dom = brand.domain_from(f.get("Website")) or next(iter(w.partner_domains(pid)), None)
     got = find_people(w, pid, dom, x.get("people") or [], x.get("emails") or [], f.get("Name"))
     if not got:
