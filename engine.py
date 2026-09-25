@@ -529,12 +529,22 @@ def remix_apply(item):
 
 
 # ---------------------------------------------------------------- choosing who to ping
+def _gmail_queries(w, pid):
+    """Gmail searches that find Karlie's emails with a company: its domains, plus its name in the subject line
+    (catches threads with a parent company, e.g. Sendlane talks coming from privy.com addresses)."""
+    qs = [f"from:{d} OR to:{d}" for d in w.partner_domains(pid)[:3]]
+    name = w.partners.get(pid, {}).get("fields", {}).get("Name") or ""
+    for n in [x.strip() for x in re.split(r"[()/,]", name) if len(x.strip()) >= 4][:2]:
+        qs.append(f'subject:"{n}"')
+    return qs
+
+
 def _last_touch(w, pid, who=False):
     """Most recent email in or out with anyone at the company, from her mailbox. who=True: (when, it_was_them)."""
     latest, them = None, False
-    for d in w.partner_domains(pid)[:3]:
+    for q in _gmail_queries(w, pid):
         try:
-            ids = gmail.search(f"from:{d} OR to:{d}", 1)
+            ids = gmail.search(q, 1)
         except Exception:
             ids = []
         if ids:
@@ -658,8 +668,8 @@ def stalled_deals(w, limit):
     queued = {p for d in at.list_records("drafts", "OR({Status}='Pending Approval', {Status}='Approved')", fields=["Partner"])
               for p in d["fields"].get("Partner", [])}
     since = (now() - dt.timedelta(days=days)).strftime("%Y-%m-%d")
-    recent = {p for d in at.list_records("drafts", f"AND({{Kind}}='Deal Nudge', IS_AFTER(CREATED_TIME(), '{since}'))", fields=["Partner"])
-              for p in d["fields"].get("Partner", [])}
+    recent = {p for d in at.list_records("drafts", f"IS_AFTER(CREATED_TIME(), '{since}')", fields=["Partner"])
+              for p in d["fields"].get("Partner", [])}  # anything drafted or skipped lately, so a skip isn't retried nightly
     cands = []
     for pid in w.partners:
         if pid in queued or pid in recent or w.blocked(pid, ignore_open_deals=True):
@@ -918,9 +928,9 @@ def company_history(w, pid, max_threads=8):
     """Everything Karlie would know about a company: her email threads with anyone there + the Airtable rows."""
     p = w.partners.get(pid, {}).get("fields", {})
     threads, seen = [], set()
-    for d in w.partner_domains(pid)[:3]:
+    for q in _gmail_queries(w, pid):
         try:
-            ids = gmail.search(f"from:{d} OR to:{d}", 40)
+            ids = gmail.search(q, 40)
         except Exception:
             ids = []
         for mid in ids:
