@@ -1005,8 +1005,9 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
     room -= len(followups)
     rescues = rescue_targets(w)[:max(0, min(room, 3))]
     room -= len(rescues)
-    stalled = [] if (requests_only or learn_only) else stalled_deals(w, max(0, min(room, w.s.get("Stalled Deal Nudges Per Day") or 2)))
-    room -= len(stalled)
+    # stalled deals get their own daily allowance: worth more than another cold pitch, so they never wait for room
+    stalled = [] if (requests_only or learn_only) else stalled_deals(w, w.s.get("Stalled Deal Nudges Per Day") or 2)
+    room = max(0, room - len(stalled))
     if learn_only:  # "Sync now": read and learn, write nothing new
         at.update("settings", w.settings_rec["id"], {"Sync Requested": False})
     if requests_only or learn_only:
