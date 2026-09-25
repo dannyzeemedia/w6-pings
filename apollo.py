@@ -31,3 +31,33 @@ def people(domain, exclude=(), limit=3):
         if len(out) >= limit:
             break
     return out
+
+
+def person(first, last, domain, org=None):
+    """One named person (e.g. a founder the brain found while researching), if Apollo has a verified email for them."""
+    body = {k: v for k, v in {"first_name": first, "last_name": last, "domain": domain, "organization_name": org}.items() if v}
+    r = requests.post(f"{API}/people/match", headers=_h(), timeout=30, json=body)
+    r.raise_for_status()
+    p = r.json().get("person") or {}
+    e = (p.get("email") or "").lower()
+    if e and p.get("email_status") == "verified":
+        return {"email": e, "name": p.get("name"), "title": p.get("title"), "linkedin": p.get("linkedin_url")}
+    return None
+
+
+def anyone(domain, exclude=(), limit=2):
+    """Tiny companies often have no partnership/marketing titles: fall back to anyone verified there."""
+    r = requests.post(f"{API}/mixed_people/api_search", headers=_h(), timeout=30,
+                      json={"q_organization_domains_list": [domain], "per_page": 10})
+    r.raise_for_status()
+    ids = [p["id"] for p in r.json().get("people", []) if p.get("id")][:6]
+    if not ids:
+        return []
+    m = requests.post(f"{API}/people/bulk_match", headers=_h(), timeout=60, json={"details": [{"id": i} for i in ids]})
+    m.raise_for_status()
+    out = []
+    for p in m.json().get("matches", []) or []:
+        e = ((p or {}).get("email") or "").lower()
+        if e and p.get("email_status") == "verified" and e not in exclude and e.endswith("@" + domain):
+            out.append({"email": e, "name": p.get("name"), "title": p.get("title"), "linkedin": p.get("linkedin_url")})
+    return out[:limit]

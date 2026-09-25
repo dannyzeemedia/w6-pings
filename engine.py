@@ -729,15 +729,38 @@ def follow_fate(w, x):
             moved_people.append(cf.get("Name") or cf.get("Email"))
     have = [c for c in w.contacts.values() if npid in c["fields"].get("Partner", []) and c["fields"].get("Status") in (None, "Active")]
     if not have and os.environ.get("APOLLO_API_KEY"):
-        try:
-            for c in apollo.people(dom, exclude=set(w.by_email)):
-                have.append(at.create("contacts", {"Email": c["email"], "Name": c.get("name"), "Title": c.get("title"),
-                                                   "Status": "Active", "Source": "Apollo", "Partner": [npid]}))
-        except Exception:
-            pass
-    if not have:
-        at.update("partners", pid, {"🤖 What Happened": (story + f"\nNo contacts found at {new_name} yet.")[:5000]})
-        return {"partner": old.get("Name"), "fate": fate, "new": new_name, "note": "no contacts found"}
+        # 1) the people the research named (founders etc.), 2) partnership/marketing titles, 3) anyone verified there
+        found = []
+        for n in (x.get("people") or [])[:4]:
+            try:
+                parts = (n.get("name") or "").split() if isinstance(n, dict) else str(n).split()
+                c = apollo.person(parts[0] if parts else None, " ".join(parts[1:]) or None, dom, new_name) if parts else None
+                if c and c["email"] not in w.by_email:
+                    found.append({**c, "title": c.get("title") or (n.get("title") if isinstance(n, dict) else None)})
+            except Exception:
+                pass
+        for fn in (lambda: apollo.people(dom, exclude=set(w.by_email)), lambda: apollo.anyone(dom, exclude=set(w.by_email))):
+            if found:
+                break
+            try:
+                found = fn()
+            except Exception:
+                found = []
+        olds = [c["fields"] for c in w.contacts.values() if pid in c["fields"].get("Partner", [])]
+        for c in found:
+            have.append(at.create("contacts", {"Email": c["email"], "Name": c.get("name"), "Title": c.get("title"),
+                                               "Status": "Active", "Source": "Apollo", "Partner": [npid]}))
+            # same person Karlie knew at the old company (same name, or same tom@ before the domain)? then it's a catch-up
+            first = (c.get("name") or "").split(" ")[0].lower()
+            if any((o.get("Name") or "").lower() == (c.get("name") or "").lower() or
+                   (o.get("Email") or "").split("@")[0].lower() in (first, c["email"].split("@")[0]) for o in olds):
+                moved_people.append(f"{c.get('name') or c['email']} ({c['email']})")
+    if not have:  # trail went cold: stay retired, quietly. Plenty of other fish.
+        at.update("partners", pid, {"🤖 What Happened": (story + f"\nTrail went cold: no email for anyone at {new_name}, so it stays retired.")[:5000]})
+        if not w.partners[npid]["fields"].get("Sales"):
+            at.update("partners", npid, {"Stage": "Out of Service", "🤖 Fate Checked": today, "Notes": ((w.partners[npid]["fields"].get("Notes") or "").rstrip()
+                      + f"\n\n🤖 {today}: retired from outreach, no contacts found.").strip()})
+        return {"partner": old.get("Name"), "fate": fate, "new": new_name, "note": "trail went cold, retired"}
     knew = ", ".join(filter(None, [c["fields"].get("Name") or c["fields"].get("Email") for c in w.contacts.values()
                                    if pid in c["fields"].get("Partner", [])][:3])) or "the team"
     if moved_people:
