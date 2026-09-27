@@ -55,13 +55,19 @@ def _req(method, url, **kw):
                     threading.Thread(target=_refresh, args=(key, url, kw), daemon=True).start()
                 return hit[1]
         return _fetch(method, url, key, gen=_gen[0], **kw)
-    _cache.clear()  # a write: everything re-reads fresh, so she always sees her own change
-    _gen[0] += 1
+    # a write: that table re-reads fresh (so she always sees her own change); other tables keep their saved copy
+    tbl = url.split(f"/{BASE}/", 1)[-1].split("/", 1)[0].split("?", 1)[0]
+    _forget(tbl)
     try:
         return _fetch(method, url, None, **kw)
     finally:
-        _cache.clear()
-        _gen[0] += 1
+        _forget(tbl)
+
+
+def _forget(tbl):
+    for k in [k for k in list(_cache) if f"/{BASE}/{tbl}" in k[0]]:
+        _cache.pop(k, None)
+    _gen[0] += 1
 
 
 def _fetch(method, url, key, gen=None, **kw):
