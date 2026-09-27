@@ -427,7 +427,7 @@ input:hover, textarea:hover, select:hover { border-color: var(--green); }
 .draft .email-zone { background: color-mix(in srgb, var(--mint) 22%, var(--card)); border-radius: var(--r-sm); padding: 14px; margin: 0 -4px 14px; }
 .draft .email-zone .field { margin-bottom: 12px; } .draft .email-zone .field:last-of-type { margin-bottom: 0; }
 .why { background: color-mix(in srgb, #e2dbbe 55%, var(--card)); }
-details.brief > pre, .brief-box { background: color-mix(in srgb, var(--mint) 18%, var(--card)); }
+details.brief pre, .brief-box { background: color-mix(in srgb, var(--mint) 18%, var(--card)); }
 .msg.them .text { background: color-mix(in srgb, #e2dbbe 45%, var(--card)); }
 .voice { background: var(--field); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .why { background: color-mix(in srgb, #e2dbbe 12%, var(--card)); } :root:not([data-theme="light"]) .msg.them .text { background: color-mix(in srgb, #e2dbbe 10%, var(--card)); } }
@@ -599,16 +599,42 @@ details.msg.them { background: color-mix(in srgb, #e2dbbe 60%, #ffffff); border-
 details.msg > summary { list-style: none; cursor: pointer; padding: 10px 36px 10px 12px; position: relative; display: grid; gap: 2px; }
 details.msg > summary::-webkit-details-marker { display: none; }
 details.msg > summary::after { content: "›"; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 20px; color: var(--ink-2); transition: transform .2s; }
-details.msg[open] > summary::after { transform: translateY(-50%) rotate(90deg); }
+details.msg.dx-open > summary::after { transform: translateY(-50%) rotate(90deg); }
 details.msg > summary .who { font-size: 12px; color: var(--ink-2); margin: 0; padding: 0; }
 details.msg.me > summary .who { color: var(--green); }
 details.msg > summary .gist { font-size: 14px; color: var(--ink); }
 details.msg .text { overflow: hidden; }
-details.msg[open] > summary .gist { color: var(--ink-2); }
+details.msg.dx-open > summary .gist { color: var(--ink-2); }
 details.msg .text, details.msg.me .text, details.msg.them .text { background: transparent; border: 0; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 0; padding: 10px 12px 12px; margin: 0; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) details.msg { background: var(--card); } :root:not([data-theme="light"]) details.msg.them { background: color-mix(in srgb, #e2dbbe 10%, var(--card)); border-color: var(--cream); } }
 :root[data-theme="dark"] details.msg { background: var(--card); } :root[data-theme="dark"] details.msg.them { background: color-mix(in srgb, #e2dbbe 10%, var(--card)); border-color: var(--cream); }
 
 details.msg .text { box-sizing: border-box; }
-details.msg.closing > summary::after { transform: translateY(-50%) rotate(0deg); }
-details.msg.closing > summary .gist { color: var(--ink); }
+details.msg.dx-closing > summary::after { transform: translateY(-50%) rotate(0deg); }
+details.msg.dx-closing > summary .gist { color: var(--ink); }
+
+/* While Turbo shows the ready copy of a tab (a split second before the fresh one lands), don't let clicks hit stale buttons */
+html[data-turbo-preview] main form, html[data-turbo-preview] main button { pointer-events: none; }
+
+/* ---- One animation system for every fold-out (details) on the site ---- */
+details > .dx { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .3s cubic-bezier(.2,.7,.2,1), opacity .22s ease; }
+details.dx-open > .dx { grid-template-rows: 1fr; opacity: 1; }
+details > .dx > .dx-in { overflow: hidden; min-height: 0; }
+details > summary { transition: color .15s; }
+details.dx-closing > summary::after { transform: translateY(-50%) rotate(0deg) !important; }
+details:not(.msg) > summary { list-style: none; }
+details:not(.msg) > summary::-webkit-details-marker { display: none; }
+details:not(.msg):not(.offline) > summary::before { content: "›"; display: inline-block; width: 1em; margin-right: 2px; transition: transform .25s cubic-bezier(.3,.8,.2,1); }
+details.dx-open:not(.msg):not(.offline) > summary::before { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { details > .dx { transition: none; } }
+
+/* ---- Segmented switches (Calendar/List, Today/Last 7 days): a pill that slides between options ---- */
+.seg { position: relative; isolation: isolate; }
+.seg .seg-thumb { position: absolute; top: 3px; bottom: 3px; left: 0; width: 0; border-radius: 99px; background: var(--green); z-index: -1;
+  transition: transform .32s cubic-bezier(.3,.8,.2,1), width .32s cubic-bezier(.3,.8,.2,1); view-transition-name: segthumb; }
+.seg.has-thumb a.on { background: transparent; }
+.seg a { transition: color .25s; position: relative; }
+turbo-frame.frame-enter > * { animation: frame-in .32s cubic-bezier(.2,.7,.2,1) both; }
+turbo-frame[busy] > * { opacity: .55; transition: opacity .15s; }
+@keyframes frame-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+::view-transition-group(segthumb) { animation-duration: .32s; animation-timing-function: cubic-bezier(.3,.8,.2,1); }

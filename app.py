@@ -35,6 +35,12 @@ MODES = {
 APPROVE_AHEAD_DAYS = 2  # scheduled pings show up for approval this many days before they're due
 
 
+@app.before_request
+def _freshness():
+    # pages may show the saved copy while it refreshes; the engine (sending, brain) always reads fresh
+    at._local.fresh = request.path.startswith(("/tasks", "/api/engine"))
+
+
 def login_required(f):
     @wraps(f)
     def w(*a, **k):

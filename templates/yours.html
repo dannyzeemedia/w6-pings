@@ -71,35 +71,12 @@
 <div class="card empty"><div class="display">No one waiting</div><div class="muted">When someone replies with something real, they'll show up here.</div></div>
 {% endfor %}
 <script>
-// Emails in the thread open and close with a smooth slide; "Expand all" ripples down the list.
-(function(){
-  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function toggle(d, open){
-    if(open===undefined) open=!(d.open && !d.classList.contains('closing'));
-    const body=d.querySelector('.text'); if(!body) return;
-    if(d._anim){ d._anim.cancel(); d._anim=null; }
-    if(reduce){ d.classList.remove('closing'); d.open=open; return; }
-    if(open){
-      d.classList.remove('closing'); d.open=true;
-      d._anim=body.animate([{height:'0px',opacity:0},{height:body.scrollHeight+'px',opacity:1}],{duration:340,easing:'cubic-bezier(.2,.7,.2,1)'});
-      d._anim.onfinish=()=>{ d._anim=null; };
-    } else if(d.open){
-      d.classList.add('closing');
-      d._anim=body.animate([{height:body.offsetHeight+'px',opacity:1},{height:'0px',opacity:0}],{duration:280,easing:'cubic-bezier(.4,0,.2,1)'});
-      d._anim.onfinish=()=>{ d.open=false; d.classList.remove('closing'); d._anim=null; };
-    }
-  }
-  if(!window.__msgToggle){
-    window.__msgToggle=true;
-    document.addEventListener('click',e=>{ const s=e.target.closest('details.msg > summary'); if(!s) return; e.preventDefault(); toggle(s.parentElement); });
-  }
-  window.expandAll=function(btn){
-    const ds=[...btn.closest('.thread').querySelectorAll('details.msg')];
-    const open=!ds.every(d=>d.open && !d.classList.contains('closing'));
-    (open?ds:ds.slice().reverse()).forEach((d,i)=>setTimeout(()=>toggle(d,open),i*55));
-    btn.textContent=open?'Collapse all':'Expand all';
-  };
-})();
+window.expandAll=function(btn){
+  const ds=[...btn.closest('.thread').querySelectorAll('details.msg')];
+  const open=!ds.every(d=>d.classList.contains('dx-open'));
+  (open?ds:ds.slice().reverse()).forEach((d,i)=>setTimeout(()=>dxToggle(d,open),i*45));
+  btn.textContent=open?'Collapse all':'Expand all';
+};
 (function(){
   window.markRemix=function(id){ try{ localStorage.setItem('remix-'+id, Date.now()); }catch(e){} };
   const overlays=[...document.querySelectorAll('.remix-overlay')];

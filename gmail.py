@@ -71,11 +71,26 @@ def _strip(t):
 _tcache = {}
 
 
+_trefresh = set()
+
+
 def thread(tid, max_age=90):
     """Messages oldest-first: from, is_me, ts, body (quoted history stripped), message-id header. Cached briefly."""
     import time as _time
     hit = _tcache.get(tid)
     if hit and _time.time() - hit[0] < max_age:
+        return hit[1]
+    if hit and _time.time() - hit[0] < 900 and tid not in _trefresh:  # answer now, refresh underneath
+        import threading
+        _trefresh.add(tid)
+        def bg():
+            try:
+                _tcache[tid] = (_time.time(), _thread(tid))
+            except Exception:
+                pass
+            finally:
+                _trefresh.discard(tid)
+        threading.Thread(target=bg, daemon=True).start()
         return hit[1]
     out = _thread(tid)
     _tcache[tid] = (_time.time(), out)

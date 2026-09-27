@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=31" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=32" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -17,12 +17,12 @@
   <a class="brand" href="{{ url_for('today') }}"><span>Workspace6 Pings</span></a>
   <nav>
     {% set here = request.endpoint %}
-    <a href="{{ url_for('today') }}" class="{{ 'on' if here=='today' }}">Today</a>
-    <a href="{{ url_for('approve') }}" class="{{ 'on' if here=='approve' }}">To approve{% if n_to_approve %}<span class="pill">{{ n_to_approve }}</span>{% endif %}</a>
-    <a href="{{ url_for('yours') }}" class="{{ 'on' if here=='yours' }}">Your turn{% if n_yours %}<span class="pill">{{ n_yours }}</span>{% endif %}</a>
-    <a href="{{ url_for('bookings_page') }}" class="{{ 'on' if here=='bookings_page' }}">Bookings</a>
-    <a href="{{ url_for('rules') }}" class="{{ 'on' if here=='rules' }}">Rules</a>
-    <a href="{{ url_for('results') }}" class="{{ 'on' if here=='results' }}">Results</a>
+    <a href="{{ url_for('today') }}" class="{{ 'on' if here=='today' }}"{% if here != 'today' %} data-turbo-preload{% endif %}>Today</a>
+    <a href="{{ url_for('approve') }}" class="{{ 'on' if here=='approve' }}"{% if here != 'approve' %} data-turbo-preload{% endif %}>To approve{% if n_to_approve %}<span class="pill">{{ n_to_approve }}</span>{% endif %}</a>
+    <a href="{{ url_for('yours') }}" class="{{ 'on' if here=='yours' }}"{% if here != 'yours' %} data-turbo-preload{% endif %}>Your turn{% if n_yours %}<span class="pill">{{ n_yours }}</span>{% endif %}</a>
+    <a href="{{ url_for('bookings_page') }}" class="{{ 'on' if here=='bookings_page' }}"{% if here != 'bookings_page' %} data-turbo-preload{% endif %}>Bookings</a>
+    <a href="{{ url_for('rules') }}" class="{{ 'on' if here=='rules' }}"{% if here != 'rules' %} data-turbo-preload{% endif %}>Rules</a>
+    <a href="{{ url_for('results') }}" class="{{ 'on' if here=='results' }}"{% if here != 'results' %} data-turbo-preload{% endif %}>Results</a>
   </nav>
   <form method="post" action="{{ url_for('sync_now') }}" class="sync-form" onsubmit="this.querySelector('button').classList.add('spinning')">
     <button class="theme sync" type="submit" aria-label="Sync now" title="Sync now: pull in new replies and emails you sent, and learn from them">
@@ -124,6 +124,69 @@ window.flipTheme=function(){
     form.querySelectorAll('textarea[name=body], input[name=subject], input[name=feedback]').forEach(el=>
       el.addEventListener('input',()=>{ clearTimeout(t); if(note) note.textContent=''; t=setTimeout(save,2000); }));
   });
+})();
+
+// Every fold-out on the site opens and closes with the same smooth slide.
+(function(){
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function prep(root){
+    root.querySelectorAll('details:not([data-dx])').forEach(d=>{
+      const s=d.querySelector(':scope > summary'); if(!s) return;
+      d.dataset.dx='1';
+      const w=document.createElement('div'); w.className='dx'; const i=document.createElement('div'); i.className='dx-in';
+      [...d.childNodes].forEach(n=>{ if(n!==s) i.appendChild(n); }); w.appendChild(i); d.appendChild(w);
+      if(d.open) d.classList.add('dx-open');
+    });
+  }
+  window.dxPrep=prep; prep(document);
+  window.dxToggle=function(d, open){
+    const isOpen=d.classList.contains('dx-open');
+    if(open===undefined) open=!isOpen;
+    if(open===isOpen) return;
+    clearTimeout(d._dxT);
+    if(open){ d.classList.remove('dx-closing'); d.open=true; void d.offsetHeight; d.classList.add('dx-open');
+      d.querySelectorAll('textarea.grow').forEach(t=>t.dispatchEvent(new Event('input'))); }
+    else { d.classList.remove('dx-open'); d.classList.add('dx-closing');
+      d._dxT=setTimeout(()=>{ d.open=false; d.classList.remove('dx-closing'); }, reduce?0:310); }
+  };
+  if(!window.__dxBound){
+    window.__dxBound=true;
+    document.addEventListener('click',e=>{
+      const s=e.target.closest('details[data-dx] > summary'); if(!s) return;
+      e.preventDefault(); dxToggle(s.parentElement);
+    });
+    // A part-page update (calendar/list, month arrows) gets its own soft fade-in, so skip Turbo's whole-page
+    // cross-fade there: it freezes the page mid-animation and makes the sliding pill jump.
+    if(document.startViewTransition && !window.__vtShim){
+      window.__vtShim=true; const real=document.startViewTransition.bind(document);
+      document.startViewTransition=function(cb){
+        if(!window.__frameSwap) return real(cb);
+        const done=Promise.resolve().then(()=>cb&&cb());
+        return {updateCallbackDone:done, ready:done, finished:done, skipTransition(){}};
+      };
+      document.addEventListener('turbo:before-fetch-request',e=>{ if(e.target&&e.target.tagName==='TURBO-FRAME'){ window.__frameSwap=true; clearTimeout(window.__fsT); window.__fsT=setTimeout(()=>window.__frameSwap=false,4000); } });
+      document.addEventListener('turbo:fetch-request-error',()=>{ window.__frameSwap=false; });
+    }
+    document.addEventListener('turbo:frame-render',e=>{ setTimeout(()=>{ window.__frameSwap=false; },0); prep(e.target); segs();
+      if(e.target.hasAttribute('data-keep-url')){ try{ const u=e.detail.fetchResponse.response.url; if(u) history.replaceState(history.state,'',u); }catch(_){} } const f=e.target; f.classList.remove('frame-enter'); void f.offsetWidth; f.classList.add('frame-enter'); });
+  }
+  // sliding pill on segmented switches
+  function place(seg, a, animate){
+    const t=seg.querySelector('.seg-thumb'); if(!t||!a) return;
+    if(!animate){ t.style.transition='none'; }
+    t.style.width=a.offsetWidth+'px'; t.style.transform=`translateX(${a.offsetLeft}px)`;
+    if(!animate){ void t.offsetWidth; t.style.transition=''; }
+  }
+  function segs(){
+    document.querySelectorAll('.seg').forEach(seg=>{
+      const fresh=!seg.querySelector('.seg-thumb');
+      if(fresh){ const t=document.createElement('span'); t.className='seg-thumb'; seg.prepend(t); seg.classList.add('has-thumb');
+        seg.addEventListener('click',e=>{ const a=e.target.closest('a'); if(!a) return;
+          seg.querySelectorAll('a').forEach(x=>x.classList.toggle('on', x===a)); place(seg, a, true); }); }
+      place(seg, seg.querySelector('a.on'), !fresh);  // a new switch starts in place; an existing one slides
+    });
+  }
+  window.dxSegs=segs; if(document.fonts&&document.fonts.ready) document.fonts.ready.then(segs); segs();
 })();
 
 // Pinned ping bar: climbs as she approves and replies, and celebrates when she hits her goal.

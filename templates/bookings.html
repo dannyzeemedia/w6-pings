@@ -19,11 +19,11 @@
   <span class="leg-state"><i class="sw paid"></i>🤑 Paid</span><span class="leg-state"><i class="sw pencilled"></i>✏️ Pencilled in</span><span class="leg-state"><i class="sw blocked"></i>⛔ Blocked out</span>
 </div>
 
-<turbo-frame id="bk-main" data-turbo-action="advance">
 <div class="seg bk-seg" role="tablist">
-  <a href="{{ url_for('bookings_page', view='calendar', month=month.strftime('%Y-%m')) }}" class="{{ 'on' if view=='calendar' }}">Calendar</a>
-  <a href="{{ url_for('bookings_page', view='list') }}" class="{{ 'on' if view=='list' }}">List</a>
+  <a href="{{ url_for('bookings_page', view='calendar', month=month.strftime('%Y-%m')) }}" data-turbo-frame="bk-main" class="{{ 'on' if view=='calendar' }}">Calendar</a>
+  <a href="{{ url_for('bookings_page', view='list') }}" data-turbo-frame="bk-main" class="{{ 'on' if view=='list' }}">List</a>
 </div>
+<turbo-frame id="bk-main" data-keep-url>
 {% if view == 'calendar' %}
 <div class="card cal-card">
   <div class="cal-nav">

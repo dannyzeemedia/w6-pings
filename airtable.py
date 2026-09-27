@@ -24,14 +24,47 @@ _cache = {}
 CACHE_TTL = 45  # seconds; any write clears it (single worker process, so the clear is seen everywhere)
 
 
+STALE_OK = 900  # seconds: past the TTL, keep answering from the saved copy while a background refresh runs
+_refreshing = set()
+_gen = [0]  # bumped on every write; a refresh that started before a write must not store its older copy
+import threading as _th
+_local = _th.local()  # _local.fresh = True for the sending engine: never answer it from a stale copy
+
+
+def _refresh(key, url, kw):
+    try:
+        _fetch("GET", url, key, gen=_gen[0], **kw)
+    except Exception:
+        pass
+    finally:
+        _refreshing.discard(key)
+
+
 def _req(method, url, **kw):
     if method == "GET":
         key = (url, repr(sorted((kw.get("params") or {}).items())))
         hit = _cache.get(key)
-        if hit and time.time() - hit[0] < CACHE_TTL:
-            return hit[1]
-    else:
+        if hit:
+            age = time.time() - hit[0]
+            if age < CACHE_TTL:
+                return hit[1]
+            if age < STALE_OK and not getattr(_local, "fresh", False):  # never make her wait: answer now, freshen underneath
+                if key not in _refreshing:
+                    import threading
+                    _refreshing.add(key)
+                    threading.Thread(target=_refresh, args=(key, url, kw), daemon=True).start()
+                return hit[1]
+        return _fetch(method, url, key, gen=_gen[0], **kw)
+    _cache.clear()  # a write: everything re-reads fresh, so she always sees her own change
+    _gen[0] += 1
+    try:
+        return _fetch(method, url, None, **kw)
+    finally:
         _cache.clear()
+        _gen[0] += 1
+
+
+def _fetch(method, url, key, gen=None, **kw):
     for attempt in range(4):
         r = requests.request(method, url, headers=_h(), timeout=30, **kw)
         if r.status_code == 429:
@@ -40,7 +73,7 @@ def _req(method, url, **kw):
         if r.status_code >= 400:
             raise requests.HTTPError(f"{r.status_code} {r.text[:500]}", response=r)
         j = r.json()
-        if method == "GET":
+        if method == "GET" and key is not None and (gen is None or gen == _gen[0]):
             _cache[key] = (time.time(), j)
         return j
     r.raise_for_status()
