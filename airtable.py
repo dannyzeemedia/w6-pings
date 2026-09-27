@@ -31,6 +31,21 @@ import threading as _th
 _local = _th.local()  # _local.fresh = True for the sending engine: never answer it from a stale copy
 
 
+import queue as _q
+_queue = _q.Queue()
+
+
+def _worker():
+    # one refresh at a time, so page requests on this small server never queue behind a burst of refreshes
+    while True:
+        key, url, kw = _queue.get()
+        _refresh(key, url, kw)
+        time.sleep(0.05)
+
+
+_th.Thread(target=_worker, daemon=True).start()
+
+
 def _refresh(key, url, kw):
     try:
         _fetch("GET", url, key, gen=_gen[0], **kw)
@@ -50,9 +65,8 @@ def _req(method, url, **kw):
                 return hit[1]
             if age < STALE_OK and not getattr(_local, "fresh", False):  # never make her wait: answer now, freshen underneath
                 if key not in _refreshing:
-                    import threading
                     _refreshing.add(key)
-                    threading.Thread(target=_refresh, args=(key, url, kw), daemon=True).start()
+                    _queue.put((key, url, kw))
                 return hit[1]
         return _fetch(method, url, key, gen=_gen[0], **kw)
     # a write: that table re-reads fresh (so she always sees her own change); other tables keep their saved copy
