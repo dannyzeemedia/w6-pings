@@ -1,24 +1,7 @@
-{% extends "base.html" %}{% block title %}Your turn<script>
-(function(){
-  window.markRemix=function(id){ try{ localStorage.setItem('remix-'+id, Date.now()); }catch(e){} };
-  const overlays=[...document.querySelectorAll('.remix-overlay')];
-  if(!overlays.length) return;
-  const STEPS=[[0,'Reading your instruction…'],[5,'Rewriting it in your voice…'],[16,'Running the human-sounding check…'],[26,'Polishing the last bits…'],[45,'Nearly there…']];
-  overlays.forEach(o=>{ const id=o.dataset.id; let start=Date.now();
-    try{ start=+localStorage.getItem('remix-'+id)||start; }catch(e){}
-    const tick=()=>{ const s=(Date.now()-start)/1000; const b=document.getElementById('bar-'+id); if(!b) return;
-      b.style.width=(95*(1-Math.exp(-s/22))).toFixed(1)+'%'; document.getElementById('step-'+id).textContent=STEPS.filter(x=>s>=x[0]).pop()[1]; requestAnimationFrame(tick); }; tick(); });
-  const waiting=overlays.map(o=>o.dataset.id);
-  const poll=()=>fetch("{{ url_for('approve_status') }}").then(r=>r.json()).then(j=>{
-    if(waiting.some(id=>!(j.remixing_replies||[]).includes(id))){ window.Turbo?Turbo.visit(location.href,{action:'replace'}):location.reload(); } else setTimeout(poll,4000);
-  }).catch(()=>setTimeout(poll,8000));
-  setTimeout(poll,4000);
-})();
-</script>
-{% endblock %}
+{% extends "base.html" %}{% block title %}Your turn{% endblock %}
 {% from "_brand.html" import chip, site %}
 {% block body %}
-<div class="head"><h1>Your turn</h1><p>These people replied with something real. Reply here or in Gmail. "I've got it from here" keeps the system away from them, even if you move to WhatsApp.</p></div>
+<div class="head"><h1>Your turn</h1><p>These people replied with something real. Reply here or in Gmail. "Taking this offline?" keeps the system away from them while you talk on WhatsApp or a call.</p></div>
 {% for e in events %}{% set f = e.fields %}{% set th = threads.get(f.get('Gmail Thread ID')) %}
 <div class="card">
   <div class="draft-meta">
@@ -35,7 +18,7 @@
     <div class="thread"><div class="thread-label">The conversation</div>
       {% if th.earlier %}<div class="muted tiny" style="margin-bottom:10px">{{ th.earlier }} earlier message{{ 's' if th.earlier > 1 }} in Gmail</div>{% endif %}
       {% set ms = sums.get(e.id, {}) %}
-      {% if th.msgs|length > 1 %}<button type="button" class="linkish tiny expand-all" onclick="const d=[...this.parentElement.querySelectorAll('details.msg')];const open=!d.every(x=>x.open);d.forEach(x=>x.open=open);this.textContent=open?'Collapse all':'Expand all'">Expand all</button>{% endif %}
+      {% if th.msgs|length > 1 %}<button type="button" class="linkish tiny expand-all" onclick="expandAll(this)">Expand all</button>{% endif %}
       {% for m in th.msgs %}{% set sm = ms.get(msg_key(m)) %}<details class="msg {{ 'me' if m.is_me else 'them' }}">
         <summary><span class="who">{{ 'You' if m.is_me else m['from'].split('<')[0].strip(' "') }} · {{ m.ts|mswhen }}</span>
           <span class="gist">{{ sm or (m.body|gist) }}</span></summary>
@@ -88,6 +71,35 @@
 <div class="card empty"><div class="display">No one waiting</div><div class="muted">When someone replies with something real, they'll show up here.</div></div>
 {% endfor %}
 <script>
+// Emails in the thread open and close with a smooth slide; "Expand all" ripples down the list.
+(function(){
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function toggle(d, open){
+    if(open===undefined) open=!(d.open && !d.classList.contains('closing'));
+    const body=d.querySelector('.text'); if(!body) return;
+    if(d._anim){ d._anim.cancel(); d._anim=null; }
+    if(reduce){ d.classList.remove('closing'); d.open=open; return; }
+    if(open){
+      d.classList.remove('closing'); d.open=true;
+      d._anim=body.animate([{height:'0px',opacity:0},{height:body.scrollHeight+'px',opacity:1}],{duration:340,easing:'cubic-bezier(.2,.7,.2,1)'});
+      d._anim.onfinish=()=>{ d._anim=null; };
+    } else if(d.open){
+      d.classList.add('closing');
+      d._anim=body.animate([{height:body.offsetHeight+'px',opacity:1},{height:'0px',opacity:0}],{duration:280,easing:'cubic-bezier(.4,0,.2,1)'});
+      d._anim.onfinish=()=>{ d.open=false; d.classList.remove('closing'); d._anim=null; };
+    }
+  }
+  if(!window.__msgToggle){
+    window.__msgToggle=true;
+    document.addEventListener('click',e=>{ const s=e.target.closest('details.msg > summary'); if(!s) return; e.preventDefault(); toggle(s.parentElement); });
+  }
+  window.expandAll=function(btn){
+    const ds=[...btn.closest('.thread').querySelectorAll('details.msg')];
+    const open=!ds.every(d=>d.open && !d.classList.contains('closing'));
+    (open?ds:ds.slice().reverse()).forEach((d,i)=>setTimeout(()=>toggle(d,open),i*55));
+    btn.textContent=open?'Collapse all':'Expand all';
+  };
+})();
 (function(){
   window.markRemix=function(id){ try{ localStorage.setItem('remix-'+id, Date.now()); }catch(e){} };
   const overlays=[...document.querySelectorAll('.remix-overlay')];

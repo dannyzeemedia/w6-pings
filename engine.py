@@ -1132,7 +1132,7 @@ def apply(payload):
                 cur = json.loads(cur)
             except ValueError:
                 cur = {}
-            cur.update({str(k): str(v)[:300] for k, v in dict(e["message_summaries"]).items()})
+            cur.update({str(k): str(v).strip() for k, v in dict(e["message_summaries"]).items()})
             at.update("log", e["handoff_log_id"], {"Message Summaries": json.dumps(cur)[:90000]})
         if e.get("handoff_log_id") and (e.get("summary") or e.get("suggested_reply")):
             hf = {"Reviewed": True}

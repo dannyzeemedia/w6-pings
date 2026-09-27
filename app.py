@@ -520,7 +520,8 @@ def gist(body):
     for line in (body or "").splitlines():
         line = line.strip()
         if line and not _GREETING.match(line) and not line.startswith(">"):
-            return line[:150] + ("…" if len(line) > 150 else "")
+            m = re.match(r"(.+?[.!?])(\s|$)", line)  # first whole sentence, never cut mid-way
+            return m.group(1) if m else line
     return ""
 
 
