@@ -458,24 +458,47 @@ def next_send_time(w, contact, not_before=None):
     return None
 
 
+def msg_key(m):
+    """Stable id for one email in a thread (its Message-ID header, else its timestamp)."""
+    return (m.get("msgid") or "").strip("<> ") or str(m.get("ts"))
+
+
 def summaries_queue():
     """Open 'Your turn' replies that still need a summary or a suggested reply, with everything needed to write one."""
     out, w = [], None
-    for h in at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}), OR(FIND('Summary coming shortly', {Summary}), {Suggested Reply}=''))",
-                             fields=["Email", "Gmail Thread ID", "At", "Partner", "Summary"], max_records=8):
+    for h in at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}))",
+                             fields=["Email", "Gmail Thread ID", "At", "Partner", "Summary", "Suggested Reply", "Message Summaries"], max_records=15):
         f = h["fields"]
         if not f.get("Gmail Thread ID") or now() - pts(f["At"]) < dt.timedelta(minutes=2):
             continue
         try:
-            thread = [{"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:8000]} for x in gmail.thread(f["Gmail Thread ID"])[-8:]]
+            msgs = gmail.thread(f["Gmail Thread ID"])
         except Exception:
             continue
-        w = w or World()
-        pid = (f.get("Partner") or [None])[0]
-        rep = at.list_records("log", f"AND({{Gmail Thread ID}}='{f['Gmail Thread ID']}', {{Event}}='Replied', NOT({{Reviewed}}))", fields=["Event"], max_records=1)
-        out.append({"handoff_log_id": h["id"], "log_id": rep[0]["id"] if rep else h["id"], "email": f.get("Email"),
-                    "needs_summary": "Summary coming shortly" in (f.get("Summary") or ""), "thread": thread,
-                    "company": company_history(w, pid, max_threads=3) if pid else None})
+        try:
+            have = json.loads(f.get("Message Summaries") or "{}")
+        except ValueError:
+            have = {}
+        missing = [{"key": msg_key(x), "from": "Karlie" if x["is_me"] else x["from"],
+                    "date": dt.datetime.fromtimestamp(x["ts"] / 1000, dt.timezone.utc).strftime("%Y-%m-%d"), "text": x["body"][:4000]}
+                   for x in msgs[-10:] if msg_key(x) not in have]
+        needs_summary = "Summary coming shortly" in (f.get("Summary") or "")
+        needs_reply = not (f.get("Suggested Reply") or "").strip()
+        if not (needs_summary or needs_reply or missing):
+            continue
+        if needs_summary or needs_reply:
+            thread = [{"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:8000]} for x in msgs[-8:]]
+            w = w or World()
+            pid = (f.get("Partner") or [None])[0]
+            rep = at.list_records("log", f"AND({{Gmail Thread ID}}='{f['Gmail Thread ID']}', {{Event}}='Replied', NOT({{Reviewed}}))", fields=["Event"], max_records=1)
+            out.append({"handoff_log_id": h["id"], "log_id": rep[0]["id"] if rep else h["id"], "email": f.get("Email"),
+                        "needs_summary": needs_summary, "needs_reply": needs_reply, "thread": thread,
+                        "messages_to_summarise": missing, "company": company_history(w, pid, max_threads=3) if pid else None})
+        else:  # only the one-line summaries of individual emails are missing: keep this light
+            out.append({"handoff_log_id": h["id"], "log_id": h["id"], "email": f.get("Email"), "needs_summary": False,
+                        "needs_reply": False, "messages_to_summarise": missing})
+        if len(out) >= 8:
+            break
     if not out:
         return {"items": []}
     lessons = [l["fields"].get("Lesson") for l in at.list_records("lessons", "{Active}", fields=["Lesson"])]
@@ -1103,6 +1126,14 @@ def apply(payload):
         if e.get("summary"):
             f["Summary"] = e["summary"][:250]
         at.update("log", e["log_id"], f)
+        if e.get("handoff_log_id") and e.get("message_summaries"):
+            cur = at.get("log", e["handoff_log_id"])["fields"].get("Message Summaries") or "{}"
+            try:
+                cur = json.loads(cur)
+            except ValueError:
+                cur = {}
+            cur.update({str(k): str(v)[:300] for k, v in dict(e["message_summaries"]).items()})
+            at.update("log", e["handoff_log_id"], {"Message Summaries": json.dumps(cur)[:90000]})
         if e.get("handoff_log_id") and (e.get("summary") or e.get("suggested_reply")):
             hf = {"Reviewed": True}
             if e.get("summary"):

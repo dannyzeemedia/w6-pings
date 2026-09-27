@@ -497,11 +497,31 @@ def yours():
         if tid and tid not in threads:
             try:
                 msgs = gmail.thread(tid)
-                threads[tid] = {"msgs": msgs[-4:], "earlier": max(0, len(msgs) - 4),
+                threads[tid] = {"msgs": msgs[-10:], "earlier": max(0, len(msgs) - 10),
                                 "link": gmail.open_link(msgs[-1]["msgid"]) if msgs[-1]["msgid"] else None}
             except Exception:
                 threads[tid] = None
-    return render_template("yours.html", events=ev, names=names, threads=threads, brands=brands_for(ev, "Email"))
+    sums = {}
+    for e in ev:
+        try:
+            sums[e["id"]] = json.loads(e["fields"].get("Message Summaries") or "{}")
+        except ValueError:
+            sums[e["id"]] = {}
+    return render_template("yours.html", events=ev, names=names, threads=threads, brands=brands_for(ev, "Email"),
+                           sums=sums, msg_key=engine.msg_key)
+
+
+_GREETING = re.compile(r"^(hi|hey|hello|dear|good (morning|afternoon|evening)|thanks|thank you)\b[^\n]{0,40}[,!.]?\s*$", re.I)
+
+
+@app.template_filter("gist")
+def gist(body):
+    """Until the AI summary lands: the email's opening line, skipping the greeting."""
+    for line in (body or "").splitlines():
+        line = line.strip()
+        if line and not _GREETING.match(line) and not line.startswith(">"):
+            return line[:150] + ("…" if len(line) > 150 else "")
+    return ""
 
 
 @app.post("/yours/<rid>/done")

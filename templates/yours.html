@@ -34,9 +34,12 @@
   {% if th %}
     <div class="thread"><div class="thread-label">The conversation</div>
       {% if th.earlier %}<div class="muted tiny" style="margin-bottom:10px">{{ th.earlier }} earlier message{{ 's' if th.earlier > 1 }} in Gmail</div>{% endif %}
-      {% for m in th.msgs %}<div class="msg {{ 'me' if m.is_me else 'them' }}">
-        <div class="who">{{ 'You' if m.is_me else m['from'].split('<')[0].strip(' "') }} · {{ m.ts|mswhen }}</div>
-        <div class="text">{{ m.body }}</div></div>{% endfor %}
+      {% set ms = sums.get(e.id, {}) %}
+      {% if th.msgs|length > 1 %}<button type="button" class="linkish tiny expand-all" onclick="const d=[...this.parentElement.querySelectorAll('details.msg')];const open=!d.every(x=>x.open);d.forEach(x=>x.open=open);this.textContent=open?'Collapse all':'Expand all'">Expand all</button>{% endif %}
+      {% for m in th.msgs %}{% set sm = ms.get(msg_key(m)) %}<details class="msg {{ 'me' if m.is_me else 'them' }}">
+        <summary><span class="who">{{ 'You' if m.is_me else m['from'].split('<')[0].strip(' "') }} · {{ m.ts|mswhen }}</span>
+          <span class="gist">{{ sm or (m.body|gist) }}</span></summary>
+        <div class="text">{{ m.body }}</div></details>{% endfor %}
     </div>
     <form method="post" action="{{ url_for('yours_reply', rid=e.id) }}" class="draft {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ e.id }}" data-autosave="{{ url_for('yours_save', rid=e.id) }}">
       <div class="email-zone">

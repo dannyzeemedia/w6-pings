@@ -589,3 +589,21 @@ details.offline .handsoff-form { grid-template-columns: 1.2fr 1fr 2fr auto; alig
 details.offline .handsoff-form label { display: grid; gap: 4px; font-size: 13px; }
 @media (max-width: 640px) { details.offline .handsoff-form { grid-template-columns: 1fr 1fr; } details.offline .handsoff-form label:nth-child(3) { grid-column: 1 / -1; } }
 .autosaved { min-height: 18px; margin: -4px 0 6px; }
+
+/* Your turn: each email folds to one summary line; click to read it in full */
+.thread { position: relative; }
+.expand-all { position: absolute; top: 12px; right: 14px; background: none; border: 0; padding: 0; color: var(--green); cursor: pointer; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.expand-all:hover { text-decoration: underline; background: none; }
+details.msg { border-radius: var(--r-sm); border: 1px solid var(--line); background: #ffffff; margin-bottom: 8px; }
+details.msg.them { background: color-mix(in srgb, #e2dbbe 60%, #ffffff); border-color: color-mix(in srgb, #e2dbbe 80%, #b9ae84); }
+details.msg > summary { list-style: none; cursor: pointer; padding: 10px 36px 10px 12px; position: relative; display: grid; gap: 2px; }
+details.msg > summary::-webkit-details-marker { display: none; }
+details.msg > summary::after { content: "›"; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 20px; color: var(--ink-2); transition: transform .2s; }
+details.msg[open] > summary::after { transform: translateY(-50%) rotate(90deg); }
+details.msg > summary .who { font-size: 12px; color: var(--ink-2); margin: 0; padding: 0; }
+details.msg.me > summary .who { color: var(--green); }
+details.msg > summary .gist { font-size: 14px; color: var(--ink); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+details.msg[open] > summary .gist { color: var(--ink-2); }
+details.msg .text, details.msg.me .text, details.msg.them .text { background: transparent; border: 0; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 0; padding: 10px 12px 12px; margin: 0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) details.msg { background: var(--card); } :root:not([data-theme="light"]) details.msg.them { background: color-mix(in srgb, #e2dbbe 10%, var(--card)); border-color: var(--cream); } }
+:root[data-theme="dark"] details.msg { background: var(--card); } :root[data-theme="dark"] details.msg.them { background: color-mix(in srgb, #e2dbbe 10%, var(--card)); border-color: var(--cream); }
