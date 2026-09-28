@@ -192,6 +192,39 @@ def _thread_is_ours(tid):
     return bool(at.list_records("drafts", f"{{Gmail Thread ID}}='{tid}'", fields=["Status"], max_records=1))
 
 
+TEAM_DOMAIN = "@workspace6.io"
+
+
+def sponsor_behind(m):
+    """{name, email} of the outside person a teammate's email is really about: someone else on the email
+    (To/Cc), else the person in the conversation they quoted or forwarded. None if it's purely internal."""
+    for name, addr in getaddresses([m.get("to", ""), m.get("cc", "")]):
+        a = (addr or "").lower()
+        if a and not a.endswith(TEAM_DOMAIN):
+            return {"name": name or a, "email": a}
+    for e in reversed(gmail.earlier_emails(m.get("raw") or m.get("body") or "")):
+        if e.get("email") and not e["email"].endswith(TEAM_DOMAIN):
+            return {"name": e.get("from") or e["email"], "email": e["email"]}
+    return None
+
+
+def _new_partner_for(w, email):
+    """A Partners row for a company we've never dealt with, named from its domain (Karlie can rename it)."""
+    dom = domain_of(email)
+    if not dom or dom in FREE_MAIL:
+        return None
+    pid = w.dom2partner.get(dom)
+    if pid:
+        return pid
+    import brand
+    name = brand.site_name(dom) or dom.split(".")[0].replace("-", " ").title()
+    rec = at.create("partners", {"Name": name, "Website": f"https://{dom}", "Stage": "Engaged",
+                                 "Notes": f"🤖 {dt.date.today().isoformat()}: added when a teammate looped Karlie into their email."}, typecast=True)
+    w.partners[rec["id"]] = rec
+    w.dom2partner[dom] = rec["id"]
+    return rec["id"]
+
+
 def _handle_message(w, m):
     frm = m["from"]
     if m["is_me"]:
@@ -222,9 +255,19 @@ def _handle_message(w, m):
         return "bounced"
 
     sender = parseaddr(frm)[1].lower()
-    pid = w.partner_for(sender)
+    via = None
+    if sender.endswith(TEAM_DOMAIN) and sender != gmail.ME:
+        # a teammate (Sam) looping Karlie into a sponsor's conversation: the sponsor is who this is about
+        who = sponsor_behind(m)
+        if not who:
+            return "ignored"  # internal email with no outside party: not a ping
+        via = frm.split("<")[0].strip(' "') or sender
+        sender, frm = who["email"], f'{who["name"]} <{who["email"]}>'
+        pid = w.partner_for(sender) or _new_partner_for(w, sender)
+    else:
+        pid = w.partner_for(sender)
     ours = _thread_is_ours(m["thread_id"])
-    if not pid and not ours:
+    if not pid and not ours and not via:
         return "ignored"
     c = w.by_email.get(sender)
     auto = (m["headers"].get("auto-submitted", "no").lower() not in ("", "no") or "x-autoreply" in m["headers"]
@@ -260,7 +303,8 @@ def _handle_message(w, m):
         _cancel_pending(w, pid, sender, "They asked not to be emailed.")
         return "replied"
     log("Handed To Karlie", "In", "Them", sender, partner=pid, contact=c["id"],
-        summary="New reply. Summary coming shortly.", snippet=m["body"][:1500], msg_id=m["id"] + ":handoff",
+        summary=f"{via} looped you in. Summary coming shortly." if via else "New reply. Summary coming shortly.",
+        snippet=m["body"][:1500], msg_id=m["id"] + ":handoff",
         thread_id=m["thread_id"], at_time=m["dt"], handled=False, reviewed=False)
     _cancel_pending(w, pid, sender, "They replied, so the plan changed. It's with Karlie now.")
     return "replied"

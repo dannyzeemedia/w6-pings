@@ -7,7 +7,7 @@
   <div class="draft-meta">
     <div class="who-row">{{ chip(brands.get(e.id), names.get((f.get('Partner') or [''])[0]) or f.get('Email')) }}
       <div><h3>{% for p in f.get('Partner', []) %}{{ names.get(p) }}{% endfor %}{% if not f.get('Partner') %}{{ f.get('Email') }}{% endif %}</h3>
-      <div class="muted tiny">{{ f.get('Email') }} · {{ f.get('At')|when }} {{ site(brands.get(e.id)) }}</div></div></div>
+      <div class="muted tiny">{{ f.get('Email') }}{% if th and th.via %} · <span class="via">via {{ th.via }}</span>{% endif %} · {{ f.get('At')|when }} {{ site(brands.get(e.id)) }}</div></div></div>
     {% if th and th.link %}<a class="btn ghost small" target="_blank" rel="noopener" href="{{ th.link }}">Open in Gmail ↗</a>{% endif %}
   </div>
   {% set bd = brands.get(e.id) %}{% if f.get('Summary') or (bd and bd.desc) %}<div class="context-box">

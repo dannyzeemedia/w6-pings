@@ -155,3 +155,22 @@ def for_partners(pids):
         out[r["id"]] = {"name": f.get("Name"), "logo": f.get("🤖 Logo URL") or favicon(dom), "desc": f.get("🤖 What They Do"),
                         "website": f.get("Website") or (f"https://{dom}" if dom else None), "domain": dom}
     return out
+
+
+def site_name(domain):
+    """The company's own name from its homepage (og:site_name, else the title before any separator), or None."""
+    try:
+        r = requests.get(f"https://{domain}", headers=UA, timeout=8)
+        page = r.text[:200000]
+    except Exception:
+        return None
+    m = re.search(r"""<meta[^>]+property=["']og:site_name["'][^>]*>""", page, re.I)
+    name = _attr(m.group(0), "content") if m else None
+    if not name:
+        t = re.search(r"<title[^>]*>(.*?)</title>", page, re.I | re.S)
+        name = _html.unescape(t.group(1)).strip() if t else None
+        if name:
+            name = re.split(r"\s+[|\-–—:·]\s+", name)[0].strip()
+    if not name or len(name) > 40 or HIJACK.search(name):
+        return None
+    return name

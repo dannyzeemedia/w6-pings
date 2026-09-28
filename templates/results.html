@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Results{% endblock %}
-{% block body %}
+{% from "_brand.html" import chip %}{% block body %}
 <div class="head"><h1>Results</h1><p>What you actioned and proof of what happened next, then the last 30 days.</p></div>
 <div class="card" id="activity">
   <div class="draft-meta" style="align-items:center">
@@ -42,8 +42,30 @@
 </div>
 <div class="card">
   <h2 style="margin-bottom:10px">Latest activity</h2>
-  {% if recent %}<table>{% for e in recent %}{% set f = e.fields %}
-    <tr><td>{{ f.get('At')|when }}</td><td><strong>{{ f.get('Event') }}</strong> · {% for p in f.get('Partner', []) %}{{ names.get(p) }} {% endfor %}<span class="muted">{{ f.get('Email') }}</span>{% if f.get('Summary') %}<br><span class="muted tiny">{{ f['Summary'] }}</span>{% endif %}</td></tr>
-  {% endfor %}</table>{% else %}<p class="muted">Nothing yet. Activity shows up here once pings start going out.</p>{% endif %}
+  {% set EV = {'Sent': ('Sent', 'ev-sent'), 'Replied': ('Replied', 'ev-reply'), 'Handed To Karlie': ('Your turn', 'ev-yours'),
+                'Bounced': ('Bounced', 'ev-bad'), 'Left Company': ('Left the company', 'ev-bad'), 'Auto-Reply': ('Auto-reply', 'ev-quiet'),
+                'Unsubscribed': ('Unsubscribed', 'ev-bad')} %}
+  {% if recent %}<div class="act-list">{% for e in recent %}{% set f = e.fields %}{% set ev = EV.get(f.get('Event'), (f.get('Event'), 'ev-quiet')) %}
+    {% set company = (f.get('Partner') or [''])[0] %}{% set cname = names.get(company) %}
+    <details class="act-item">
+      <summary>
+        {{ chip(brands.get(e.id), cname or f.get('Email'), 32) }}
+        <div class="act-main">
+          <div class="act-top"><span class="ev-tag {{ ev[1] }}">{{ ev[0] }}</span>{% if cname %}<span class="co-tag">{{ cname }}</span>{% endif %}<span class="muted tiny">{{ f.get('Email') }}</span></div>
+          {% if f.get('Summary') %}<div class="act-sum">{{ f['Summary'] }}</div>{% endif %}
+        </div>
+        <span class="act-when muted tiny">{{ f.get('At')|when }}</span>
+      </summary>
+      <div class="act-detail">
+        {% if f.get('Snippet') %}<div class="label">{{ 'What went out' if f.get('Event') == 'Sent' else 'The email' if f.get('Event') in ('Replied', 'Handed To Karlie', 'Auto-Reply') else 'Details' }}</div>
+        <div class="act-snippet">{{ f['Snippet'] }}</div>{% else %}<div class="muted tiny">No email text was saved for this one.</div>{% endif %}
+        <div class="row" style="margin-top:10px">
+          {% if f.get('Gmail Thread ID') %}<a class="btn ghost small" href="{{ gmail_thread(f['Gmail Thread ID']) }}" target="_blank" rel="noopener">Open in Gmail ↗</a>{% endif %}
+          {% if f.get('Event') == 'Handed To Karlie' and not f.get('Handled') %}<a class="btn small" href="{{ url_for('yours') }}#d-{{ e.id }}">Reply in Your turn</a>{% endif %}
+          <span class="muted tiny">{{ (f.get('By') or '') ~ (' · ' if f.get('By') else '') }}{{ f.get('At')|when }}</span>
+        </div>
+      </div>
+    </details>
+  {% endfor %}</div>{% else %}<p class="muted">Nothing yet. Activity shows up here once pings start going out.</p>{% endif %}
 </div>
 {% endblock %}

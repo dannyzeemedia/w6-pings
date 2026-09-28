@@ -684,3 +684,25 @@ details.msg.extracted > summary .who { color: var(--green); }
 .xtag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 99px; background: #265c51; color: #fff; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; vertical-align: 1px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) details.msg.extracted { background: color-mix(in srgb, #bee1de 8%, var(--card)); border-color: var(--mint); } }
 :root[data-theme="dark"] details.msg.extracted { background: color-mix(in srgb, #bee1de 8%, var(--card)); border-color: var(--mint); }
+
+.via { color: var(--green); font-weight: 600; }
+
+/* Results: latest activity, one expandable line per event */
+.act-list { display: grid; gap: 8px; }
+details.act-item { border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--card); transition: border-color .15s, box-shadow .15s; }
+details.act-item:hover { border-color: var(--mint); }
+details.act-item.dx-open { box-shadow: 0 4px 16px rgba(0,0,0,.05); }
+details.act-item > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; }
+details.act-item > summary::before { display: none !important; }
+details.act-item > summary::-webkit-details-marker { display: none; }
+.act-main { min-width: 0; }
+.act-top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.act-sum { font-size: 14px; color: var(--ink); margin-top: 3px; }
+.act-when { white-space: nowrap; align-self: start; padding-top: 4px; }
+.ev-tag, .co-tag { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 600; }
+.co-tag { background: var(--mint-2); color: var(--green); border: 1px solid var(--mint); }
+.ev-sent { background: #e8f2f0; color: #265c51; } .ev-reply { background: #265c51; color: #fff; } .ev-yours { background: #e2dbbe; color: #5a4f20; }
+.ev-bad { background: var(--red-bg); color: var(--red); } .ev-quiet { background: #eeeeee; color: #5b605e; }
+.act-detail { padding: 0 14px 14px 58px; }
+.act-snippet { white-space: pre-wrap; font-size: 14px; background: color-mix(in srgb, var(--mint) 12%, var(--card)); border-radius: 10px; padding: 10px 12px; max-height: 320px; overflow: auto; }
+@media (max-width: 640px) { .act-detail { padding-left: 14px; } }

@@ -293,7 +293,7 @@ def message(mid, meta_only=False):
             "from": hd.get("from", ""), "to": hd.get("to", ""), "cc": hd.get("cc", ""), "subject": hd.get("subject", ""),
             "msgid": hd.get("message-id", ""), "is_me": ME in hd.get("from", "").lower(),
             "dt": _dt.datetime.fromtimestamp(int(m["internalDate"]) / 1000, _dt.timezone.utc),
-            "body": "" if meta_only else _strip(_body(m["payload"]))}
+            "body": "" if meta_only else _strip(_body(m["payload"])), "raw": "" if meta_only else _body(m["payload"])}
 
 
 def signature_html():

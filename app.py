@@ -515,7 +515,9 @@ def yours():
         if tid and tid not in threads:
             try:
                 msgs = gmail.thread(tid)
-                threads[tid] = {"msgs": gmail.with_earlier(msgs, 10), "earlier": max(0, len(msgs) - 10),
+                team = next((m["from"].split("<")[0].strip(' "') for m in msgs if not m["is_me"]
+                             and "@workspace6.io" in m["from"].lower()), None)  # a teammate looped her in
+                threads[tid] = {"msgs": gmail.with_earlier(msgs, 10), "earlier": max(0, len(msgs) - 10), "via": team,
                                 "link": gmail.open_link(msgs[-1]["msgid"]) if msgs[-1]["msgid"] else None}
             except Exception:
                 threads[tid] = None
@@ -1042,10 +1044,16 @@ def results():
     totals["rate"] = round(100 * totals["replied"] / totals["sent"]) if totals["sent"] else None
     dead = at.list_records("contacts", "AND({Status}!='Active', {Status}!='')", fields=["Status"])
     peak = max([w["sent"] for w in weeks] + [1])
-    names = at.partner_names([p for e in ev[:40] for p in e["fields"].get("Partner", [])])
+    # latest activity: one line per thing that happened (a reply and its "your turn" hand-off are the same moment)
+    handoffs = {(e["fields"].get("Gmail Thread ID"), (e["fields"].get("At") or "")[:16]) for e in ev
+                if e["fields"].get("Event") == "Handed To Karlie"}
+    recent = [e for e in ev if not (e["fields"].get("Event") == "Replied" and
+                                    (e["fields"].get("Gmail Thread ID"), (e["fields"].get("At") or "")[:16]) in handoffs)][:40]
+    names = at.partner_names([p for e in recent for p in e["fields"].get("Partner", [])])
     span = 1 if request.args.get("span", "today") == "today" else 7
     return render_template("results.html", weeks=weeks, peak=peak, totals=totals, acts=activity(span), span=span,
-                           n_dead=len(dead), recent=ev[:40], names=names)
+                           n_dead=len(dead), recent=recent, names=names, brands=brands_for(recent, "Email"),
+                           gmail_thread=lambda t: f"https://mail.google.com/mail/u/{gmail.ME}/#all/{t}")
 
 
 # ---------- engine endpoints (cron + the Claude routine) ----------
