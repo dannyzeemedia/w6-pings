@@ -3,3 +3,4 @@ gunicorn==23.*
 requests==2.*
 google-auth==2.*
 python-dateutil==2.*
+Pillow==11.*

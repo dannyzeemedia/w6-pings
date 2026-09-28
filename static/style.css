@@ -706,3 +706,6 @@ details.act-item > summary::-webkit-details-marker { display: none; }
 .act-detail { padding: 0 14px 14px 58px; }
 .act-snippet { white-space: pre-wrap; font-size: 14px; background: color-mix(in srgb, var(--mint) 12%, var(--card)); border-radius: 10px; padding: 10px 12px; max-height: 320px; overflow: auto; }
 @media (max-width: 640px) { .act-detail { padding-left: 14px; } }
+
+/* light logos (white on transparent, made for dark tabs) sit on a W6-green chip so they don't vanish */
+.brand-chip.on-dark { background: #265c51; border-color: #265c51; }

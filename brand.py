@@ -114,6 +114,27 @@ def retire_partner(pid, reason):
     return True
 
 
+def logo_is_light(url):
+    """True when a logo is white or very light on a transparent background (made for dark browser tabs), so it
+    would vanish on a white chip. False when it's fine, None when we can't tell (SVG, unreachable)."""
+    if not url or url.startswith("data:image/svg") or url.lower().split("?")[0].endswith(".svg"):
+        return None
+    try:
+        from PIL import Image
+        import io
+        r = requests.get(url, headers=UA, timeout=8)
+        im = Image.open(io.BytesIO(r.content)).convert("RGBA")
+        im.thumbnail((64, 64))
+        px = [p for p in im.getdata() if p[3] > 128]
+        if len(px) < 20:
+            return None
+        lum = sum((0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]) / 255 for p in px) / len(px)
+        see_through = sum(1 for p in im.getdata() if p[3] <= 128) / (im.size[0] * im.size[1])
+        return lum > 0.82 and see_through > 0.15
+    except Exception:
+        return None
+
+
 def enrich_partner(pid):
     """Look the brand up once (or monthly) and cache it on the Partners row."""
     f = at.get("partners", pid)["fields"]
@@ -132,6 +153,7 @@ def enrich_partner(pid):
             fields["🤖 What Happened"] = f"Website now goes to {moved}. Not looked into yet (the overnight run searches what happened)."
         if logo:
             fields["🤖 Logo URL"] = logo
+            fields["🤖 Logo On Dark"] = bool(logo_is_light(logo))
         if desc:
             fields["🤖 What They Do"] = desc
         if not f.get("Website"):
@@ -149,10 +171,11 @@ def for_partners(pids):
         return {}
     formula = "OR(" + ",".join(f"RECORD_ID()='{i}'" for i in pids[:90]) + ")"
     out = {}
-    for r in at.list_records("partners", formula, fields=["Name", "Website", "🤖 Logo URL", "🤖 What They Do"]):
+    for r in at.list_records("partners", formula, fields=["Name", "Website", "🤖 Logo URL", "🤖 What They Do", "🤖 Logo On Dark"]):
         f = r["fields"]
         dom = domain_from(f.get("Website"))
         out[r["id"]] = {"name": f.get("Name"), "logo": f.get("🤖 Logo URL") or favicon(dom), "desc": f.get("🤖 What They Do"),
+                        "dark": bool(f.get("🤖 Logo On Dark") and f.get("🤖 Logo URL")),
                         "website": f.get("Website") or (f"https://{dom}" if dom else None), "domain": dom}
     return out
 
