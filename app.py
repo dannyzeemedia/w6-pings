@@ -553,15 +553,21 @@ def _logo_sig(url):
 def logo_src(url):
     if not url or url.startswith("data:"):
         return url
-    return url_for("logo_proxy", u=url, s=_logo_sig(url))
+    import base64 as _b64  # the address is encoded so blockers matching "funnelytics.io" anywhere in a URL can't see it
+    return url_for("logo_proxy", key=_b64.urlsafe_b64encode(url.encode()).decode().rstrip("="), s=_logo_sig(url))
 
 
 app.jinja_env.globals["logo_src"] = logo_src
 
 
-@app.get("/logo")
-def logo_proxy():
-    u, sig = request.args.get("u", ""), request.args.get("s", "")
+@app.get("/logo/<key>")
+def logo_proxy(key):
+    import base64 as _b64
+    try:
+        u = _b64.urlsafe_b64decode(key + "=" * (-len(key) % 4)).decode()
+    except Exception:
+        return "", 404
+    sig = request.args.get("s", "")
     if not u.startswith(("https://", "http://")) or not hmac.compare_digest(sig, _logo_sig(u)):
         return "", 404
     hit = _logo_cache.get(u)
