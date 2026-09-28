@@ -537,6 +537,53 @@ _GREETING = re.compile(r"^(hi|hey|hello|dear|good (morning|afternoon|evening)|th
 app.jinja_env.globals["text_to_html"] = richtext.text_to_html
 
 
+# ---------- logos, served from our own address ----------
+# A sponsor's logo on their own domain gets blocked when that domain is on a tracker list (Funnelytics is an
+# analytics company, so Brave and ad blockers block funnelytics.io outright) or when the site refuses hotlinking.
+# Serving every logo from pings.workspace6.io fixes both. Signed, so this can't be used as an open proxy.
+import hmac, hashlib, threading as _threading
+_logo_cache, _logo_lock = {}, _threading.Lock()
+
+
+def _logo_sig(url):
+    return hmac.new(app.secret_key.encode() if isinstance(app.secret_key, str) else app.secret_key,
+                    url.encode(), hashlib.sha256).hexdigest()[:20]
+
+
+def logo_src(url):
+    if not url or url.startswith("data:"):
+        return url
+    return url_for("logo_proxy", u=url, s=_logo_sig(url))
+
+
+app.jinja_env.globals["logo_src"] = logo_src
+
+
+@app.get("/logo")
+def logo_proxy():
+    u, sig = request.args.get("u", ""), request.args.get("s", "")
+    if not u.startswith(("https://", "http://")) or not hmac.compare_digest(sig, _logo_sig(u)):
+        return "", 404
+    hit = _logo_cache.get(u)
+    if not hit or dt.datetime.now().timestamp() - hit[2] > 86400:
+        try:
+            r = requests.get(u, timeout=8, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 Chrome/126 Safari/537.36"})
+            ctype = r.headers.get("content-type", "").split(";")[0]
+            if r.status_code != 200 or not ctype.startswith("image/") or len(r.content) > 1_500_000:
+                return "", 404
+            hit = (r.content, ctype, dt.datetime.now().timestamp())
+            with _logo_lock:
+                if len(_logo_cache) > 800:
+                    _logo_cache.clear()
+                _logo_cache[u] = hit
+        except Exception:
+            return "", 404
+    from flask import Response
+    return Response(hit[0], mimetype=hit[1], headers={"Cache-Control": "public, max-age=604800",
+                                                      "X-Content-Type-Options": "nosniff",
+                                                      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
+
+
 @app.template_filter("gist")
 def gist(body):
     """Until the AI summary lands: the email's opening line, skipping the greeting."""
