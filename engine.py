@@ -459,8 +459,19 @@ def next_send_time(w, contact, not_before=None):
 
 
 def msg_key(m):
-    """Stable id for one email in a thread (its Message-ID header, else its timestamp)."""
+    """Stable id for one email in a thread (its Message-ID header, else its timestamp). Emails pulled out of a
+    quote (from before Karlie was copied in) have neither, so they're keyed by sender and time."""
+    if m.get("extracted"):
+        return f"x:{m.get('email') or m.get('from')}:{m.get('when').isoformat() if m.get('when') else m.get('body', '')[:40]}"
     return (m.get("msgid") or "").strip("<> ") or str(m.get("ts"))
+
+
+def _reader(x, n=8000):
+    """One email as the AI reads it; ones from before Karlie was copied in say so."""
+    if x.get("extracted"):
+        return {"from": f"{x.get('from')} <{x.get('email')}> (from before Karlie was copied in; she only saw it quoted)",
+                "date": x["when"].strftime("%Y-%m-%d") if x.get("when") else None, "text": x["body"][:n]}
+    return {"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:n]}
 
 
 def summaries_queue():
@@ -479,15 +490,15 @@ def summaries_queue():
             have = json.loads(f.get("Message Summaries") or "{}")
         except ValueError:
             have = {}
-        missing = [{"key": msg_key(x), "from": "Karlie" if x["is_me"] else x["from"],
-                    "date": dt.datetime.fromtimestamp(x["ts"] / 1000, dt.timezone.utc).strftime("%Y-%m-%d"), "text": x["body"][:4000]}
-                   for x in msgs[-10:] if msg_key(x) not in have]
+        missing = [dict(_reader(x, 4000), key=msg_key(x), **({} if x.get("extracted") else
+                        {"date": dt.datetime.fromtimestamp(x["ts"] / 1000, dt.timezone.utc).strftime("%Y-%m-%d")}))
+                   for x in gmail.with_earlier(msgs, 10) if msg_key(x) not in have]
         needs_summary = "Summary coming shortly" in (f.get("Summary") or "")
         needs_reply = not (f.get("Suggested Reply") or "").strip()
         if not (needs_summary or needs_reply or missing):
             continue
         if needs_summary or needs_reply:
-            thread = [{"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:8000]} for x in msgs[-8:]]
+            thread = [_reader(x) for x in gmail.with_earlier(msgs, 8)]
             w = w or World()
             pid = (f.get("Partner") or [None])[0]
             rep = at.list_records("log", f"AND({{Gmail Thread ID}}='{f['Gmail Thread ID']}', {{Event}}='Replied', NOT({{Reviewed}}))", fields=["Event"], max_records=1)
@@ -519,7 +530,7 @@ def remix_queue():
     for h in at.list_records("log", "AND({Remix Request}!='', NOT({Handled}))"):
         f = h["fields"]
         try:
-            thread = [{"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:6000]} for x in gmail.thread(f["Gmail Thread ID"])[-6:]] if f.get("Gmail Thread ID") else []
+            thread = [_reader(x, 6000) for x in gmail.with_earlier(gmail.thread(f["Gmail Thread ID"]), 6)] if f.get("Gmail Thread ID") else []
         except Exception:
             thread = []
         out.append({"log_id": h["id"], "instruction": f["Remix Request"], "kind": "Reply", "to_name": f.get("Email"),
@@ -997,7 +1008,7 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
         thread = []
         if tid:
             try:
-                thread = [{"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:8000]} for x in gmail.thread(tid)[-6:]]
+                thread = [_reader(x) for x in gmail.with_earlier(gmail.thread(tid), 6)]
             except Exception:
                 pass
         handoff = at.list_records("log", f"AND({{Gmail Thread ID}}='{tid}', {{Event}}='Handed To Karlie', NOT({{Handled}}))", fields=["Summary"], max_records=1) if tid else []

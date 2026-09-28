@@ -19,8 +19,9 @@
       {% if th.earlier %}<div class="muted tiny" style="margin-bottom:10px">{{ th.earlier }} earlier message{{ 's' if th.earlier > 1 }} in Gmail</div>{% endif %}
       {% set ms = sums.get(e.id, {}) %}
       {% if th.msgs|length > 1 %}<button type="button" class="linkish tiny expand-all" onclick="expandAll(this)">Expand all</button>{% endif %}
-      {% for m in th.msgs %}{% set sm = ms.get(msg_key(m)) %}<details class="msg {{ 'me' if m.is_me else 'them' }}">
-        <summary><span class="who">{{ 'You' if m.is_me else m['from'].split('<')[0].strip(' "') }} · {{ m.ts|mswhen }}</span>
+      {% for m in th.msgs %}{% set sm = ms.get(msg_key(m)) %}<details class="msg {{ 'extracted' if m.extracted else ('me' if m.is_me else 'them') }}">
+        {% if m.extracted %}<summary><span class="who">{{ m['from'] }}{% if m.when %} · {{ m.when.strftime('%a %-d %b') }}{% endif %} <span class="xtag">From before you were copied in</span></span>
+        {% else %}<summary><span class="who">{{ 'You' if m.is_me else m['from'].split('<')[0].strip(' "') }} · {{ m.ts|mswhen }}</span>{% endif %}
           <span class="gist">{{ sm or (m.body|gist) }}</span></summary>
         <div class="text">{{ m.body }}</div></details>{% endfor %}
     </div>

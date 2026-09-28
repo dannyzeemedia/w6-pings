@@ -68,6 +68,73 @@ def _strip(t):
     return tidy("\n".join(l for l in t.splitlines() if not l.startswith(">")))
 
 
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_ON_WROTE = re.compile(r"(?:^|\n)[ \t]*(On\s(?:(?!\n\s*\n).){5,300}?wrote:)[ \t]*\n", re.S)
+_FWD = re.compile(r"(?:^|\n)-{3,}\s*Forwarded message\s*-{3,}\s*\n(.*?)\n\s*\n", re.S)
+
+
+def _unquote(block):
+    """One level of '>' quoting off: the quoted email as it was written."""
+    out = []
+    for l in block.split("\n"):
+        if l.startswith(">"):
+            out.append(l[1:][1:] if l[1:2] == " " else l[1:])
+        elif not l.strip():
+            out.append("")
+        else:
+            break  # anything after the quote (a signature, a later reply) is not part of it
+    return "\n".join(out)
+
+
+def _who_when(header):
+    """('Cristina Ursu', 'cristina@funnelytics.io', datetime or None) from an 'On ... wrote:' or forward header."""
+    h = re.sub(r"\s+", " ", re.sub(r"(?m)^[ >]+", "", header)).strip()
+    em = _EMAIL.search(re.sub(r"\s+", "", h.split("(")[-1]) if "(" in h else h) or _EMAIL.search(h.replace(" ", ""))
+    email = em.group(0).lower() if em else ""
+    name, when = "", None
+    m = re.match(r"On (.+?)\s*<", h)
+    if m:
+        lead = m.group(1)  # "Wed, Sep 23, 2026 at 4:33 AM, Cristina Ursu" or "Sun, Sep 20, 2026 10:34:32 AM Ryan Doyle"
+        cuts = list(re.finditer(r"\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AaPp]\.?[Mm]\.?)?|\b\d{4}\b", lead))
+        at_ = cuts[-1].end() if cuts else 0
+        date_txt, name = lead[:at_], lead[at_:].strip(" ,").strip('"')
+    else:
+        f = re.search(r"From:\s*\"?([^<\"\n]+?)\"?\s*<", h)
+        name = f.group(1).strip() if f else ""
+        d = re.search(r"Date:\s*(.+?)(?:Subject:|To:|Cc:|$)", h)
+        date_txt = d.group(1) if d else ""
+    try:
+        from dateutil import parser as _dp
+        when = _dp.parse(date_txt.replace(" at ", " "), fuzzy=True) if date_txt else None
+    except Exception:
+        when = None
+    return name or email, email, when
+
+
+def earlier_emails(raw):
+    """Emails quoted or forwarded inside a message that Karlie never received herself (Sam copies her in
+    halfway through a conversation, or forwards one). Oldest first. Each: from, email, when, body."""
+    out = []
+    text = raw.replace("\r\n", "\n")
+    for _ in range(12):  # each round peels one quoted or forwarded email, going back in time
+        q, f = _ON_WROTE.search(text), _FWD.search(text)
+        if not q and not f:
+            break
+        if f and (not q or f.start() < q.start()):
+            header, rest = f.group(1), text[f.end():]
+        else:
+            header, rest = q.group(1), _unquote(text[q.end():])
+        name, email, when = _who_when(header)
+        m = _QUOTE.search("\n" + rest)
+        nxt = _FWD.search(rest)
+        cut = min([x for x in (m.start() - 1 if m else None, nxt.start() if nxt else None) if x is not None and x >= 0], default=len(rest))
+        body = tidy("\n".join(l for l in rest[:cut].splitlines() if not l.startswith(">")))
+        if body.strip():
+            out.append({"from": name, "email": email, "when": when, "body": body})
+        text = rest
+    return list(reversed(out))
+
+
 _tcache = {}
 
 
@@ -107,18 +174,50 @@ def _thread(tid):
                     "subject": hd.get("subject", ""), "msgid": hd.get("message-id", ""),
                     "refs": hd.get("references", ""), "ts": int(m["internalDate"]),
                     "is_me": ME in hd.get("from", "").lower(), "body": _strip(_body(m["payload"]))})
+    if out:  # the first email Karlie got may carry a conversation she wasn't on (copied in, or forwarded)
+        try:
+            out[0]["earlier"] = earlier_emails(_body(r.json()["messages"][0]["payload"]))
+        except Exception:
+            out[0]["earlier"] = []
     return out
+
+
+def with_earlier(msgs, last=None):
+    """The thread as a reader needs it: emails from before Karlie was copied in first (marked), then hers.
+    last=N keeps the newest N real emails; the earlier ones only show when the first email is still in view."""
+    shown = msgs[-last:] if last else msgs
+    pre = [dict(e, extracted=True, is_me=False) for e in (msgs[0].get("earlier") or [])] if msgs and shown and shown[0] is msgs[0] else []
+    return pre + list(shown)
 
 
 def reply(tid, text, body_html=None):
     """Reply in-thread to whoever last wrote to Karlie. Returns (message id, recipient)."""
     msgs = thread(tid)
     last_in = next((m for m in reversed(msgs) if not m["is_me"]), msgs[-1])
-    to = parseaddr(last_in["from"])[1] if not last_in["is_me"] else getaddresses([last_in["to"]])[0][1]
+    # reply all, the way Gmail does: everyone on the last email except Karlie. When a teammate copied her in
+    # (Sam looping her into a sponsor's thread), the sponsor is who she's answering, so they go in To.
+    everyone, seen = [], set()
+    for name, addr in getaddresses([last_in["from"], last_in["to"], last_in["cc"]]):
+        a_ = addr.lower()
+        if a_ and a_ != ME and a_ not in seen:
+            seen.add(a_)
+            everyone.append(a_)
+    if last_in["is_me"]:
+        everyone = [a_.lower() for _, a_ in getaddresses([last_in["to"]]) if a_] or everyone
+    ours = [a_ for a_ in everyone if a_.endswith("@workspace6.io")]
+    theirs = [a_ for a_ in everyone if a_ not in ours]
+    sender = parseaddr(last_in["from"])[1].lower()
+    if sender.endswith("@workspace6.io") and theirs:
+        to_list, cc_list = theirs, ours
+    else:
+        to_list, cc_list = [sender] if sender and sender != ME else everyone[:1], [a_ for a_ in everyone if a_ != sender]
+    to = ", ".join(to_list)
     subj = last_in["subject"] or msgs[0]["subject"]
     msg = EmailMessage()
     msg["From"] = f"Karlie <{ME}>"
     msg["To"] = to
+    if cc_list:
+        msg["Cc"] = ", ".join(cc_list)
     msg["Subject"] = subj if subj.lower().startswith("re:") else f"Re: {subj}"
     if last_in["msgid"]:
         msg["In-Reply-To"] = last_in["msgid"]

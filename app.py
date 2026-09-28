@@ -515,7 +515,7 @@ def yours():
         if tid and tid not in threads:
             try:
                 msgs = gmail.thread(tid)
-                threads[tid] = {"msgs": msgs[-10:], "earlier": max(0, len(msgs) - 10),
+                threads[tid] = {"msgs": gmail.with_earlier(msgs, 10), "earlier": max(0, len(msgs) - 10),
                                 "link": gmail.open_link(msgs[-1]["msgid"]) if msgs[-1]["msgid"] else None}
             except Exception:
                 threads[tid] = None

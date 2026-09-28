@@ -677,3 +677,10 @@ turbo-frame[busy] > * { opacity: .55; transition: opacity .15s; }
   --input-border-color: var(--line); --button-hover-background: var(--mint-2); --button-active-background: var(--mint); --category-font-color: var(--ink-2);
   --num-columns: 9; --emoji-size: 1.35rem; height: 340px; width: 340px; }
 @media (max-width: 640px) { .rte-pop emoji-picker { width: min(340px, calc(100vw - 48px)); --num-columns: 7; } }
+
+/* Your turn: emails from before Karlie was copied in (pulled out of the quote in Sam's email) */
+details.msg.extracted { background: color-mix(in srgb, #bee1de 28%, #ffffff); border: 1px dashed color-mix(in srgb, #265c51 45%, #bee1de); }
+details.msg.extracted > summary .who { color: var(--green); }
+.xtag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 99px; background: #265c51; color: #fff; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; vertical-align: 1px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) details.msg.extracted { background: color-mix(in srgb, #bee1de 8%, var(--card)); border-color: var(--mint); } }
+:root[data-theme="dark"] details.msg.extracted { background: color-mix(in srgb, #bee1de 8%, var(--card)); border-color: var(--mint); }
