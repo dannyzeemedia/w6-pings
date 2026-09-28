@@ -1014,7 +1014,8 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
                         "final_subject": f.get("Subject"), "final_body": f.get("Body"), "her_note": f.get("Karlie Feedback"),
                         "her_rewrite_requests": (f.get("Remix History") or "")[:6000] or None})
     # capacity
-    queued = len(at.list_records("drafts", "AND(OR({Status}='Pending Approval', {Status}='Approved'), OR({Scheduled For}='', IS_BEFORE({Scheduled For}, DATEADD(NOW(), 2, 'days'))))", fields=["Status"]))
+    # only what's waiting on Karlie counts: approved emails are done from her side, even if they haven't gone out yet
+    queued = len(at.list_records("drafts", "AND({Status}='Pending Approval', OR({Scheduled For}='', IS_BEFORE({Scheduled For}, DATEADD(NOW(), 2, 'days'))))", fields=["Status"]))
     # explicit asks from the dashboard ("make a ping to Recharge"): always written, ahead of everything else
     asks = []
     if (s.get("Ping Requests") or "").strip():
