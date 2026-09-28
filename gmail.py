@@ -110,7 +110,7 @@ def _thread(tid):
     return out
 
 
-def reply(tid, text):
+def reply(tid, text, body_html=None):
     """Reply in-thread to whoever last wrote to Karlie. Returns (message id, recipient)."""
     msgs = thread(tid)
     last_in = next((m for m in reversed(msgs) if not m["is_me"]), msgs[-1])
@@ -124,6 +124,8 @@ def reply(tid, text):
         msg["In-Reply-To"] = last_in["msgid"]
         msg["References"] = (last_in["refs"] + " " + last_in["msgid"]).strip()
     msg.set_content(text)
+    import richtext
+    msg.add_alternative(richtext.email_html(body_html) if (body_html or "").strip() else _to_html(text), subtype="html")
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     _tcache.pop(tid, None)
     r = requests.post(f"{API}/messages/send", headers=_h(), json={"raw": raw, "threadId": tid}, timeout=30)
@@ -214,7 +216,7 @@ def _to_html(text):
     return '<div dir="ltr">' + "".join(out) + "</div>"
 
 
-def send(to, subject, body, thread_id=None, signature=True, to_name=None):
+def send(to, subject, body, thread_id=None, signature=True, to_name=None, body_html=None):
     """Send as Karlie, looking exactly like Gmail: plain + HTML parts, her real signature on first emails.
     With thread_id it replies in that thread. Returns (message id, thread id)."""
     msg = EmailMessage()
@@ -232,7 +234,9 @@ def send(to, subject, body, thread_id=None, signature=True, to_name=None):
         msg["Subject"] = subject
     sig = signature_html() if signature else ""
     msg.set_content(body + ("\n\n-- \nKarlie Zee | Workspace6\n👉 Read this week's Workspace6 DTC News https://news.workspace6.io/" if sig else ""))
-    msg.add_alternative(_to_html(body) + (f'<br><div class="gmail_signature">{sig}</div>' if sig else ""), subtype="html")
+    import richtext
+    rich = richtext.email_html(body_html) if (body_html or "").strip() else _to_html(body)
+    msg.add_alternative(rich + (f'<br><div class="gmail_signature">{sig}</div>' if sig else ""), subtype="html")
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     payload = {"raw": raw}
     if thread_id:

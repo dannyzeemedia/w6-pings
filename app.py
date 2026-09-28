@@ -10,6 +10,7 @@ import airtable as at
 import gmail
 import engine
 import bookings as bk
+import richtext
 import brand
 from ops_log import OpsLog
 
@@ -39,6 +40,15 @@ APPROVE_AHEAD_DAYS = 2  # scheduled pings show up for approval this many days be
 def _freshness():
     # pages may show the saved copy while it refreshes; the engine (sending, brain) always reads fresh
     at._local.fresh = request.path.startswith(("/tasks", "/api/engine"))
+
+
+def _body_from_form(default=""):
+    """(plain words, formatted HTML) from an editor form. The plain words are what the learner compares."""
+    h = (request.form.get("body_html") or "").strip()
+    if h:
+        h = richtext.sanitize(h)
+        return richtext.html_to_text(h), h
+    return (request.form.get("body") or default).strip(), ""
 
 
 def login_required(f):
@@ -317,8 +327,9 @@ def decide(rid):
         flash("That email was already dealt with.")
         return redirect(url_for("approve"))
     action = request.form.get("action", "save")
-    subject, body = request.form.get("subject", "").strip(), request.form.get("body", "").strip()
-    fields = {"Subject": subject, "Body": body, "Karlie Feedback": request.form.get("feedback", "").strip()}
+    subject = request.form.get("subject", "").strip()
+    body, body_html = _body_from_form()
+    fields = {"Subject": subject, "Body": body, "Body HTML": body_html, "Karlie Feedback": request.form.get("feedback", "").strip()}
     fields["Edited By Karlie"] = (_norm(body) != _norm(d.get("AI Original Body"))
                                   or _norm(subject) != _norm(d.get("AI Original Subject")))
     if action == "save" and request.headers.get("X-Fetch") == "1":  # quiet background save while she types
@@ -402,8 +413,9 @@ def remix(rid):
     instr = request.form.get("instruction", "").strip()
     if not instr or d.get("Status") not in ("Pending Approval", "Approved"):
         return redirect(url_for("approve"))
+    body, body_html = _body_from_form(d.get("Body", ""))
     at.update("drafts", rid, {"Subject": request.form.get("subject", d.get("Subject", "")).strip(),
-                              "Body": request.form.get("body", d.get("Body", "")).strip(), "Remix Request": instr})
+                              "Body": body, "Body HTML": body_html, "Remix Request": instr})
     flash("Rewriting it now. The new version usually shows up here in about a minute.")
     return redirect(url_for("approve") + f"#d-{rid}")
 
@@ -520,6 +532,9 @@ def yours():
 _GREETING = re.compile(r"^(hi|hey|hello|dear|good (morning|afternoon|evening)|thanks|thank you)\b[^\n]{0,40}[,!.]?\s*$", re.I)
 
 
+app.jinja_env.globals["text_to_html"] = richtext.text_to_html
+
+
 @app.template_filter("gist")
 def gist(body):
     """Until the AI summary lands: the email's opening line, skipping the greeting."""
@@ -625,7 +640,8 @@ def autopilot_seen():
 @app.post("/yours/<rid>/save")
 @login_required
 def yours_save(rid):
-    at.update("log", rid, {"Suggested Reply": request.form.get("body", "").strip()})
+    body, body_html = _body_from_form()
+    at.update("log", rid, {"Suggested Reply": body, "Suggested Reply HTML": body_html})
     if request.headers.get("X-Fetch") == "1":  # quiet background save while she types
         return {"ok": True}
     flash("Edits saved.")
@@ -637,7 +653,8 @@ def yours_save(rid):
 def yours_remix(rid):
     instr = request.form.get("instruction", "").strip()
     if instr:
-        at.update("log", rid, {"Suggested Reply": request.form.get("body", "").strip(), "Remix Request": instr})
+        body, body_html = _body_from_form()
+        at.update("log", rid, {"Suggested Reply": body, "Suggested Reply HTML": body_html, "Remix Request": instr})
         flash("Rewriting it now. The new version usually shows up here in about a minute.")
     return redirect(url_for("yours") + f"#d-{rid}")
 
@@ -646,13 +663,13 @@ def yours_remix(rid):
 @login_required
 def yours_reply(rid):
     e = at.get("log", rid)["fields"]
-    text = request.form.get("body", "").strip()
+    text, text_html = _body_from_form()
     tid = e.get("Gmail Thread ID")
     if not text or not tid:
         flash("Nothing to send.")
         return redirect(url_for("yours"))
     try:
-        mid, to = gmail.reply(tid, text)
+        mid, to = gmail.reply(tid, text, body_html=text_html)
     except Exception as ex:
         flash(f"Couldn't send that one: {ex}. Nothing went out; your text is below.")
         session["unsent_" + rid] = text
@@ -665,7 +682,7 @@ def yours_reply(rid):
     hist = e.get("Remix History") or ""
     first = hist.rsplit("\nBefore:\n", 1)[-1].split("\n\n[", 1)[0].strip() if hist else ""  # the very first suggestion, before any rewrite
     draft = at.create("drafts", {"Subject": "Reply from Karlie", "Status": "Sent", "Kind": "Reply",
-                                 "To Email": to, "Body": text, "Written By Karlie": not sug,
+                                 "To Email": to, "Body": text, "Body HTML": text_html, "Written By Karlie": not sug,
                                  **({"AI Original Body": first or sug, "Edited By Karlie": bool(hist) or _norm(text) != _norm(sug)} if sug else {}),
                                  **({"Remix History": hist} if hist else {}),
                                  **({"Karlie Feedback": request.form.get("feedback", "").strip()} if request.form.get("feedback", "").strip() else {}),

@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}To approve{% endblock %}
-{% from "_brand.html" import chip, site %}
+{% from "_brand.html" import chip, site %}{% from "_rte.html" import rte %}
 {% block body %}
 <div class="head"><h1>To approve</h1><p>Change anything you like before you send. It saves exactly what you changed and learns from it, so the next drafts need fewer edits.</p></div>
 <div class="card ask-card">
@@ -36,7 +36,7 @@
   </details>{% endif %}
   <div class="email-zone">
     <div class="field"><label>Subject</label><input type="text" name="subject" value="{{ f.get('Subject', '') }}"></div>
-    <div class="field"><label>Email</label><textarea class="grow" name="body">{{ f.get('Body', '') }}</textarea></div>
+    <div class="field"><label>Email</label>{{ rte(f.get('Body', ''), f.get('Body HTML')) }}</div>
     {% if f.get('Remix Request') %}
     <div class="remix-overlay" data-id="{{ d.id }}">
       <div class="remix-card">

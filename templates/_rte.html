@@ -1,0 +1,57 @@
+{# The email editor: a Gmail-style formatting bar over a writing area. The two hidden boxes carry the plain words
+   (what the learner compares) and the formatted version (what gets sent). #}
+{% macro icon(name) -%}
+<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'undo' %}<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>
+{%- elif name == 'redo' %}<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>
+{%- elif name == 'bold' %}<path d="M7 5h6a3.5 3.5 0 0 1 0 7H7z"/><path d="M7 12h7a3.5 3.5 0 0 1 0 7H7z"/>
+{%- elif name == 'italic' %}<path d="M19 4h-9M14 20H5M15 4 9 20"/>
+{%- elif name == 'underline' %}<path d="M6 4v6a6 6 0 0 0 12 0V4"/><path d="M4 20h16"/>
+{%- elif name == 'strike' %}<path d="M16 6c-.6-1.3-2.1-2-4-2-2.5 0-4 1.3-4 3 0 1.2.8 2 2 2.5"/><path d="M4 12h16"/><path d="M8 18c.8 1.3 2.3 2 4.2 2 2.6 0 4.3-1.4 4.3-3.3 0-.9-.3-1.6-.9-2.2"/>
+{%- elif name == 'size' %}<path d="M4 7V5h10v2M9 5v14M7 19h4"/><path d="M14 13v-1h6v1M17 12v7M16 19h2"/>
+{%- elif name == 'color' %}<path d="m6 16 6-12 6 12M8.2 12h7.6"/><rect x="4" y="19" width="16" height="2.5" rx="1" fill="currentColor" stroke="none" class="rte-swatch"/>
+{%- elif name == 'ul' %}<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1" fill="currentColor"/><circle cx="4.5" cy="12" r="1" fill="currentColor"/><circle cx="4.5" cy="18" r="1" fill="currentColor"/>
+{%- elif name == 'ol' %}<path d="M10 6h10M10 12h10M10 18h10"/><path d="M4 5h1v4M4 9h2" stroke-width="1.6"/><path d="M4 14.5a1 1 0 1 1 1.6.8L4 17h2" stroke-width="1.6"/>
+{%- elif name == 'outdent' %}<path d="M21 5H11M21 12H11M21 19H11"/><path d="m7 8-4 4 4 4"/>
+{%- elif name == 'indent' %}<path d="M21 5H11M21 12H11M21 19H11"/><path d="m3 8 4 4-4 4"/>
+{%- elif name == 'quote' %}<path d="M7 7h3v5H6v-1a4 4 0 0 1 4-4"/><path d="M15 7h3v5h-4v-1a4 4 0 0 1 4-4"/><path d="M5 17h14"/>
+{%- elif name == 'link' %}<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>
+{%- elif name == 'emoji' %}<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01" stroke-width="2.6"/>
+{%- elif name == 'clear' %}<path d="M4 7V5h12v2M10 5l-3 14"/><path d="m15 13 6 6M21 13l-6 6"/>
+{%- endif %}</svg>
+{%- endmacro %}
+
+{% macro rte(text, html_value, placeholder='') %}
+<div class="rte" data-rte>
+  <div class="rte-bar" role="toolbar" aria-label="Formatting">
+    <div class="rte-group">
+      <button type="button" data-cmd="undo" title="Undo (Ctrl+Z)" aria-label="Undo">{{ icon('undo') }}</button>
+      <button type="button" data-cmd="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">{{ icon('redo') }}</button>
+    </div>
+    <div class="rte-group">
+      <button type="button" data-pop="size" title="Text size" aria-label="Text size">{{ icon('size') }}</button>
+      <button type="button" data-cmd="bold" title="Bold (Ctrl+B)" aria-label="Bold">{{ icon('bold') }}</button>
+      <button type="button" data-cmd="italic" title="Italic (Ctrl+I)" aria-label="Italic">{{ icon('italic') }}</button>
+      <button type="button" data-cmd="underline" title="Underline (Ctrl+U)" aria-label="Underline">{{ icon('underline') }}</button>
+      <button type="button" data-cmd="strikeThrough" title="Strikethrough" aria-label="Strikethrough">{{ icon('strike') }}</button>
+      <button type="button" data-pop="color" title="Text colour" aria-label="Text colour">{{ icon('color') }}</button>
+    </div>
+    <div class="rte-group">
+      <button type="button" data-cmd="insertUnorderedList" title="Dot points" aria-label="Dot points">{{ icon('ul') }}</button>
+      <button type="button" data-cmd="insertOrderedList" title="Numbered list" aria-label="Numbered list">{{ icon('ol') }}</button>
+      <button type="button" data-cmd="outdent" title="Indent less" aria-label="Indent less">{{ icon('outdent') }}</button>
+      <button type="button" data-cmd="indent" title="Indent more" aria-label="Indent more">{{ icon('indent') }}</button>
+      <button type="button" data-cmd="quote" title="Quote" aria-label="Quote">{{ icon('quote') }}</button>
+    </div>
+    <div class="rte-group">
+      <button type="button" data-pop="link" title="Link (Ctrl+K)" aria-label="Link">{{ icon('link') }}</button>
+      <button type="button" data-pop="emoji" title="Emoji" aria-label="Emoji">{{ icon('emoji') }}</button>
+      <button type="button" data-cmd="clear" title="Clear formatting" aria-label="Clear formatting">{{ icon('clear') }}</button>
+    </div>
+  </div>
+  <div class="rte-area" contenteditable="true" role="textbox" aria-multiline="true" spellcheck="true" data-placeholder="{{ placeholder }}"></div>
+  <div class="rte-pop" hidden></div>
+  <textarea name="body" hidden>{{ text }}</textarea>
+  <textarea name="body_html" hidden>{{ html_value or text_to_html(text) }}</textarea>
+</div>
+{% endmacro %}

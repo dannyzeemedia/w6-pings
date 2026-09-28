@@ -391,7 +391,7 @@ def _send(w, d, contact):
     to = f["To Email"]
     tid = f.get("Gmail Thread ID")
     first = not tid
-    mid, tid = gmail.send(to, f.get("Subject") or "", f.get("Body") or "", thread_id=tid, signature=first,
+    mid, tid = gmail.send(to, f.get("Subject") or "", f.get("Body") or "", thread_id=tid, signature=first, body_html=f.get("Body HTML"),
                           to_name=f.get("To Name"))
     t = now()
     at.update("drafts", d["id"], {"Status": "Sent", "Sent At": iso(t), "Gmail Thread ID": tid,
@@ -540,13 +540,13 @@ def remix_apply(item):
         lg = at.get("log", item["log_id"])["fields"]
         hist = (f"[{dt.date.today().isoformat()}] Asked: {lg.get('Remix Request', '')}\nBefore:\n{lg.get('Suggested Reply', '')}\n\n"
                 + (lg.get("Remix History") or ""))[:20000]
-        at.update("log", item["log_id"], {"Suggested Reply": _txt(item["body"], False)[:8000], "Remix Request": "",
+        at.update("log", item["log_id"], {"Suggested Reply": _txt(item["body"], False)[:8000], "Suggested Reply HTML": "", "Remix Request": "",
                                           "Remix History": hist, "Suggestion Check": _txt(item.get("ai_tell_check"), False)[:3000]})
         return {"ok": True}
     d = at.get("drafts", item["draft_id"])["fields"]
     hist = (d.get("Remix History") or "")
     hist = (f"[{dt.date.today().isoformat()}] Asked: {d.get('Remix Request', '')}\nBefore:\n{d.get('Body', '')}\n\n" + hist)[:20000]
-    f = {"Body": item["body"], "Remix Request": "", "Remix History": hist, "Edited By Karlie": True,
+    f = {"Body": item["body"], "Body HTML": "", "Remix Request": "", "Remix History": hist, "Edited By Karlie": True,
          "AI-Tell Check": item.get("ai_tell_check", "")[:3000]}
     if item.get("subject") is not None and d.get("Kind") != "Follow-up":
         f["Subject"] = item["subject"]

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=32" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=33" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -90,6 +90,129 @@ window.flipTheme=function(){
   document.querySelectorAll('textarea.grow').forEach(t=>t.addEventListener('input',()=>grow(t)));
   all(); requestAnimationFrame(all); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(all); window.addEventListener('load',all,{once:true});
   document.addEventListener('toggle',all,true);
+})();
+
+// Email editor: Gmail-style formatting (bold, lists, links, colour, emoji...) that stays in the W6 look.
+(function(){
+  const COLORS=['#202020','#5b605e','#265c51','#3d8676','#1a73e8','#8e44ad','#b3412f','#d9730d','#c58b12','#2e7d32'];
+  const SIZES=[['2','Small','13px'],['3','Normal','15px'],['4','Large','18px'],['6','Huge','26px']];
+  const ALLOW={B:1,STRONG:1,I:1,EM:1,U:1,S:1,STRIKE:1,DEL:1,UL:1,OL:1,LI:1,A:1,BR:1,DIV:1,P:1,BLOCKQUOTE:1,SPAN:1,FONT:1,H1:1,H2:1,H3:1};
+  function clean(html){ // pasted content: keep the formatting Gmail keeps, drop everything else
+    const doc=new DOMParser().parseFromString(html,'text/html');
+    (function walk(n){ [...n.childNodes].forEach(c=>{
+      if(c.nodeType===1){
+        if(/^(SCRIPT|STYLE|META|LINK|TITLE|HEAD|IMG|SVG|IFRAME|OBJECT)$/.test(c.tagName)){ c.remove(); return; }
+        walk(c);
+        if(!ALLOW[c.tagName]){ c.replaceWith(...c.childNodes); return; }
+        const href=c.tagName==='A'?c.getAttribute('href'):null, color=c.getAttribute('color')||(c.style&&c.style.color);
+        [...c.attributes].forEach(a=>c.removeAttribute(a.name));
+        if(href&&/^(https?:|mailto:)/i.test(href)) c.setAttribute('href',href);
+        if(color&&c.tagName==='FONT') c.setAttribute('color',color);
+        if(color&&c.tagName==='SPAN') c.style.color=color;
+      } else if(c.nodeType===8) c.remove();
+    }); })(doc.body);
+    return doc.body.innerHTML;
+  }
+  if(window.__rteAC) window.__rteAC.abort();  // listeners from the previous page go away with it
+  const AC=window.__rteAC=new AbortController(), sig={signal:AC.signal};
+  if(!window.__rteCache){ window.__rteCache=true; document.addEventListener('turbo:before-cache',()=>document.querySelectorAll('[data-rte]').forEach(r=>r.removeAttribute('data-ready'))); }
+  function init(root){
+    const area=root.querySelector('.rte-area'), txt=root.querySelector('textarea[name=body]'), htm=root.querySelector('textarea[name=body_html]');
+    const pop=root.querySelector('.rte-pop'), bar=root.querySelector('.rte-bar');
+    let syncing=false, saved=null;
+    area.innerHTML=htm.value;
+    const sync=()=>{ syncing=true; htm.value=area.innerHTML; txt.value=area.innerText.replace(/\n{3,}/g,'\n\n').trim();
+      txt.dispatchEvent(new Event('input',{bubbles:true})); htm.dispatchEvent(new Event('input',{bubbles:true})); syncing=false; state(); };
+    htm.addEventListener('input',()=>{ if(!syncing) area.innerHTML=htm.value; }); // put back after a refresh / remix
+    area.addEventListener('input',sync);
+    area.addEventListener('focus',()=>{ try{ document.execCommand('styleWithCSS',false,false); document.execCommand('defaultParagraphSeparator',false,'div'); }catch(e){} });
+    area.addEventListener('paste',e=>{
+      const cd=e.clipboardData; if(!cd) return; e.preventDefault();
+      const plain=(cd.getData('text/plain')||'').trim(), sel=getSelection();
+      const url=/^(https?:\/\/|www\.)[^\s<>"]+$/i.test(plain)?(/^www\./i.test(plain)?'https://'+plain:plain):null;
+      if(url && sel.rangeCount && !sel.isCollapsed && area.contains(sel.anchorNode)){ document.execCommand('createLink',false,url); sync(); return; }  // selected words + copied link = hyperlink
+      if(url){ document.execCommand('insertHTML',false,'<a href="'+url.replace(/"/g,'&quot;')+'">'+plain.replace(/[<&]/g,c=>c==='<'?'&lt;':'&amp;')+'</a>&nbsp;'); sync(); return; }
+      const h=cd.getData('text/html'); if(h) document.execCommand('insertHTML',false,clean(h)); else document.execCommand('insertText',false,cd.getData('text/plain'));
+    });
+    const keep=()=>{ const s=getSelection(); if(s.rangeCount&&area.contains(s.anchorNode)) saved=s.getRangeAt(0).cloneRange(); };
+    // only put the old selection back when focus actually left the editor (a popover); otherwise leave her caret alone
+    const restore=()=>{ const s=getSelection(); if(s.rangeCount && area.contains(s.anchorNode) && document.activeElement===area) return;
+      area.focus(); if(saved){ s.removeAllRanges(); s.addRange(saved); } };
+    function inQuote(){ let n=getSelection().anchorNode; while(n&&n!==area){ if(n.nodeName==='BLOCKQUOTE') return true; n=n.parentNode; } return false; }
+    function cmd(c,v){
+      restore();
+      if(c==='quote') document.execCommand('formatBlock',false,inQuote()?'div':'blockquote');
+      else if(c==='clear'){ document.execCommand('removeFormat'); document.execCommand('unlink'); }
+      else document.execCommand(c,false,v);
+      sync(); keep();
+    }
+    function state(){
+      bar.querySelectorAll('[data-cmd]').forEach(b=>{ const c=b.dataset.cmd; let on=false;
+        try{ if(['bold','italic','underline','strikeThrough','insertUnorderedList','insertOrderedList'].includes(c)) on=document.queryCommandState(c); if(c==='quote') on=inQuote(); }catch(e){}
+        b.classList.toggle('on', on && area.contains(getSelection().anchorNode)); });
+    }
+    document.addEventListener('selectionchange',()=>{ if(area.contains(getSelection().anchorNode)){ keep(); state(); } },sig);
+    bar.addEventListener('mousedown',e=>{ if(e.target.closest('button')) e.preventDefault(); }); // keep her selection
+    bar.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+      if(b.dataset.cmd) cmd(b.dataset.cmd); else if(b.dataset.pop) openPop(b.dataset.pop,b); });
+    // Gmail's keyboard shortcuts
+    area.addEventListener('keydown',e=>{
+      const mod=e.ctrlKey||e.metaKey, k=e.key.toLowerCase(); let c=null;
+      if(mod && !e.shiftKey && !e.altKey){ c={b:'bold',i:'italic',u:'underline',']':'indent','[':'outdent','\\':'clear',z:'undo',y:'redo'}[k];
+        if(k==='k'){ e.preventDefault(); keep(); openPop('link',bar.querySelector('[data-pop=link]')); return; } }
+      else if(mod && e.shiftKey && !e.altKey){ c={Digit7:'insertOrderedList',Digit8:'insertUnorderedList',Digit9:'quote',KeyZ:'redo'}[e.code]; }
+      else if(e.altKey && e.shiftKey && !mod && e.code==='Digit5') c='strikeThrough';
+      if(c){ e.preventDefault(); cmd(c); }
+    });
+    function closePop(){ if(pop.hidden) return; pop.classList.remove('show'); setTimeout(()=>{ pop.hidden=true; pop.innerHTML=''; },160); bar.querySelectorAll('[data-pop]').forEach(b=>b.classList.remove('open')); }
+    function place(btn){ const r=btn.getBoundingClientRect(), rr=root.getBoundingClientRect();
+      pop.style.left=Math.max(0,Math.min(r.left-rr.left, rr.width-pop.offsetWidth-4))+'px'; pop.style.top=(r.bottom-rr.top+6)+'px'; }
+    function openPop(kind,btn){
+      if(!pop.hidden && pop.dataset.kind===kind){ closePop(); return; }
+      keep(); pop.dataset.kind=kind; pop.innerHTML=''; pop.hidden=false; btn.classList.add('open');
+      if(kind==='size'){
+        SIZES.forEach(([v,label,px])=>{ const b=document.createElement('button'); b.type='button'; b.className='rte-opt'; b.textContent=label; b.style.fontSize=px;
+          b.onmousedown=e=>e.preventDefault(); b.onclick=()=>{ cmd('fontSize',v); closePop(); }; pop.appendChild(b); });
+      } else if(kind==='color'){
+        const g=document.createElement('div'); g.className='rte-colors';
+        COLORS.forEach(c=>{ const b=document.createElement('button'); b.type='button'; b.style.background=c; b.title=c; b.setAttribute('aria-label','Colour '+c);
+          b.onmousedown=e=>e.preventDefault(); b.onclick=()=>{ cmd('foreColor',c); root.querySelector('.rte-swatch').style.fill=c; closePop(); }; g.appendChild(b); });
+        pop.appendChild(g);
+      } else if(kind==='link'){
+        const sel=saved?saved.toString():'';
+        // a plain box, not a <form>: it sits inside the email's own form, and forms can't nest
+        pop.innerHTML='<div class="rte-link"><label>Text<input data-f="t" type="text" autocomplete="off"></label><label>Link<input data-f="u" type="text" inputmode="url" placeholder="https://" autocomplete="off"></label><div class="row"><button type="button" class="small" data-apply>Apply</button><button type="button" class="ghost small" data-unlink>Remove link</button></div></div>';
+        const box=pop.querySelector('.rte-link'), f={t:box.querySelector('[data-f=t]'), u:box.querySelector('[data-f=u]')}; f.t.value=sel; if(/^https?:\/\//.test(sel)) f.u.value=sel;
+        let a=saved&&saved.startContainer.parentElement&&saved.startContainer.parentElement.closest('a'); if(a&&area.contains(a)){ f.u.value=a.getAttribute('href'); f.t.value=a.textContent; }
+        const apply=()=>{ let u=f.u.value.trim(); if(!u){ closePop(); return; } if(!/^(https?:|mailto:)/i.test(u)) u=(u.includes('@')&&!u.includes('/')?'mailto:':'https://')+u;
+          restore(); const t=f.t.value.trim()||u;
+          if(!saved||saved.collapsed||saved.toString()!==t) document.execCommand('insertHTML',false,'<a href="'+u.replace(/"/g,'&quot;')+'">'+t.replace(/[<&]/g,c=>c==='<'?'&lt;':'&amp;')+'</a>&nbsp;');
+          else document.execCommand('createLink',false,u);
+          sync(); closePop(); };
+        box.querySelector('[data-apply]').onclick=apply;
+        box.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); apply(); } });
+        box.querySelector('[data-unlink]').onclick=()=>{ cmd('unlink'); closePop(); };
+        setTimeout(()=>(f.t.value?f.u:f.t).focus(),30);
+      } else if(kind==='emoji'){
+        pop.innerHTML='<div class="rte-emoji-wait">Loading emoji…</div>';
+        import('https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js').then(()=>{
+          const p=document.createElement('emoji-picker'); const dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);
+          p.className=dark?'dark':'light'; pop.innerHTML=''; pop.appendChild(p); place(btn);
+          p.addEventListener('emoji-click',ev=>{ restore(); document.execCommand('insertText',false,ev.detail.unicode); sync(); keep(); });
+        }).catch(()=>{ pop.innerHTML='<div class="rte-emoji-wait">Couldn\'t load the emoji picker. Your keyboard\'s emoji work too (Win + . or Ctrl + Cmd + Space).</div>'; });
+      }
+      place(btn); requestAnimationFrame(()=>pop.classList.add('show'));
+    }
+    document.addEventListener('mousedown',e=>{ if(!pop.hidden && !pop.contains(e.target) && !e.target.closest('[data-pop]')) closePop(); },sig);
+    root.addEventListener('keydown',e=>{ if(e.key==='Escape' && !pop.hidden){ closePop(); restore(); } });
+    state();
+  }
+  const mac=/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent);
+  const TIPS={undo:'Undo (Ctrl+Z)',redo:'Redo (Ctrl+Shift+Z)',bold:'Bold (Ctrl+B)',italic:'Italic (Ctrl+I)',underline:'Underline (Ctrl+U)',strikeThrough:'Strikethrough (Alt+Shift+5)',
+    insertUnorderedList:'Dot points (Ctrl+Shift+8)',insertOrderedList:'Numbered list (Ctrl+Shift+7)',outdent:'Indent less (Ctrl+[)',indent:'Indent more (Ctrl+])',quote:'Quote (Ctrl+Shift+9)',clear:'Clear formatting (Ctrl+\\)',link:'Link (Ctrl+K)'};
+  document.querySelectorAll('[data-rte]:not([data-ready]) .rte-bar button').forEach(b=>{ const t=TIPS[b.dataset.cmd||b.dataset.pop]; if(t) b.title=mac?t.replace(/Ctrl\+/g,'⌘').replace(/Alt\+/g,'⌥').replace(/Shift\+/g,'⇧'):t; });
+  document.querySelectorAll('[data-rte]:not([data-ready])').forEach(r=>{ r.dataset.ready='1'; init(r); });
+  const top=document.querySelector('header.top'); if(top) document.documentElement.style.setProperty('--top-h', top.offsetHeight+'px');
 })();
 
 // Never lose her typing: every text box on the page is saved as she types and put back after a refresh,

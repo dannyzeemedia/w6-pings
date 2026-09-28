@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}Your turn{% endblock %}
-{% from "_brand.html" import chip, site %}
+{% from "_brand.html" import chip, site %}{% from "_rte.html" import rte %}
 {% block body %}
 <div class="head"><h1>Your turn</h1><p>These people replied with something real. Reply here or in Gmail. "Taking this offline?" keeps the system away from them while you talk on WhatsApp or a call.</p></div>
 {% for e in events %}{% set f = e.fields %}{% set th = threads.get(f.get('Gmail Thread ID')) %}
@@ -27,7 +27,7 @@
     <form method="post" action="{{ url_for('yours_reply', rid=e.id) }}" class="draft {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ e.id }}" data-autosave="{{ url_for('yours_save', rid=e.id) }}">
       <div class="email-zone">
         <div class="field"><label>{{ 'Suggested reply' if f.get('Suggested Reply') else 'Your reply' }} {% if f.get('Suggested Reply') %}<span class="muted tiny">(written in your voice, change anything)</span>{% endif %}</label>
-          <textarea class="grow" name="body" placeholder="{{ 'Write it like you normally would. It goes from your inbox, in this same thread.' if not f.get('Suggested Reply') else '' }}" style="min-height:120px">{{ f.get('Suggested Reply', '') }}</textarea>
+          {{ rte(f.get('Suggested Reply', ''), f.get('Suggested Reply HTML'), 'Write it like you normally would. It goes from your inbox, in this same thread.') }}
           {% if not f.get('Suggested Reply') %}<div class="hint"><span class="spin"></span> A suggested reply is being written. It usually appears within a few minutes.</div>{% endif %}</div>
         {% if f.get('Remix Request') %}
         <div class="remix-overlay" data-id="{{ e.id }}"><div class="remix-card"><div class="quill">✍️</div>
