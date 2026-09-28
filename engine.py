@@ -551,13 +551,17 @@ def remix_apply(item):
         lg = at.get("log", item["log_id"])["fields"]
         hist = (f"[{dt.date.today().isoformat()}] Asked: {lg.get('Remix Request', '')}\nBefore:\n{lg.get('Suggested Reply', '')}\n\n"
                 + (lg.get("Remix History") or ""))[:20000]
-        at.update("log", item["log_id"], {"Suggested Reply": _txt(item["body"], False)[:8000], "Suggested Reply HTML": "", "Remix Request": "",
+        import richtext
+        plain, rich = richtext.from_ai(_txt(item["body"], False))
+        at.update("log", item["log_id"], {"Suggested Reply": plain[:8000], "Suggested Reply HTML": rich, "Remix Request": "",
                                           "Remix History": hist, "Suggestion Check": _txt(item.get("ai_tell_check"), False)[:3000]})
         return {"ok": True}
     d = at.get("drafts", item["draft_id"])["fields"]
     hist = (d.get("Remix History") or "")
     hist = (f"[{dt.date.today().isoformat()}] Asked: {d.get('Remix Request', '')}\nBefore:\n{d.get('Body', '')}\n\n" + hist)[:20000]
-    f = {"Body": item["body"], "Body HTML": "", "Remix Request": "", "Remix History": hist, "Edited By Karlie": True,
+    import richtext
+    plain, rich = richtext.from_ai(_txt(item["body"], False))
+    f = {"Body": plain, "Body HTML": rich, "Remix Request": "", "Remix History": hist, "Edited By Karlie": True,
          "AI-Tell Check": item.get("ai_tell_check", "")[:3000]}
     if item.get("subject") is not None and d.get("Kind") != "Follow-up":
         f["Subject"] = item["subject"]
@@ -1151,7 +1155,9 @@ def apply(payload):
             if e.get("summary"):
                 hf["Summary"] = e["summary"][:250]
             if e.get("suggested_reply"):
-                hf["Suggested Reply"] = _txt(e["suggested_reply"], False)[:8000]
+                import richtext
+                plain, rich = richtext.from_ai(_txt(e["suggested_reply"], False))
+                hf["Suggested Reply"], hf["Suggested Reply HTML"] = plain[:8000], rich
             if e.get("ai_tell_check"):
                 hf["Suggestion Check"] = _txt(e["ai_tell_check"], False)[:3000]
             at.update("log", e["handoff_log_id"], hf)
@@ -1174,8 +1180,10 @@ def apply(payload):
         if not contact:
             continue
         cf = contact["fields"]
-        f = {"Subject": d.get("subject") or "", "AI Original Subject": d.get("subject") or "", "Body": _txt(d["body"], False),
-             "AI Original Body": _txt(d["body"], False),
+        import richtext
+        plain, rich = richtext.from_ai(_txt(d["body"], False))
+        f = {"Subject": d.get("subject") or "", "AI Original Subject": d.get("subject") or "", "Body": plain, "Body HTML": rich,
+             "AI Original Body": plain,
              "Status": "Pending Approval", "Kind": d["kind"], "To Email": cf["Email"], "To Name": d.get("to_name") or cf.get("Name"),
              "Why This Email": _txt(d.get("why"), False)[:3000], "AI-Tell Check": _txt(d.get("ai_tell_check"), False)[:3000],
              "Brief": _txt(d.get("brief"))[:6000], "Contact": [contact["id"]]}

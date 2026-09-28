@@ -147,3 +147,15 @@ def html_to_text(h):
 def email_html(h):
     """Wrap cleaned editor HTML the way Gmail does."""
     return f'<div dir="ltr">{sanitize(h)}</div>'
+
+
+_MD_BOLD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*")
+
+
+def from_ai(text):
+    """(plain words, HTML) for text the AI wrote: **bold** becomes real bold, never literal asterisks."""
+    text = text or ""
+    if "**" not in text:
+        return text, ""
+    plain = _MD_BOLD.sub(r"\1", text)
+    return plain, sanitize(_MD_BOLD.sub(r"<b>\1</b>", text_to_html(text)))
