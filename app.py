@@ -518,6 +518,7 @@ def yours():
                 team = next((m["from"].split("<")[0].strip(' "') for m in msgs if not m["is_me"]
                              and "@workspace6.io" in m["from"].lower()), None)  # a teammate looped her in
                 threads[tid] = {"msgs": gmail.with_earlier(msgs, 10), "earlier": max(0, len(msgs) - 10), "via": team,
+                                "plan": gmail.reply_plan(msgs),
                                 "link": gmail.open_link(msgs[-1]["msgid"]) if msgs[-1]["msgid"] else None}
             except Exception:
                 threads[tid] = None
@@ -724,7 +725,10 @@ def yours_reply(rid):
         flash("Nothing to send.")
         return redirect(url_for("yours"))
     try:
-        mid, to = gmail.reply(tid, text, body_html=text_html)
+        chosen = {}
+        if request.form.get("rcpt_set"):  # she used the "Sending to" chips; otherwise the default plan applies
+            chosen = {k: [x for x in (request.form.get(f"{k}_list") or "").split(",") if x.strip()] for k in ("to", "cc", "bcc")}
+        mid, to = gmail.reply(tid, text, body_html=text_html, **chosen)
     except Exception as ex:
         flash(f"Couldn't send that one: {ex}. Nothing went out; your text is below.")
         session["unsent_" + rid] = text

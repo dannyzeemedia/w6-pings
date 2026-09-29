@@ -190,34 +190,87 @@ def with_earlier(msgs, last=None):
     return pre + list(shown)
 
 
-def reply(tid, text, body_html=None):
-    """Reply in-thread to whoever last wrote to Karlie. Returns (message id, recipient)."""
+TEAM = "@workspace6.io"
+
+
+def reply_plan(msgs):
+    """Who a reply should go to, with a role each (to / cc / bcc / off), plus a note for Karlie when it moved
+    someone. Rules (Danny, 2026-09-29):
+      - A teammate (Sam) looped her in or forwarded a sponsor's email: the sponsor goes in To, the teammate
+        moves to Bcc so they see it's handled, and they drop out of the thread from the next reply on.
+      - Otherwise reply all, the way Gmail does: the sender in To, everyone else on the last email in Cc.
+      - Anyone else who's ever been in the thread is listed but switched off, one click from being added back."""
+    names, order = {}, []
+
+    def seen(name, addr):
+        a = (addr or "").lower().strip()
+        if a and a != ME and "@" in a:
+            if a not in names:
+                order.append(a)
+            if name and (not names.get(a) or names[a] == a):
+                names[a] = name.strip(' "')
+            names.setdefault(a, a)
+    for m in msgs:
+        for e in m.get("earlier") or []:
+            seen(e.get("from"), e.get("email"))
+        for n, a in getaddresses([m["from"], m["to"], m["cc"]]):
+            seen(n, a)
+    last_in = next((m for m in reversed(msgs) if not m["is_me"]), msgs[-1] if msgs else None)
+    role, note = {a: "off" for a in order}, None
+    if last_in:
+        sender = parseaddr(last_in["from"])[1].lower()
+        on_last = [a.lower() for _, a in getaddresses([last_in["from"], last_in["to"], last_in["cc"]]) if a and a.lower() != ME]
+        if last_in["is_me"]:
+            on_last = [a.lower() for _, a in getaddresses([last_in["to"], last_in["cc"]]) if a]
+        if sender.endswith(TEAM) and not last_in["is_me"]:
+            outside = [a for a in on_last if not a.endswith(TEAM)]
+            if not outside:  # a forward: the sponsor is only in the quoted emails
+                outside = [e["email"] for e in reversed(msgs[0].get("earlier") or []) if e.get("email") and not e["email"].endswith(TEAM)][:1]
+            if outside:
+                for a in outside:
+                    role[a] = "to"
+                for a in on_last:
+                    if a.endswith(TEAM):
+                        role[a] = "bcc"
+                who = names.get(sender, sender).split()[0]
+                note = (f"{who} looped you in, so {names.get(outside[0], outside[0]).split()[0]} is in To and {who} is on Bcc: "
+                        f"{who} sees it's handled and drops out of the thread after this. Change it below.")
+            else:
+                role[sender] = "to"
+        else:
+            if sender and sender != ME:
+                role[sender] = "to"
+            for a in on_last:
+                if role.get(a) == "off":
+                    role[a] = "cc" if role.get(sender) == "to" or a != on_last[0] else "to"
+    return {"people": [{"email": a, "name": names.get(a, a), "role": role[a], "team": a.endswith(TEAM)} for a in order],
+            "note": note}
+
+
+def reply(tid, text, body_html=None, to=None, cc=None, bcc=None):
+    """Reply in-thread. to/cc/bcc: lists of addresses Karlie chose on the page; left out = reply_plan's default.
+    Returns (message id, the To line)."""
     msgs = thread(tid)
     last_in = next((m for m in reversed(msgs) if not m["is_me"]), msgs[-1])
-    # reply all, the way Gmail does: everyone on the last email except Karlie. When a teammate copied her in
-    # (Sam looping her into a sponsor's thread), the sponsor is who she's answering, so they go in To.
-    everyone, seen = [], set()
-    for name, addr in getaddresses([last_in["from"], last_in["to"], last_in["cc"]]):
-        a_ = addr.lower()
-        if a_ and a_ != ME and a_ not in seen:
-            seen.add(a_)
-            everyone.append(a_)
-    if last_in["is_me"]:
-        everyone = [a_.lower() for _, a_ in getaddresses([last_in["to"]]) if a_] or everyone
-    ours = [a_ for a_ in everyone if a_.endswith("@workspace6.io")]
-    theirs = [a_ for a_ in everyone if a_ not in ours]
-    sender = parseaddr(last_in["from"])[1].lower()
-    if sender.endswith("@workspace6.io") and theirs:
-        to_list, cc_list = theirs, ours
-    else:
-        to_list, cc_list = [sender] if sender and sender != ME else everyone[:1], [a_ for a_ in everyone if a_ != sender]
-    to = ", ".join(to_list)
+    if to is None and cc is None and bcc is None:
+        plan = reply_plan(msgs)["people"]
+        to, cc, bcc = ([p["email"] for p in plan if p["role"] == r] for r in ("to", "cc", "bcc"))
+    clean = lambda xs: list(dict.fromkeys(a.strip().lower() for a in (xs or []) if a and "@" in a and a.strip().lower() != ME))
+    to, cc, bcc = clean(to), clean(cc), clean(bcc)
+    if not to and cc:
+        to, cc = cc[:1], cc[1:]
+    if not to and bcc:
+        to, bcc = bcc[:1], bcc[1:]
+    if not to:
+        raise ValueError("nobody to send it to")
     subj = last_in["subject"] or msgs[0]["subject"]
     msg = EmailMessage()
     msg["From"] = f"Karlie <{ME}>"
-    msg["To"] = to
-    if cc_list:
-        msg["Cc"] = ", ".join(cc_list)
+    msg["To"] = ", ".join(to)
+    if cc:
+        msg["Cc"] = ", ".join(cc)
+    if bcc:
+        msg["Bcc"] = ", ".join(bcc)  # Gmail delivers to these and strips the header from what everyone else sees
     msg["Subject"] = subj if subj.lower().startswith("re:") else f"Re: {subj}"
     if last_in["msgid"]:
         msg["In-Reply-To"] = last_in["msgid"]
@@ -229,7 +282,7 @@ def reply(tid, text, body_html=None):
     _tcache.pop(tid, None)
     r = requests.post(f"{API}/messages/send", headers=_h(), json={"raw": raw, "threadId": tid}, timeout=30)
     r.raise_for_status()
-    return r.json()["id"], to
+    return r.json()["id"], ", ".join(to)
 
 
 def mark_done(tid):

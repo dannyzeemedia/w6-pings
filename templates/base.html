@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=36" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=37" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -90,6 +90,49 @@ window.flipTheme=function(){
   document.querySelectorAll('textarea.grow').forEach(t=>t.addEventListener('input',()=>grow(t)));
   all(); requestAnimationFrame(all); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(all); window.addEventListener('load',all,{once:true});
   document.addEventListener('toggle',all,true);
+})();
+
+// "Sending to" chips on Your turn: everyone in the thread, each To / Cc / Bcc / off, plus anyone she adds.
+(function(){
+  document.querySelectorAll('[data-rcpts]:not([data-ready])').forEach(box=>{
+    box.dataset.ready='1';
+    const people=JSON.parse(box.querySelector('.rcpt-data').textContent||'[]');
+    const form=box.closest('form'), off=box.querySelector('.rcpt-off');
+    const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const first=p=>(p.name&&p.name!==p.email?p.name.split(' ')[0]:p.email.split('@')[0]);
+    function render(animEmail){
+      box.querySelectorAll('.rcpt-row').forEach(row=>{
+        const r=row.dataset.role, chips=row.querySelector('.rcpt-chips');
+        const ps=people.filter(p=>p.role===r);
+        row.classList.toggle('is-empty',!ps.length);
+        chips.innerHTML=ps.map(p=>`<span class="rcpt${p.team?' team':''}${p.email===animEmail?' pop':''}" data-e="${esc(p.email)}" title="${esc(p.email)}">
+          <b>${esc(p.name&&p.name!==p.email?p.name:p.email)}</b>${p.name&&p.name!==p.email?`<i>${esc(p.email)}</i>`:''}
+          <span class="rcpt-seg">${['to','cc','bcc'].map(x=>`<button type="button" data-set="${x}" class="${x===r?'on':''}">${x==='bcc'?'Bcc':x==='cc'?'Cc':'To'}</button>`).join('')}</span>
+          <button type="button" class="rcpt-x" data-set="off" aria-label="Take ${esc(first(p))} off">×</button></span>`).join('')||'<span class="muted tiny">nobody</span>';
+      });
+      const offs=people.filter(p=>p.role==='off');
+      off.innerHTML=offs.length?offs.map(p=>`<button type="button" class="rcpt-offchip" data-e="${esc(p.email)}" data-set="cc" title="Add ${esc(p.email)} (Cc)">+ ${esc(p.name&&p.name!==p.email?p.name:p.email)}</button>`).join(''):'<span class="muted tiny">nobody else</span>';
+      for(const r of ['to','cc','bcc']) form.querySelector(`[name=${r}_list]`).value=people.filter(p=>p.role===r).map(p=>p.email).join(',');
+    }
+    box.addEventListener('click',e=>{
+      const b=e.target.closest('[data-set]'); if(!b) return;
+      const em=(b.closest('[data-e]')||b).dataset.e, p=people.find(x=>x.email===em); if(!p) return;
+      p.role=b.dataset.set; form.querySelector('[name=rcpt_set]').value='1';
+      const note=box.querySelector('.rcpts-note'); if(note) note.classList.add('changed');
+      render(em);
+    });
+    const inp=box.querySelector('.rcpt-add input'), add=()=>{
+      const v=inp.value.trim().toLowerCase(); if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){ inp.classList.add('bad'); return; }
+      inp.classList.remove('bad'); const p=people.find(x=>x.email===v);
+      if(p) p.role=p.role==='off'?'cc':p.role; else people.push({email:v,name:v,role:'cc',team:v.endsWith('@workspace6.io')});
+      inp.value=''; form.querySelector('[name=rcpt_set]').value='1'; render(v);
+    };
+    box.querySelector('.rcpt-add button').addEventListener('click',add);
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); add(); } });
+    form.addEventListener('submit',e=>{ if(!people.some(p=>p.role==='to')&&!people.some(p=>p.role==='cc')){ e.preventDefault(); if(window.toast) toast('✋','Nobody to send it to','Put at least one person in To.',''); } });
+    render();
+  });
+  if(!window.__rcptCache){ window.__rcptCache=true; document.addEventListener('turbo:before-cache',()=>document.querySelectorAll('[data-rcpts]').forEach(b=>b.removeAttribute('data-ready'))); }
 })();
 
 // Email editor: Gmail-style formatting (bold, lists, links, colour, emoji...) that stays in the W6 look.
