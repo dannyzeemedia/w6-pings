@@ -40,7 +40,7 @@
     <div class="pingbar-label" id="pingbar-label">{{ pings_today or 0 }} of {{ goal }} pings today{% if (pings_today or 0) >= goal %} 🎉{% endif %}</div>
   </div>
   {% if week_goal %}
-  <div class="pingbar week" id="weekbar" data-n="{{ week_n or 0 }}" data-goal="{{ week_goal }}" title="Pings you've actioned this week (Monday to Sunday). The goal adds up each weekday's daily goal.">
+  <div class="pingbar week" id="weekbar" data-n="{{ week_n or 0 }}" data-goal="{{ week_goal }}" data-days-left="{{ week_days_left }}" title="Pings you've actioned this week (Monday to Sunday). The goal adds up each weekday's daily goal.">
     <div class="pingbar-track"><div class="pingbar-fill" id="weekbar-fill" style="width:{{ [100, (100 * (week_n or 0) / week_goal)|round|int]|min }}%"></div></div>
     <div class="pingbar-label" id="weekbar-label">{{ week_n or 0 }} of {{ week_goal }} this week{% if (week_n or 0) >= week_goal %} 🏆{% endif %}</div>
   </div>
@@ -391,6 +391,21 @@ window.weekParty=function(n,goal){
   const colors=['#265c51','#bee1de','#e2dbbe','#c9a227','#ffffff'];
   [0,250,500].forEach((t,i)=>setTimeout(()=>confetti({particleCount:90,spread:100+i*20,startVelocity:38,origin:{x:[.25,.75,.5][i],y:.1},colors,scalar:1}),t));
   if(window.toast) setTimeout(()=>toast('🏆','Weekly goal hit!','All '+goal+' pings for the week. The weekend is officially earned.'),900);
+};
+// The daily goal changed (Today page + / -): move both bars now. The weekly goal counts today's goal for today
+// and every weekday still to come, so it shifts by the change times the weekdays left.
+window.setGoal=function(goal, exact){
+  const b=document.getElementById('pingbar'), w=document.getElementById('weekbar'); if(!b) return;
+  const old=+b.dataset.goal, n=+b.dataset.n;
+  if(w){ const wg=exact&&exact.week_goal!=null?exact.week_goal:Math.max(0,(+w.dataset.goal)+(goal-old)*(+w.dataset.daysLeft||0));
+    const wn=exact&&exact.week_n!=null?exact.week_n:+w.dataset.n; w.dataset.goal=wg; w.dataset.n=wn;
+    document.getElementById('weekbar-fill').style.width=(wg?Math.min(100,Math.round(100*wn/wg)):0)+'%';
+    document.getElementById('weekbar-label').textContent=wn+' of '+wg+' this week'+(wg&&wn>=wg?' 🏆':'');
+    w.classList.toggle('done',wg>0&&wn>=wg); }
+  b.dataset.goal=goal;
+  document.getElementById('pingbar-fill').style.width=(goal?Math.min(100,Math.round(100*n/goal)):0)+'%';
+  document.getElementById('pingbar-label').textContent=n+' of '+goal+' pings today'+(goal&&n>=goal?' 🎉':'');
+  b.classList.toggle('done',goal>0&&n>=goal);
 };
 window.updatePingBar=function(n,goal){
   const b=document.getElementById('pingbar'); if(!b) return;

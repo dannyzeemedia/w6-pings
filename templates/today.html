@@ -220,10 +220,12 @@ window.nextQuote=function(){ qi=pickQuote(); showQuote(); }
 showQuote();
 
 var tmr;
-window.step=function(n){ const i=document.getElementById('limit'); i.value=Math.max(0,Math.min(200,(+i.value||0)+n)); document.getElementById('limit-show').textContent=i.value; window.renderGoal&&renderGoal(+i.value); clearTimeout(tmr); tmr=setTimeout(saveLimit,600); }
-window.saveLimit=function(){ const i=document.getElementById('limit'); document.getElementById('limit-show').textContent=i.value; window.renderGoal&&renderGoal(+i.value);
-  fetch("{{ url_for('quick_settings') }}",{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'limit='+encodeURIComponent(i.value)})
-    .then(r=>{ const s=document.getElementById('saved'); s.textContent=r.ok?'Saved':'Not saved, try again'; s.classList.add('show'); setTimeout(()=>s.classList.remove('show'),1600); }); }
+window.step=function(n){ const i=document.getElementById('limit'); i.value=Math.max(0,Math.min(200,(+i.value||0)+n)); document.getElementById('limit-show').textContent=i.value; window.renderGoal&&renderGoal(+i.value); window.setGoal&&setGoal(+i.value); clearTimeout(tmr); tmr=setTimeout(saveLimit,600); }
+window.saveLimit=function(){ const i=document.getElementById('limit'); document.getElementById('limit-show').textContent=i.value; window.renderGoal&&renderGoal(+i.value); window.setGoal&&setGoal(+i.value);
+  fetch("{{ url_for('quick_settings') }}",{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Fetch':'1'},body:'limit='+encodeURIComponent(i.value)})
+    .then(r=>r.ok?r.json():Promise.reject()).then(j=>{ window.setGoal&&setGoal(j.goal,j);   // the server's exact numbers
+      const s=document.getElementById('saved'); s.textContent='Saved'; s.classList.add('show'); setTimeout(()=>s.classList.remove('show'),1600); })
+    .catch(()=>{ const s=document.getElementById('saved'); s.textContent='Not saved, try again'; s.classList.add('show'); setTimeout(()=>s.classList.remove('show'),2400); }); }
 
 })();
 </script>

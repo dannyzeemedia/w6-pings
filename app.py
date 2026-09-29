@@ -132,7 +132,7 @@ def inject():
             pass
     return {"user": session.get("user"), "zone_label": ZONE_LABEL, "n_to_approve": n, "more_pending": mp, "n_yours": ny,
             "version": VERSION, "pings_today": pa, "goal": goal, "autopilot_nudge": nudge,
-            "week_n": wk_n, "week_goal": wk_goal}
+            "week_n": wk_n, "week_goal": wk_goal, "week_days_left": max(0, 5 - dt.datetime.now(BRIS).weekday())}
 
 
 def actions_today():
@@ -310,6 +310,10 @@ def quick_settings():
         fields["Paused"] = request.form["paused"] == "1"
     if fields:
         at.update("settings", s["id"], fields)
+    if request.headers.get("X-Fetch") == "1":  # the Today page's goal box: send back the numbers the bars show
+        sf = at.settings()["fields"]
+        wn, wg = week_progress(sf)
+        return {"ok": True, "goal": int(sf.get("Daily Ping Limit") or 0), "pings_today": actions_today(), "week_n": wn, "week_goal": wg}
     return redirect(url_for("today"))
 
 
