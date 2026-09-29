@@ -119,16 +119,20 @@ def inject():
             ny = len(at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}))", fields=["Event"]))
         except Exception:
             ny = None
-    pa, goal, nudge = None, 0, False
+    pa, goal, nudge, wk_n, wk_goal = None, 0, False, 0, 0
     if session.get("user") and request.endpoint not in ("login", "healthz", "static"):
         try:
             sf = at.settings()["fields"]
             pa, goal = actions_today(), int(sf.get("Daily Ping Limit") or 0)
+            wk_n, wk_goal = week_progress(sf)
+            if dt.datetime.now(BRIS).date().isoformat() not in _goal_history(sf):
+                record_goal(goal, sf, at.settings()["id"])  # first visit of the day notes the day's goal
             nudge = session.get("user") == "karlie" and bool(sf.get("Autopilot Nudge Sent")) and not sf.get("Autopilot Nudge Seen")
         except Exception:
             pass
     return {"user": session.get("user"), "zone_label": ZONE_LABEL, "n_to_approve": n, "more_pending": mp, "n_yours": ny,
-            "version": VERSION, "pings_today": pa, "goal": goal, "autopilot_nudge": nudge}
+            "version": VERSION, "pings_today": pa, "goal": goal, "autopilot_nudge": nudge,
+            "week_n": wk_n, "week_goal": wk_goal}
 
 
 def actions_today():
@@ -138,6 +142,51 @@ def actions_today():
     approved = at.list_records("drafts", f"AND(IS_AFTER({{Decided At}}, '{since}'), OR({{Status}}='Approved', {{Status}}='Sent'), NOT({{Written By Karlie}}), {{Kind}}!='Reply')", fields=["Decided At"])
     replies = at.list_records("log", f"AND({{Event}}='Sent', {{By}}='Karlie', IS_AFTER({{At}}, '{since}'))", fields=["At"])
     return len(approved) + len(replies)
+
+
+def actions_between(start):
+    """Karlie's actions since `start` (a Brisbane datetime): drafts she approved + emails she sent herself."""
+    since = iso(start)
+    approved = at.list_records("drafts", f"AND(IS_AFTER({{Decided At}}, '{since}'), OR({{Status}}='Approved', {{Status}}='Sent'), NOT({{Written By Karlie}}), {{Kind}}!='Reply')", fields=["Decided At"])
+    replies = at.list_records("log", f"AND({{Event}}='Sent', {{By}}='Karlie', IS_AFTER({{At}}, '{since}'))", fields=["At"])
+    return len(approved) + len(replies)
+
+
+def _goal_history(sf):
+    try:
+        return json.loads(sf.get("Goal History") or "{}")
+    except ValueError:
+        return {}
+
+
+def record_goal(new_goal, sf=None, rid=None):
+    """Remember the daily goal as it stands now; the last value set on a day is that day's goal."""
+    if sf is None:
+        rec = at.settings(); sf, rid = rec["fields"], rec["id"]
+    h = _goal_history(sf)
+    today = dt.datetime.now(BRIS).date().isoformat()
+    if h.get(today) != new_goal:
+        h[today] = new_goal
+        at.update("settings", rid, {"Goal History": json.dumps(dict(sorted(h.items())[-120:]))})
+
+
+def week_progress(sf):
+    """(actions this week, weekly goal). Her week runs Monday to Sunday, Brisbane time. The goal adds up the
+    daily goal for Monday to Friday: each past day's goal as it stood at the end of that day, and today's goal
+    for today and the days still to come. Weekend actions count toward the week."""
+    now = dt.datetime.now(BRIS)
+    monday = (now - dt.timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    current = int(sf.get("Daily Ping Limit") or 0)
+    h = _goal_history(sf)
+    goal = 0
+    for i in range(5):
+        day = (monday + dt.timedelta(days=i)).date()
+        if day >= now.date():
+            goal += current
+        else:
+            known = [v for k, v in h.items() if k <= day.isoformat()]
+            goal += int(known[-1]) if known else current
+    return actions_between(monday), goal
 
 
 def _norm(t):
@@ -254,6 +303,7 @@ def quick_settings():
     if "limit" in request.form:
         try:
             fields["Daily Ping Limit"] = max(0, min(200, int(request.form["limit"] or 0)))
+            record_goal(fields["Daily Ping Limit"], s["fields"], s["id"])
         except ValueError:
             pass
     if "paused" in request.form:
@@ -784,6 +834,8 @@ def rules():
         fields["Approval Mode"] = fm.get("Approval Mode") if fm.get("Approval Mode") in MODES else "Approve Every Draft"
         fields["Notes"] = fm.get("Notes", "")
         at.update("settings", s["id"], fields)
+        if fields.get("Daily Ping Limit") is not None:
+            record_goal(fields["Daily Ping Limit"])
         flash("Rules saved.")
         return redirect(url_for("rules"))
     lessons = at.list_records("lessons", sort=[("Learned At", "desc")], max_records=60)

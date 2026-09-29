@@ -763,3 +763,10 @@ details.rcpts .hint { padding-left: 74px; }
 /* a logo that's a solid square tile: the chip wears the tile's colour and the icon fills it, so it reads as one rounded app icon */
 .brand-chip.tile { background: var(--tile); border-color: color-mix(in srgb, var(--tile) 80%, #000); }
 .brand-chip.tile img { width: 100%; height: 100%; object-fit: cover; }
+
+/* weekly bar: sits under the daily one, a little slimmer */
+.pingbar.week { padding-top: 0; margin-top: -2px; }
+.pingbar.week .pingbar-track { height: 4px; }
+.pingbar.week .pingbar-label { font-weight: 500; color: var(--ink-2); }
+.pingbar.week.done .pingbar-label { color: var(--green); font-weight: 600; }
+.pingbar .pingbar-label { min-width: 150px; text-align: right; }

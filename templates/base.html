@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=39" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=40" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -39,6 +39,12 @@
     <div class="pingbar-track"><div class="pingbar-fill" id="pingbar-fill" style="width:{{ [100, (100 * (pings_today or 0) / goal)|round|int]|min }}%"></div></div>
     <div class="pingbar-label" id="pingbar-label">{{ pings_today or 0 }} of {{ goal }} pings today{% if (pings_today or 0) >= goal %} 🎉{% endif %}</div>
   </div>
+  {% if week_goal %}
+  <div class="pingbar week" id="weekbar" data-n="{{ week_n or 0 }}" data-goal="{{ week_goal }}" title="Pings you've actioned this week (Monday to Sunday). The goal adds up each weekday's daily goal.">
+    <div class="pingbar-track"><div class="pingbar-fill" id="weekbar-fill" style="width:{{ [100, (100 * (week_n or 0) / week_goal)|round|int]|min }}%"></div></div>
+    <div class="pingbar-label" id="weekbar-label">{{ week_n or 0 }} of {{ week_goal }} this week{% if (week_n or 0) >= week_goal %} 🏆{% endif %}</div>
+  </div>
+  {% endif %}
   {% endif %}
 </header>
 <main class="wrap">
@@ -377,14 +383,30 @@ window.goalParty=function(n,goal){
   setTimeout(()=>confetti({particleCount:60,spread:130,startVelocity:24,origin:{x:.5,y:.1},colors,scalar:.8}),260);
   if(window.toast) toast(n>goal?'🔥':'🎉', n>goal?'Overachiever!':'Daily goal hit!', n>goal?('That\'s '+(n-goal)+' over your goal. Unstoppable.'):('All '+goal+' pings done today. Go have a coffee.'));
 };
+window.weekParty=function(n,goal){
+  if(!goal||n<goal||!window.confetti||matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const d=new Date(), mon=new Date(d); mon.setDate(d.getDate()-((d.getDay()+6)%7));
+  const key='week-party-'+mon.toDateString()+'-'+goal;
+  try{ if(localStorage.getItem(key)) return; localStorage.setItem(key,'1'); }catch(e){}
+  const colors=['#265c51','#bee1de','#e2dbbe','#c9a227','#ffffff'];
+  [0,250,500].forEach((t,i)=>setTimeout(()=>confetti({particleCount:90,spread:100+i*20,startVelocity:38,origin:{x:[.25,.75,.5][i],y:.1},colors,scalar:1}),t));
+  if(window.toast) setTimeout(()=>toast('🏆','Weekly goal hit!','All '+goal+' pings for the week. The weekend is officially earned.'),900);
+};
 window.updatePingBar=function(n,goal){
   const b=document.getElementById('pingbar'); if(!b) return;
+  const w=document.getElementById('weekbar');
+  if(w){ const wn=Math.max(0,(+w.dataset.n)+(n-(+b.dataset.n))), wg=+w.dataset.goal; w.dataset.n=wn;
+    document.getElementById('weekbar-fill').style.width=Math.min(100,Math.round(100*wn/wg))+'%';
+    document.getElementById('weekbar-label').textContent=wn+' of '+wg+' this week'+(wn>=wg?' 🏆':'');
+    w.classList.toggle('done',wn>=wg); if(wn>=wg){ w.classList.remove('bump'); void w.offsetWidth; w.classList.add('bump'); setTimeout(()=>weekParty(wn,wg),1400); } }
   goal=goal||+b.dataset.goal; b.dataset.n=n; b.dataset.goal=goal;
   document.getElementById('pingbar-fill').style.width=Math.min(100,Math.round(100*n/goal))+'%';
   document.getElementById('pingbar-label').textContent=n+' of '+goal+' pings today'+(n>=goal?' 🎉':'');
   b.classList.toggle('done',n>=goal); if(n>=goal){ b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
   goalParty(n,goal);
 };
+(function(){ const w=document.getElementById('weekbar'); if(w){ w.classList.toggle('done',+w.dataset.n>=+w.dataset.goal);
+  const go=()=>weekParty(+w.dataset.n,+w.dataset.goal); if(window.confetti) setTimeout(go,1500); else setTimeout(()=>window.confetti&&go(),2500); } })();
 (function(){ const b=document.getElementById('pingbar'); if(b){ b.classList.toggle('done',+b.dataset.n>=+b.dataset.goal);
   if(!window.confetti){ const sc=document.createElement('script'); sc.src='https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js'; sc.onload=()=>goalParty(+b.dataset.n,+b.dataset.goal); document.head.appendChild(sc); }
   else goalParty(+b.dataset.n,+b.dataset.goal); } })();
