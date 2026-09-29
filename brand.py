@@ -135,6 +135,31 @@ def logo_is_light(url):
         return None
 
 
+def logo_tile_color(url):
+    """'#rrggbb' when a logo is a solid square tile (its corners are opaque and the same colour), so the chip can
+    wear that colour and the icon reads as a rounded app icon. None for logos on a transparent background."""
+    if not url or url.startswith("data:image/svg") or url.lower().split("?")[0].endswith(".svg"):
+        return None
+    try:
+        from PIL import Image
+        import io
+        im = Image.open(io.BytesIO(requests.get(url, headers=UA, timeout=8).content)).convert("RGBA")
+        im.thumbnail((96, 96))
+        w, h = im.size
+        k = max(1, min(w, h) // 12)
+        pts = [(x, y) for cx, cy in ((k, k), (w - 1 - k, k), (k, h - 1 - k), (w - 1 - k, h - 1 - k))
+               for x in (cx - 1, cx, cx + 1) for y in (cy - 1, cy, cy + 1) if 0 <= x < w and 0 <= y < h]
+        px = [im.getpixel(p) for p in pts]
+        if any(p[3] < 240 for p in px):
+            return None
+        r, g, b = (sum(p[i] for p in px) // len(px) for i in range(3))
+        if max(max(abs(p[i] - c) for i, c in enumerate((r, g, b))) for p in px) > 28:
+            return None  # corners disagree: a photo or a busy image, not a flat tile
+        return f"#{r:02x}{g:02x}{b:02x}"
+    except Exception:
+        return None
+
+
 def enrich_partner(pid):
     """Look the brand up once (or monthly) and cache it on the Partners row."""
     f = at.get("partners", pid)["fields"]
@@ -154,6 +179,7 @@ def enrich_partner(pid):
         if logo:
             fields["🤖 Logo URL"] = logo
             fields["🤖 Logo On Dark"] = bool(logo_is_light(logo))
+            fields["🤖 Logo Bg"] = logo_tile_color(logo) or ""
         if desc:
             fields["🤖 What They Do"] = desc
         if not f.get("Website"):
@@ -171,11 +197,12 @@ def for_partners(pids):
         return {}
     formula = "OR(" + ",".join(f"RECORD_ID()='{i}'" for i in pids[:90]) + ")"
     out = {}
-    for r in at.list_records("partners", formula, fields=["Name", "Website", "🤖 Logo URL", "🤖 What They Do", "🤖 Logo On Dark"]):
+    for r in at.list_records("partners", formula, fields=["Name", "Website", "🤖 Logo URL", "🤖 What They Do", "🤖 Logo On Dark", "🤖 Logo Bg"]):
         f = r["fields"]
         dom = domain_from(f.get("Website"))
         out[r["id"]] = {"name": f.get("Name"), "logo": f.get("🤖 Logo URL") or favicon(dom), "desc": f.get("🤖 What They Do"),
                         "dark": bool(f.get("🤖 Logo On Dark") and f.get("🤖 Logo URL")),
+                        "bg": f.get("🤖 Logo Bg") if f.get("🤖 Logo URL") else None,
                         "website": f.get("Website") or (f"https://{dom}" if dom else None), "domain": dom}
     return out
 

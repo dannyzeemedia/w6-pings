@@ -710,17 +710,28 @@ details.act-item > summary::-webkit-details-marker { display: none; }
 /* light logos (white on transparent, made for dark tabs) sit on a W6-green chip so they don't vanish */
 .brand-chip.on-dark { background: #265c51; border-color: #265c51; }
 
-/* Your turn: "Sending to" */
-.rcpts { border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--card); padding: 12px 14px; margin-bottom: 14px; display: grid; gap: 8px; }
-.rcpts-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
-.rcpts-head label { font-weight: 600; color: var(--green); margin: 0; }
+/* Your turn: "Sending to" (folded to one summary line; open it to change who gets the reply) */
+details.rcpts { border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--card); margin-bottom: 14px; }
+details.rcpts > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 11px 14px; }
+details.rcpts > summary::before { content: "›"; display: inline-block; width: 1em; color: var(--ink-2); transition: transform .25s cubic-bezier(.3,.8,.2,1); }
+details.rcpts.dx-open > summary::before { transform: rotate(90deg); }
+.rcpts-title { font-weight: 600; color: var(--green); }
+.rcpt-summary { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 14px; }
+.rcpt-summary .rs em { font-style: normal; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-2); margin-right: 2px; }
+.rcpt-summary .rs.bad { color: var(--red); }
+.rs-dot { color: var(--ink-2); }
+.rcpt-flag { font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: var(--amber-bg); border: 1px solid var(--amber-line); color: #6b4e00; }
+.rcpt-edit { margin-left: auto; }
+details.rcpts.dx-open .rcpt-edit { visibility: hidden; }
+details.rcpts > .dx > .dx-in { display: grid; gap: 10px; padding: 0 14px 14px; }
 .rcpts-note { background: var(--amber-bg); border: 1px solid var(--amber-line); border-radius: 10px; padding: 8px 12px; font-size: 13.5px; transition: opacity .3s; }
 .rcpts-note.changed { opacity: .55; }
-.rcpt-rows { display: grid; gap: 6px; }
-.rcpt-row { display: grid; grid-template-columns: 38px 1fr; gap: 8px; align-items: center; }
+.rcpt-rows { display: grid; gap: 8px; }
+.rcpt-row { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: center; min-height: 34px; }
 .rcpt-row.is-empty { opacity: .6; }
-.rcpt-label { font-size: 12px; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: .05em; }
-.rcpt-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rcpt-others { padding-top: 8px; border-top: 1px dashed var(--line); }
+.rcpt-label { font-size: 11.5px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .05em; }
+.rcpt-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 30px; }
 .rcpt { display: inline-flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; border-radius: 99px; background: var(--mint-2); border: 1px solid var(--mint); font-size: 13.5px; }
 .rcpt.team { background: color-mix(in srgb, #e2dbbe 45%, var(--card)); border-color: #e2dbbe; }
 .rcpt.pop { animation: pop-in .3s cubic-bezier(.2,.7,.2,1) both; }
@@ -731,11 +742,24 @@ details.act-item > summary::-webkit-details-marker { display: none; }
 .rcpt-seg button.on { background: var(--green); color: var(--on-green); }
 .rcpt-x { font-size: 16px; line-height: 1; padding: 2px 8px; }
 .rcpt-x:hover { color: var(--red); }
-.rcpt-off-wrap { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 4px; border-top: 1px dashed var(--line); }
-.rcpt-offchip { all: unset; cursor: pointer; font-size: 12.5px; padding: 3px 10px; border-radius: 99px; border: 1px dashed var(--line); color: var(--ink-2); transition: border-color .15s, color .15s; }
+.rcpt-offchip { all: unset; cursor: pointer; font-size: 13px; padding: 4px 12px; border-radius: 99px; border: 1px dashed var(--line); color: var(--ink-2); transition: border-color .15s, color .15s; }
 .rcpt-offchip:hover { border-color: var(--green); color: var(--green); }
-.rcpt-add { display: inline-flex; gap: 6px; margin-left: auto; }
-.rcpt-add input { width: 220px; padding: 6px 10px; font-size: 13px; }
-.rcpt-add input.bad { border-color: var(--red); }
-@media (max-width: 640px) { .rcpt-add { margin-left: 0; width: 100%; } .rcpt-add input { flex: 1; width: auto; } }
+.rcpt-add { display: flex; gap: 8px; align-items: center; padding-left: 74px; }
+.rcpt-add input { flex: 1; max-width: 380px; height: 38px; padding: 0 14px; border-radius: 99px; font-size: 14px; }
+.rcpt-add button { height: 38px; padding: 0 18px; }
+.rcpt-add input.bad { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-bg); }
+details.rcpts .hint { padding-left: 74px; }
+@media (max-width: 640px) { .rcpt-add, details.rcpts .hint { padding-left: 0; } .rcpt-add input { max-width: none; } .rcpt-row { grid-template-columns: 1fr; gap: 4px; } }
 @media (max-width: 640px) { .rcpt i { display: none; } .rcpt { padding-left: 10px; } }
+/* the site-wide green button hover must not leak into the recipient chips */
+.rcpt-seg button:hover { background: var(--mint-2); color: var(--green); }
+.rcpt-seg button.on, .rcpt-seg button.on:hover { background: var(--green); color: var(--on-green); }
+.rcpt .rcpt-x:hover { background: var(--red-bg); color: var(--red); }
+.rcpt-offchip:hover { background: var(--mint-2); }
+.rcpt-add button.ghost:hover { background: var(--mint-2); }
+.rcpt-add input { border: 1px solid var(--line); background: var(--field); color: var(--ink); font-family: Inter, system-ui, sans-serif; outline: none; transition: border-color .15s, box-shadow .15s; }
+.rcpt-add input:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--mint-2); }
+
+/* a logo that's a solid square tile: the chip wears the tile's colour and the icon fills it, so it reads as one rounded app icon */
+.brand-chip.tile { background: var(--tile); border-color: color-mix(in srgb, var(--tile) 80%, #000); }
+.brand-chip.tile img { width: 100%; height: 100%; object-fit: cover; }

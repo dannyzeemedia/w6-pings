@@ -27,18 +27,20 @@
     </div>
     <form method="post" action="{{ url_for('yours_reply', rid=e.id) }}" class="draft {{ 'remixing' if f.get('Remix Request') }}" id="d-{{ e.id }}" data-autosave="{{ url_for('yours_save', rid=e.id) }}">
       {% set plan = th.plan %}
-      <div class="rcpts" data-rcpts>
-        <div class="rcpts-head"><label>Sending to</label>
-          <span class="muted tiny">Click a person's To / Cc / Bcc to move them, × to take them off.</span></div>
+      <details class="rcpts" data-rcpts>
+        <summary><span class="rcpts-title">Sending to</span> <span class="rcpt-summary"></span>
+          <span class="rcpt-flag" hidden></span>
+          <span class="rcpt-edit muted tiny">Change</span></summary>
         {% if plan.note %}<div class="rcpts-note">🙈 {{ plan.note }}</div>{% endif %}
         <div class="rcpt-rows">
           {% for r in ('to', 'cc', 'bcc') %}<div class="rcpt-row" data-role="{{ r }}"><span class="rcpt-label">{{ r|title }}</span><div class="rcpt-chips"></div></div>{% endfor %}
+          <div class="rcpt-row rcpt-others"><span class="rcpt-label">Others</span><div class="rcpt-chips rcpt-off"></div></div>
         </div>
-        <div class="rcpt-off-wrap"><span class="muted tiny">Also in this thread:</span> <span class="rcpt-off"></span>
-          <span class="rcpt-add"><input type="email" placeholder="Add someone's email" aria-label="Add someone" autocomplete="off"><button type="button" class="ghost small">Add</button></span></div>
+        <div class="rcpt-add"><input type="email" placeholder="Add someone's email" aria-label="Add someone" autocomplete="off"><button type="button" class="ghost small">Add</button></div>
+        <div class="hint" style="margin:0">Click To / Cc / Bcc on a person to move them, × to take them off. "Others" have been in this thread but aren't on this reply: click one to add them back.</div>
         <script type="application/json" class="rcpt-data">{{ plan.people|tojson }}</script>
         <input type="hidden" name="rcpt_set" value=""><input type="hidden" name="to_list"><input type="hidden" name="cc_list"><input type="hidden" name="bcc_list">
-      </div>
+      </details>
       <div class="email-zone">
         <div class="field"><label>{{ 'Suggested reply' if f.get('Suggested Reply') else 'Your reply' }} {% if f.get('Suggested Reply') %}<span class="muted tiny">(written in your voice, change anything)</span>{% endif %}</label>
           {{ rte(f.get('Suggested Reply', ''), f.get('Suggested Reply HTML'), 'Write it like you normally would. It goes from your inbox, in this same thread.') }}

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=37" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=39" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -112,10 +112,16 @@ window.flipTheme=function(){
       });
       const offs=people.filter(p=>p.role==='off');
       off.innerHTML=offs.length?offs.map(p=>`<button type="button" class="rcpt-offchip" data-e="${esc(p.email)}" data-set="cc" title="Add ${esc(p.email)} (Cc)">+ ${esc(p.name&&p.name!==p.email?p.name:p.email)}</button>`).join(''):'<span class="muted tiny">nobody else</span>';
+      // the one-line summary on the folded panel
+      const nm=p=>esc(p.name&&p.name!==p.email?p.name:p.email);
+      const part=(r,label)=>{ const ps=people.filter(p=>p.role===r); return ps.length?`<span class="rs"><em>${label}</em> ${ps.map(nm).join(', ')}</span>`:''; };
+      const bt=people.filter(p=>p.role==='bcc'&&p.team), flag=box.querySelector('.rcpt-flag');
+      if(flag){ flag.hidden=!bt.length; flag.textContent=bt.length?'Bcc\'d '+bt.map(first).join(' & '):''; }
+      box.querySelector('.rcpt-summary').innerHTML=[part('to','To'),part('cc','Cc'),part('bcc','Bcc')].filter(Boolean).join('<span class="rs-dot">·</span>')||'<span class="rs bad">nobody yet</span>';
       for(const r of ['to','cc','bcc']) form.querySelector(`[name=${r}_list]`).value=people.filter(p=>p.role===r).map(p=>p.email).join(',');
     }
     box.addEventListener('click',e=>{
-      const b=e.target.closest('[data-set]'); if(!b) return;
+      const b=e.target.closest('[data-set]'); if(!b||b.closest('summary')) return;
       const em=(b.closest('[data-e]')||b).dataset.e, p=people.find(x=>x.email===em); if(!p) return;
       p.role=b.dataset.set; form.querySelector('[name=rcpt_set]').value='1';
       const note=box.querySelector('.rcpts-note'); if(note) note.classList.add('changed');
