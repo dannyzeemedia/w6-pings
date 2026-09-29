@@ -1086,11 +1086,14 @@ def results():
     ev = at.list_records("log", f"IS_AFTER({{At}}, '{since}')", sort=[("At", "desc")])
     now = dt.datetime.now(BRIS)
     at_of = lambda e: parse_ts(e["fields"].get("At") or "1970-01-01T00:00:00Z")
+    # weeks run Monday to Sunday on US Eastern time, the same as the Leadership Scorecard, so the two always agree
+    et = ZoneInfo("America/New_York")
+    now_et = dt.datetime.now(et)
     weeks = []
     for w in range(7, -1, -1):
-        start = (now - dt.timedelta(days=now.weekday() + 7 * w)).replace(hour=0, minute=0, second=0, microsecond=0)
+        start = (now_et - dt.timedelta(days=now_et.weekday() + 7 * w)).replace(hour=0, minute=0, second=0, microsecond=0)
         end = start + dt.timedelta(days=7)
-        inw = [e for e in ev if start <= at_of(e).astimezone(BRIS) < end]
+        inw = [e for e in ev if start <= at_of(e).astimezone(et) < end]
         weeks.append({"label": start.strftime("%-d %b"),
                       "sent": sum(e["fields"].get("Event") == "Sent" for e in inw),
                       "replied": sum(e["fields"].get("Event") == "Replied" for e in inw)})
