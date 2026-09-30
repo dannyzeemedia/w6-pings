@@ -862,7 +862,17 @@ class OpsLog:
             self._rollup_usage(ended)
         if self.job_rec:
             patch = {"Last Status": status}
-            if status in ("Success", "Partial"):
+            # QC-003: "Partial" used to advance Last Success, so a run in which
+            # every client was skipped and NOTHING was done still moved the
+            # job's last-known-good timestamp forward. A no-work run must not
+            # imply completed business work. Last Success now means exactly
+            # what it says: a run that finished with nothing wrong.
+            #
+            # A job that habitually finishes Partial will now show as not
+            # recently successful. That is the honest reading of Partial, and
+            # if it produces noise the fix is for that job to stop warning on
+            # its normal path, not for this to keep pretending.
+            if status == "Success":
                 patch["Last Success"] = _iso(ended)
             self.at.update(T_JOBS, self.job_rec, patch)
         _say(f"run {status.lower()} in {dur}s "
