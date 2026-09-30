@@ -36,6 +36,19 @@ MODES = {
 APPROVE_AHEAD_DAYS = 2  # scheduled pings show up for approval this many days before they're due
 
 
+@app.after_request
+def _no_search_engines(resp):
+    # private tool: never in search results, never followed, never cached by search engines
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
+    return resp
+
+
+@app.get("/robots.txt")
+def robots_txt():
+    from flask import Response
+    return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
+
+
 @app.before_request
 def _freshness():
     # pages may show the saved copy while it refreshes; the engine (sending, brain) always reads fresh
