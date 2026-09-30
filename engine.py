@@ -1243,7 +1243,7 @@ def apply(payload):
         done["events"] += 1
     for c in payload.get("new_contacts", []):
         if c.get("email") and c["email"].lower() not in w.by_email:
-            at.create("contacts", {"Email": c["email"].lower(), "Name": c.get("name"), "Title": c.get("title"), "Status": "Active",
+            w.by_email[c["email"].lower()] = at.create("contacts", {"Email": c["email"].lower(), "Name": c.get("name"), "Title": c.get("title"), "Status": "Active",
                                    "Source": c.get("source") or "Referral", "Referred By": c.get("referred_by"),
                                    **({"Partner": [c["partner_id"]]} if c.get("partner_id") else {}),
                                    **({"Time Zone": c["time_zone"]} if c.get("time_zone") else {})})
