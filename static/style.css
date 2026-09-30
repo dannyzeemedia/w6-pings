@@ -774,3 +774,14 @@ details.rcpts .hint { padding-left: 74px; }
 .pingbar.week .pingbar-label { font-weight: 500; color: var(--ink-2); }
 .pingbar.week.done .pingbar-label { color: var(--green); font-weight: 600; }
 .pingbar .pingbar-label { min-width: 150px; text-align: right; }
+
+/* weekly bar: same thickness as the daily one, in W6's sand instead of green */
+.pingbar.week .pingbar-track { height: 6px; background: color-mix(in srgb, #e2dbbe 55%, transparent); }
+.pingbar.week .pingbar-fill { background: linear-gradient(90deg, #9c8a4f, #c9b77c); }
+.pingbar.week .pingbar-label { color: #7a6a33; font-weight: 600; }
+.pingbar.week.done .pingbar-track { background: color-mix(in srgb, #e2dbbe 70%, transparent); }
+.pingbar.week.done .pingbar-fill { background: linear-gradient(90deg, #8a7840, #a8955a 60%, #bba76a); box-shadow: 0 0 10px color-mix(in srgb, #e2dbbe 80%, transparent); }
+.pingbar.week.done .pingbar-label { color: #6b5c28; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pingbar.week .pingbar-label { color: #d9cfa6; } :root:not([data-theme="light"]) .pingbar.week .pingbar-track { background: color-mix(in srgb, #e2dbbe 18%, transparent); } }
+:root[data-theme="dark"] .pingbar.week .pingbar-label { color: #d9cfa6; }
+:root[data-theme="dark"] .pingbar.week .pingbar-track { background: color-mix(in srgb, #e2dbbe 18%, transparent); }
