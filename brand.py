@@ -195,9 +195,12 @@ def for_partners(pids):
     pids = [p for p in set(pids) if p]
     if not pids:
         return {}
-    formula = "OR(" + ",".join(f"RECORD_ID()='{i}'" for i in pids[:90]) + ")"
+    # one saved copy of every sponsor's brand details (the server keeps it warm), instead of a new lookup per page
+    want = set(pids)
     out = {}
-    for r in at.list_records("partners", formula, fields=["Name", "Website", "🤖 Logo URL", "🤖 What They Do", "🤖 Logo On Dark", "🤖 Logo Bg"]):
+    for r in at.list_records("partners", fields=["Name", "Website", "🤖 Logo URL", "🤖 What They Do", "🤖 Logo On Dark", "🤖 Logo Bg"]):
+        if r["id"] not in want:
+            continue
         f = r["fields"]
         dom = domain_from(f.get("Website"))
         out[r["id"]] = {"name": f.get("Name"), "logo": f.get("🤖 Logo URL") or favicon(dom), "desc": f.get("🤖 What They Do"),

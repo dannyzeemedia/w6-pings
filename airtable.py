@@ -150,8 +150,13 @@ def partner_names(ids):
     ids = [i for i in set(ids) if i]
     if not ids:
         return {}
-    formula = "OR(" + ",".join(f"RECORD_ID()='{i}'" for i in ids[:90]) + ")"
-    return {r["id"]: r["fields"].get("Name", "") for r in list_records("partners", formula, fields=["Name"])}
+    want = set(ids)  # from the one saved list of every partner's name, not a new lookup per page
+    got = {pid: name for pid, name in all_partners() if pid in want}
+    missing = [i for i in ids if i not in got]
+    if missing:  # a partner added in the last few minutes
+        formula = "OR(" + ",".join(f"RECORD_ID()='{i}'" for i in missing[:90]) + ")"
+        got.update({r["id"]: r["fields"].get("Name", "") for r in list_records("partners", formula, fields=["Name"])})
+    return got
 
 
 _names_cache = {"at": 0, "rows": []}
