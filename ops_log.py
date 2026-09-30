@@ -827,6 +827,18 @@ class OpsLog:
         _say(f"run started: {self.job_name} ({self.trigger.lower()})")
         return self
 
+    def work_done(self, n=1):
+        """Tell the log that n units of real business work actually completed.
+
+        The difference between a run that skipped everything and a run that did
+        most of it. Only this can let a Partial run count as a success.
+        """
+        try:
+            self.completed = getattr(self, "completed", 0) + max(0, int(n))
+        except Exception:
+            pass
+        return self.completed
+
     def finish(self, status=None, summary=None):
         if self._finished:
             return
@@ -862,17 +874,20 @@ class OpsLog:
             self._rollup_usage(ended)
         if self.job_rec:
             patch = {"Last Status": status}
-            # QC-003: "Partial" used to advance Last Success, so a run in which
-            # every client was skipped and NOTHING was done still moved the
-            # job's last-known-good timestamp forward. A no-work run must not
-            # imply completed business work. Last Success now means exactly
-            # what it says: a run that finished with nothing wrong.
+            # WHAT "LAST SUCCESS" MEANS. It used to advance on Partial too, so
+            # a run in which every client was skipped and NOTHING was done still
+            # moved the job's last-known-good timestamp forward.
             #
-            # A job that habitually finishes Partial will now show as not
-            # recently successful. That is the honest reading of Partial, and
-            # if it produces noise the fix is for that job to stop warning on
-            # its normal path, not for this to keep pretending.
-            if status == "Success":
+            # But a Partial run that refreshed 17 of 18 clients DID do the work,
+            # and treating that the same as a run that did none is the opposite
+            # error. finish() cannot tell them apart; the caller can, by calling
+            # work_done(n). Unset means unknown, and unknown does not stamp.
+            #
+            # Measured before changing it: over the 30 days to 2026-09-30, no
+            # job finished Partial on every run, so nothing loses a recent Last
+            # Success from this. Six jobs finish Partial sometimes and Success
+            # other times.
+            if status == "Success" or (status == "Partial" and getattr(self, "completed", 0) > 0):
                 patch["Last Success"] = _iso(ended)
             self.at.update(T_JOBS, self.job_rec, patch)
         _say(f"run {status.lower()} in {dur}s "
