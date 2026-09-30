@@ -1197,12 +1197,45 @@ def results():
     # latest activity: one line per thing that happened (a reply and its "your turn" hand-off are the same moment)
     handoffs = {(e["fields"].get("Gmail Thread ID"), (e["fields"].get("At") or "")[:16]) for e in ev
                 if e["fields"].get("Event") == "Handed To Karlie"}
-    recent = [e for e in ev if not (e["fields"].get("Event") == "Replied" and
-                                    (e["fields"].get("Gmail Thread ID"), (e["fields"].get("At") or "")[:16]) in handoffs)][:40]
+    q = (request.args.get("q") or "").strip()
+    kind = request.args.get("kind") or ""
+    KINDS = {"sent": {"Sent"}, "yours": {"Handed To Karlie"}, "replied": {"Replied", "Handed To Karlie"},
+             "bounced": {"Bounced", "Left Company", "Unsubscribed"}}
+    pool = ev
+    if q or kind:  # searching: look through the whole history, not just the last 8 weeks
+        pool = at.list_records("log", sort=[("At", "desc")], fields=["At", "Event", "Email", "Partner", "Summary", "Snippet",
+                                                                       "Gmail Thread ID", "By", "Handled"])
+        handoffs = {(e["fields"].get("Gmail Thread ID"), (e["fields"].get("At") or "")[:16]) for e in pool
+                    if e["fields"].get("Event") == "Handed To Karlie"}
+    recent = [e for e in pool if not (e["fields"].get("Event") == "Replied" and
+                                      (e["fields"].get("Gmail Thread ID"), (e["fields"].get("At") or "")[:16]) in handoffs)]
+    if kind in KINDS:
+        recent = [e for e in recent if e["fields"].get("Event") in KINDS[kind]]
+    matches = None
+    if q:
+        pnames = at.partner_names([p for e in recent for p in e["fields"].get("Partner", [])])
+        # names of just the people in this activity (not all ~1,800 contacts), a few at a time
+        emails = sorted({(e["fields"].get("Email") or "").lower() for e in recent if e["fields"].get("Email")})
+        people = {}
+        for i in range(0, len(emails), 40):
+            ors = ",".join("LOWER({Email})='" + x.replace("'", "\\'") + "'" for x in emails[i:i + 40])
+            for c in at.list_records("contacts", f"OR({ors})", fields=["Email", "Name"]):
+                people[(c["fields"].get("Email") or "").lower()] = c["fields"].get("Name") or ""
+        words = q.lower().split()
+
+        def hay(e):
+            f = e["fields"]
+            return " ".join([" ".join(pnames.get(p, "") for p in f.get("Partner", [])), f.get("Email") or "",
+                             people.get((f.get("Email") or "").lower(), ""), f.get("Summary") or "", f.get("Snippet") or "",
+                             f.get("Event") or "", "your turn" if f.get("Event") == "Handed To Karlie" else ""]).lower()
+        recent = [e for e in recent if all(w in hay(e) for w in words)]
+        matches = len(recent)
+    recent = recent[:100 if (q or kind) else 40]
     names = at.partner_names([p for e in recent for p in e["fields"].get("Partner", [])])
     span = 1 if request.args.get("span", "today") == "today" else 7
     return render_template("results.html", weeks=weeks, peak=peak, totals=totals, acts=activity(span), span=span,
                            n_dead=len(dead), recent=recent, names=names, brands=brands_for(recent, "Email"),
+                           q=q, kind=kind, matches=matches,
                            gmail_thread=lambda t: f"https://mail.google.com/mail/u/{gmail.ME}/#all/{t}")
 
 
@@ -1288,7 +1321,8 @@ def _keep_warm():
                 c = app.test_client()
                 with c.session_transaction() as sess:
                     sess["user"] = "warm"
-                for path in ("/", "/approve", "/yours", "/bookings", "/bookings?view=list", "/rules", "/results"):
+                for path in ("/", "/approve", "/yours", "/bookings", "/bookings?view=list", "/rules", "/results",
+                             "/results?q=warm"):  # keeps the full history ready, so searching Results is instant
                     c.get(path)
                 _enrich_brands()
             except Exception:

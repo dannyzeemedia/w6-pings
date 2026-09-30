@@ -785,3 +785,16 @@ details.rcpts .hint { padding-left: 74px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pingbar.week .pingbar-label { color: #d9cfa6; } :root:not([data-theme="light"]) .pingbar.week .pingbar-track { background: color-mix(in srgb, #e2dbbe 18%, transparent); } }
 :root[data-theme="dark"] .pingbar.week .pingbar-label { color: #d9cfa6; }
 :root[data-theme="dark"] .pingbar.week .pingbar-track { background: color-mix(in srgb, #e2dbbe 18%, transparent); }
+
+/* Results: search + quick filters for Latest activity */
+.act-search { display: grid; gap: 10px; margin-bottom: 12px; }
+.act-search-box { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 99px; background: var(--field); padding: 0 14px; transition: border-color .15s, box-shadow .15s; }
+.act-search-box:focus-within { border-color: var(--green); box-shadow: 0 0 0 3px var(--mint-2); }
+.act-search-box input { border: 0; box-shadow: none !important; background: transparent; padding: 11px 0; flex: 1; font-size: 15px; outline: none; }
+.act-kinds { justify-self: start; }
+.act-count { margin: 0 0 10px; }
+.act-clear { color: var(--green); font-weight: 600; }
+#acts.searching .act-list { opacity: .5; transition: opacity .15s; }
+.act-list mark { background: color-mix(in srgb, #e2dbbe 85%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
+/* tiles: white behind, so designs with see-through parts (Funnelytics) still show; solid tiles look the same */
+.brand-chip.tile { background: #fff; }

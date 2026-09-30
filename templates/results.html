@@ -43,6 +43,40 @@
 </div>
 <div class="card">
   <h2 style="margin-bottom:10px">Latest activity</h2>
+  <form class="act-search" method="get" action="{{ url_for('results') }}" data-turbo="false" role="search">
+    <input type="hidden" name="span" value="{{ 'today' if span == 1 else 'week' }}">
+    <div class="act-search-box"><span aria-hidden="true">🔍</span><input type="search" name="q" value="{{ q }}" placeholder="Search a brand, a person, an email address, or any word from the emails" autocomplete="off" aria-label="Search activity"></div>
+    <input type="hidden" name="kind" value="{{ kind }}">
+    <div class="seg act-kinds">{% for k, lab in [('', 'All'), ('sent', 'Sent'), ('yours', 'Your turn'), ('replied', 'Replied'), ('bounced', 'Bounced')] %}<a href="#" data-kind="{{ k }}" class="{{ 'on' if kind == k }}">{{ lab }}</a>{% endfor %}</div>
+  </form>
+  <script>
+  (function(){ // search as she types (a beat after she stops); the quick filters keep whatever she's typed.
+    // Fetched directly (not through Turbo, which answered from a stored copy of the page) and swapped into the list.
+    const f=document.querySelector('.act-search'); if(!f||f.dataset.ready) return; f.dataset.ready='1';
+    const q=f.querySelector('[name=q]'), k=f.querySelector('[name=kind]'); let t, seq=0;
+    function run(){
+      const my=++seq, frame=document.getElementById('acts'); frame.classList.add('searching');
+      const url=f.action+'?'+new URLSearchParams(new FormData(f)).toString();
+      fetch(url,{headers:{'Turbo-Frame':'acts'},cache:'no-store'}).then(r=>r.text()).then(html=>{
+        if(my!==seq) return;  // a newer search is on its way
+        const doc=new DOMParser().parseFromString(html,'text/html'), fresh=doc.getElementById('acts'); if(!fresh) return;
+        frame.innerHTML=fresh.innerHTML; frame.classList.remove('searching');
+        try{ history.replaceState(history.state,'',url.replace(/([?&])(q|kind)=(&|$)/g,'$1').replace(/[?&]$/,'')); }catch(e){}
+        window.dxPrep&&dxPrep(frame);
+        const words=q.value.trim().toLowerCase().split(/\s+/).filter(w=>w.length>1);
+        if(words.length){ const re=new RegExp('('+words.map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')','gi');
+          frame.querySelectorAll('.act-sum, .co-tag, .act-top .tiny, .act-snippet').forEach(el=>{ el.innerHTML=el.innerHTML.replace(/(^|>)([^<]+)/g,(m,a,txt)=>a+txt.replace(re,'<mark>$1</mark>')); }); }
+      }).catch(()=>frame.classList.remove('searching'));
+    }
+    window.actSearch=run;
+    q.addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(run,280); });
+    f.addEventListener('submit',e=>{ e.preventDefault(); clearTimeout(t); run(); });
+    f.querySelectorAll('.act-kinds a').forEach(a=>a.addEventListener('click',e=>{ e.preventDefault(); k.value=a.dataset.kind; run(); }));
+  })();
+  </script>
+  <turbo-frame id="acts" data-keep-url target="_top">
+  {% if matches is not none %}<div class="muted tiny act-count">{{ matches }} match{{ 'es' if matches != 1 }} for "{{ q }}"{% if matches > 100 %}, showing the latest 100{% endif %} · <a href="#" class="act-clear" onclick="event.preventDefault();document.querySelector('.act-search [name=q]').value='';actSearch()">clear</a></div>
+  {% elif kind %}<div class="muted tiny act-count">Showing {{ recent|length }} · <a href="#" class="act-clear" onclick="event.preventDefault();const f=document.querySelector('.act-search');f.querySelector('[name=kind]').value='';f.querySelectorAll('.act-kinds a').forEach(a=>a.classList.toggle('on',!a.dataset.kind));window.dxSegs&&dxSegs();actSearch()">show everything</a></div>{% endif %}
   {% set EV = {'Sent': ('Sent', 'ev-sent'), 'Replied': ('Replied', 'ev-reply'), 'Handed To Karlie': ('Your turn', 'ev-yours'),
                 'Bounced': ('Bounced', 'ev-bad'), 'Left Company': ('Left the company', 'ev-bad'), 'Auto-Reply': ('Auto-reply', 'ev-quiet'),
                 'Unsubscribed': ('Unsubscribed', 'ev-bad')} %}
@@ -67,6 +101,7 @@
         </div>
       </div>
     </details>
-  {% endfor %}</div>{% else %}<p class="muted">Nothing yet. Activity shows up here once pings start going out.</p>{% endif %}
+  {% endfor %}</div>{% elif q or kind %}<p class="muted">Nothing matches that. Try a shorter word, or clear the search.</p>{% else %}<p class="muted">Nothing yet. Activity shows up here once pings start going out.</p>{% endif %}
+  </turbo-frame>
 </div>
 {% endblock %}
