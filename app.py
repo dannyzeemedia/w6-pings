@@ -106,6 +106,14 @@ def mswhen(ms):
     return when(dt.datetime.fromtimestamp(ms / 1000, dt.timezone.utc))
 
 
+@app.template_filter("nicedate")
+def nicedate(s):
+    try:
+        return dt.date.fromisoformat(str(s)[:10]).strftime("%a %-d %b")
+    except ValueError:
+        return s
+
+
 @app.template_filter("datevalue")
 def datevalue(s):
     t = parse_ts(s)
@@ -313,6 +321,32 @@ def today():
     return render_template("today.html", s=f, sent_today=sent_today, n_yours=len(yours),
                            upcoming=upcoming, names=names, brands=brands_for(upcoming, "To Email"), handsoff=handsoff, partners=at.all_partners(),
                            promises=proms, pnames=pnames)
+
+
+@app.post("/promise/<cid>/act")
+@login_required
+def promise_act(cid):
+    """Karlie's call on a loose end: write something (her words go to the AI), remind her later, or drop it."""
+    c = at.get("contacts", cid)["fields"]
+    how = request.form.get("how", "")
+    text = (request.form.get("text") or "").strip()
+    today = dt.date.today()
+    if how in ("snooze14", "snooze30"):
+        at.update("contacts", cid, {"Call Back On": (today + dt.timedelta(days=14 if how == "snooze14" else 30)).isoformat()})
+        flash("Got it. It'll come back to you " + ("in two weeks." if how == "snooze14" else "in a month."))
+    elif how == "drop":
+        at.update("contacts", cid, {"Call Back On": None, "Call Back Loose": False, "Call Back Kept": today.isoformat()})
+        flash("Dropped. It won't come back.")
+    else:  # write something: her instruction (or a light nudge) goes to the AI, which drafts it into To approve
+        pid = (c.get("Partner") or [""])[0]
+        ask = (f"[auto {today.isoformat()} {pid}] Write to {c.get('Name') or ''} <{c.get('Email')}> about a loose end from our "
+               f"conversation: \"{(c.get('Call Back Why') or '')[:300]}\". Karlie says: {text or 'a light, friendly nudge to pick it back up'}."
+               f" Reply in the latest thread with them. Short.")
+        s_ = at.settings()
+        at.update("settings", s_["id"], {"Ping Requests": ((s_["fields"].get("Ping Requests") or "").rstrip() + "\n" + ask).strip()})
+        at.update("contacts", cid, {"Call Back On": (today + dt.timedelta(days=14)).isoformat()})  # back in 2 weeks if still open
+        celebrate("On it", f"Writing it now. It'll be in To approve in a few minutes.", "✍️")
+    return redirect(url_for("today") + "#promises")
 
 
 @app.post("/promise/<cid>/done")

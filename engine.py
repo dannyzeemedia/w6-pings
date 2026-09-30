@@ -171,8 +171,10 @@ def _keep_promise(contact_id, email):
     if not c:
         return
     due = c["fields"].get("Call Back On")
-    if due and dt.date.today() >= dt.date.fromisoformat(due) - dt.timedelta(days=3):
-        at.update("contacts", c["id"], {"Call Back Kept": dt.date.today().isoformat(), "Call Back On": None})
+    loose = c["fields"].get("Call Back Loose")
+    if due and (loose or dt.date.today() >= dt.date.fromisoformat(due) - dt.timedelta(days=3)):
+        # a firm promise is kept by the email around its date; a loose end by any email to them after it was noted
+        at.update("contacts", c["id"], {"Call Back Kept": dt.date.today().isoformat(), "Call Back On": None, "Call Back Loose": False})
 
 
 def promises(w=None, horizon_days=60):
@@ -183,16 +185,21 @@ def promises(w=None, horizon_days=60):
         for cid in d["fields"].get("Contact", []):
             queued[cid] = d["fields"].get("Status")
     out = []
-    for c in at.list_records("contacts", "{Call Back On}!=''", fields=["Email", "Name", "Partner", "Status", "Call Back On", "Call Back Why"]):
+    for c in at.list_records("contacts", "{Call Back On}!=''", fields=["Email", "Name", "Partner", "Status", "Call Back On", "Call Back Why",
+                                                                     "Call Back Loose", "Call Back Set"]):
         f = c["fields"]
         if not f.get("Call Back On") or f.get("Status") not in (None, "Active"):
             continue
         due = dt.date.fromisoformat(f["Call Back On"])
         if (due - today).days > horizon_days:
             continue
-        state = ("drafted" if c["id"] in queued else "overdue" if due < today - dt.timedelta(days=1)
-                 else "due" if (due - today).days <= 2 else "upcoming")
-        out.append({"contact": c, "due": due, "why": f.get("Call Back Why") or "", "state": state})
+        if f.get("Call Back Loose"):  # no date was promised: resurface it for Karlie to decide, never write it by itself
+            state = "drafted" if c["id"] in queued else "checkin" if due <= today else "later"
+        else:
+            state = ("drafted" if c["id"] in queued else "overdue" if due < today - dt.timedelta(days=1)
+                     else "due" if (due - today).days <= 2 else "upcoming")
+        out.append({"contact": c, "due": due, "why": f.get("Call Back Why") or "", "state": state, "loose": bool(f.get("Call Back Loose")),
+                    "since": f.get("Call Back Set")})
     out.sort(key=lambda x: x["due"])
     return out
 
@@ -1282,9 +1289,11 @@ def apply(payload):
             if e.get("ai_tell_check"):
                 hf["Suggestion Check"] = _txt(e["ai_tell_check"], False)[:3000]
             at.update("log", e["handoff_log_id"], hf)
-        if e.get("contact_id") and e.get("call_back_on"):
-            at.update("contacts", e["contact_id"], {"Call Back On": str(e["call_back_on"])[:10],
-                                                    "Call Back Why": (e.get("call_back_why") or e.get("summary") or "")[:1000],
+        if e.get("contact_id") and (e.get("call_back_on") or e.get("loose_end")):
+            loose = bool(e.get("loose_end")) and not e.get("call_back_on")
+            when = str(e.get("call_back_on") or (dt.date.today() + dt.timedelta(days=14)).isoformat())[:10]
+            at.update("contacts", e["contact_id"], {"Call Back On": when, "Call Back Loose": loose,
+                                                    "Call Back Why": (e.get("call_back_why") or e.get("loose_end") or e.get("summary") or "")[:1000],
                                                     "Call Back Set": dt.date.today().isoformat(), "Call Back Kept": None})
         if e.get("contact_id") and (e.get("contact_away_until") or e.get("contact_left")):
             upd = {}

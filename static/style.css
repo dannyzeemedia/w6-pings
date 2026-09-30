@@ -814,3 +814,11 @@ details.rcpts .hint { padding-left: 74px; }
 .plan.promise .pstate { display: inline-block; margin-left: 8px; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: var(--mint-2); color: var(--green); }
 .plan.promise.due .pstate, .plan.promise.drafted .pstate { background: var(--amber-bg); color: #6b4e00; }
 .plan.promise.overdue .pstate { background: var(--red-bg); color: var(--red); }
+
+/* Today: loose ends waiting on Karlie's call */
+.loose-end { border: 1px solid var(--amber-line); background: color-mix(in srgb, var(--amber-bg) 70%, var(--card)); border-radius: var(--r-sm); padding: 12px 14px; margin-bottom: 10px; display: grid; gap: 8px; }
+.loose-end .pstate { display: inline-block; margin-left: 8px; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: var(--amber-bg); color: #6b4e00; border: 1px solid var(--amber-line); }
+.loose-quote { font-size: 14px; color: var(--ink-2); font-style: italic; }
+.loose-form { display: grid; gap: 8px; }
+.loose-form .row { margin: 0; flex-wrap: wrap; gap: 8px; }
+.plan.promise.later .pstate { background: var(--amber-bg); color: #6b4e00; }

@@ -52,11 +52,28 @@
 </div>{% endif %}
 <div class="card" id="promises">
   <h2>Promised follow-ups</h2>
-  <p class="muted tiny" style="margin:4px 0 8px">Everyone who asked to hear back later, or that you told you'd get back to. Two days before each date the email is written into To approve, ahead of everything else. Once an email goes to them, it's crossed off here.</p>
-  {% for p in promises %}{% set cf = p.contact.fields %}
+  <p class="muted tiny" style="margin:4px 0 8px">Everyone who asked to hear back later, or that you told you'd get back to. With a date, the email is written into To approve two days before, ahead of everything else. Without one (a loose end, like "I'll let you know once there's a date"), it comes back here every two weeks for you to decide. Once an email goes to them, it's crossed off.</p>
+  {% for p in promises|selectattr('state','equalto','checkin') %}{% set cf = p.contact.fields %}
+  <div class="loose-end">
+    <div><strong>{{ cf.get('Name') or cf.get('Email') }}</strong>{% for pid in cf.get('Partner', []) %}<span class="muted"> · {{ pnames.get(pid) }}</span>{% endfor %}
+      <span class="pstate">Loose end{% if p.since %} · open since {{ p.since|nicedate }}{% endif %}</span></div>
+    {% if p.why %}<div class="loose-quote">"{{ p.why }}"</div>{% endif %}
+    <form method="post" action="{{ url_for('promise_act', cid=p.contact.id) }}" class="loose-form">
+      <input type="text" name="text" placeholder="What do you want to do? e.g. nudge him, say we're aiming for November" autocomplete="off">
+      <div class="row">
+        <button name="how" value="write">Write it</button>
+        <button class="ghost small" name="how" value="write" formnovalidate onclick="this.form.text.value=''">Light nudge</button>
+        <button class="ghost small" name="how" value="snooze14">In 2 weeks</button>
+        <button class="ghost small" name="how" value="snooze30">In a month</button>
+        <button class="danger small" name="how" value="drop">Drop it</button>
+      </div>
+    </form>
+  </div>
+  {% endfor %}
+  {% for p in promises|rejectattr('state','equalto','checkin') %}{% set cf = p.contact.fields %}
   <div class="plan promise {{ p.state }}">
     <div><strong>{{ cf.get('Name') or cf.get('Email') }}</strong>{% for pid in cf.get('Partner', []) %}<span class="muted"> · {{ pnames.get(pid) }}</span>{% endfor %}
-      <span class="pstate">{{ {'upcoming': p.due.strftime('%a %-d %b'), 'due': 'Due ' ~ p.due.strftime('%a %-d %b') ~ ', being written', 'drafted': 'In To approve, due ' ~ p.due.strftime('%a %-d %b'), 'overdue': 'Overdue since ' ~ p.due.strftime('%a %-d %b')}[p.state] }}</span>
+      <span class="pstate">{{ {'upcoming': p.due.strftime('%a %-d %b'), 'due': 'Due ' ~ p.due.strftime('%a %-d %b') ~ ', being written', 'drafted': 'In To approve, due ' ~ p.due.strftime('%a %-d %b'), 'overdue': 'Overdue since ' ~ p.due.strftime('%a %-d %b'), 'later': 'Loose end · check in ' ~ p.due.strftime('%a %-d %b')}[p.state] }}</span>
       {% if p.why %}<div class="muted tiny">"{{ p.why }}"</div>{% endif %}</div>
     <form method="post" action="{{ url_for('promise_done', cid=p.contact.id) }}"><button class="ghost small" title="No email needed for this one">Not needed</button></form>
   </div>
