@@ -535,6 +535,10 @@ nav a.on .pill { background: var(--on-green); color: var(--green); }
 @keyframes glint { 0%, 70% { transform: translateX(-120%); } 100% { transform: translateX(320%); } }
 @media (prefers-reduced-motion: reduce) { .pingbar.done .pingbar-fill::after { animation: none; display: none; } }
 .pingbar.bump .pingbar-label { animation: pop .6s cubic-bezier(.3,1.6,.4,1) both; }
+/* The count on screen could not be refreshed. Dim it so it does not read as current,
+   and keep the last known figure rather than dropping to a zero nobody measured. */
+.pingbar.stale .pingbar-label { color: var(--ink-2); font-weight: 500; opacity: .75; }
+.pingbar.stale .pingbar-fill { opacity: .5; }
 @keyframes shine { to { background-position: -200% 0; } }
 @media (max-width: 640px) { .pingbar { padding-bottom: 8px; } }
 /* login fields: always readable on the dark glass card */

@@ -115,7 +115,10 @@ document.querySelectorAll('[data-send]').forEach(btn=>btn.addEventListener('clic
       setTimeout(()=>{ document.getElementById('queued-block').hidden=false; document.getElementById('queued').prepend(row); wrap.remove();
         if(!document.querySelector('#drafts .draft')) document.getElementById('all-clear').hidden=false; },900);
     },420);
-    if(window.updatePingBar && j.pings_today!=null) updatePingBar(j.pings_today, j.goal);
+    // Always tell the bar, even when the server could not read the count back: the approval
+    // happened, so the number on screen is out of date and must say so rather than sit there
+    // looking current.
+    if(window.updatePingBar) updatePingBar(j.pings_today, j.goal, j);
     const last=j.left===0;
     toast(last?'✨':'🚀', last?'All clear!':'Off it goes!', j.eta+(last?'':' '+j.left+' more to look at.'));
     if(window.confetti && !matchMedia('(prefers-reduced-motion: reduce)').matches) confetti({particleCount:last?140:70,spread:last?100:70,startVelocity:32,origin:{y:.85},colors:COLORS,scalar:.9});

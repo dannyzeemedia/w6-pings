@@ -144,6 +144,30 @@ def actions_today():
     return len(approved) + len(replies)
 
 
+def progress_numbers():
+    """The four numbers the two progress bars show, read fresh.
+
+    A number we could not read comes back as None rather than 0. The page can then say it
+    does not know, which is the truth; a zero would be a confident claim that nothing was
+    done today. Never raises, so a failed count can never be reported as a failed save.
+    """
+    out = {"pings_today": None, "goal": None, "week_n": None, "week_goal": None}
+    try:
+        sf = at.settings()["fields"]
+        out["goal"] = int(sf.get("Daily Ping Limit") or 0)
+    except Exception:
+        return out
+    try:
+        out["pings_today"] = actions_today()
+    except Exception:
+        pass
+    try:
+        out["week_n"], out["week_goal"] = week_progress(sf)
+    except Exception:
+        pass
+    return out
+
+
 def actions_between(start):
     """Karlie's actions since `start` (a Brisbane datetime): drafts she approved + emails she sent herself."""
     since = iso(start)
@@ -311,9 +335,7 @@ def quick_settings():
     if fields:
         at.update("settings", s["id"], fields)
     if request.headers.get("X-Fetch") == "1":  # the Today page's goal box: send back the numbers the bars show
-        sf = at.settings()["fields"]
-        wn, wg = week_progress(sf)
-        return {"ok": True, "goal": int(sf.get("Daily Ping Limit") or 0), "pings_today": actions_today(), "week_n": wn, "week_goal": wg}
+        return dict({"ok": True}, **progress_numbers())
     return redirect(url_for("today"))
 
 
@@ -400,9 +422,8 @@ def decide(rid):
         if request.headers.get("X-Fetch") == "1":
             at.update("drafts", rid, fields)
             _check_autopilot()
-            return {"ok": True, "eta": eta, "left": max(left, 0), "subject": subject,
-                    "eta_short": _short_eta(eta_t), "pings_today": actions_today(),
-                    "goal": int(at.settings()["fields"].get("Daily Ping Limit") or 0)}
+            return dict({"ok": True, "eta": eta, "left": max(left, 0), "subject": subject,
+                         "eta_short": _short_eta(eta_t)}, **progress_numbers())
         if left <= 0:
             celebrate("All clear!", eta + " Every draft's dealt with.", "✨", big=True)
         else:

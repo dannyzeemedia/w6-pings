@@ -392,33 +392,53 @@ window.weekParty=function(n,goal){
   [0,250,500].forEach((t,i)=>setTimeout(()=>confetti({particleCount:90,spread:100+i*20,startVelocity:38,origin:{x:[.25,.75,.5][i],y:.1},colors,scalar:1}),t));
   if(window.toast) setTimeout(()=>toast('🏆','Weekly goal hit!','All '+goal+' pings for the week. The weekend is officially earned.'),900);
 };
+// THE RULE FOR EVERY PING BAR. Both bars go through one renderer so the day and the week
+// can never mean different things on the same screen.
+//   n is the server's figure. null means we could not read it: keep the last number on
+//   screen, say it is not current, and never draw a zero we were not told. A zero is a
+//   claim that nothing was done today, and an unread count is not that claim.
+//   Figures are ABSOLUTE, never applied as a delta, so the same response arriving twice
+//   (a retried request, a double fire) lands on the same numbers.
 // The daily goal changed (Today page + / -): move both bars now. The weekly goal counts today's goal for today
 // and every weekday still to come, so it shifts by the change times the weekdays left.
+// `exact` is the server's own reply. When it is present it decides BOTH counts: before
+// round 7 the week took its number from the reply while the day kept the figure baked into
+// the page at load, so a day's count that had moved elsewhere stayed wrong (QC-011).
 window.setGoal=function(goal, exact){
   const b=document.getElementById('pingbar'), w=document.getElementById('weekbar'); if(!b) return;
-  const old=+b.dataset.goal, n=+b.dataset.n;
-  if(w){ const wg=exact&&exact.week_goal!=null?exact.week_goal:Math.max(0,(+w.dataset.goal)+(goal-old)*(+w.dataset.daysLeft||0));
-    const wn=exact&&exact.week_n!=null?exact.week_n:+w.dataset.n; w.dataset.goal=wg; w.dataset.n=wn;
-    document.getElementById('weekbar-fill').style.width=(wg?Math.min(100,Math.round(100*wn/wg)):0)+'%';
-    document.getElementById('weekbar-label').textContent=wn+' of '+wg+' this week'+(wg&&wn>=wg?' 🏆':'');
-    w.classList.toggle('done',wg>0&&wn>=wg); }
-  b.dataset.goal=goal;
-  document.getElementById('pingbar-fill').style.width=(goal?Math.min(100,Math.round(100*n/goal)):0)+'%';
-  document.getElementById('pingbar-label').textContent=n+' of '+goal+' pings today'+(goal&&n>=goal?' 🎉':'');
-  b.classList.toggle('done',goal>0&&n>=goal);
+  const old=+b.dataset.goal, ex=exact||null;
+  if(w){ const wg = ex&&ex.week_goal!=null ? ex.week_goal
+                  : Math.max(0,(+w.dataset.goal)+(goal-old)*(+w.dataset.daysLeft||0));
+    // No reply yet means no new reading, not a failed one: keep the number we have.
+    const wn = ex ? (ex.week_n!=null ? ex.week_n : null) : +w.dataset.n;
+    window.renderBar('weekbar', wn, wg, 'this week', '🏆'); }
+  const n = ex ? (ex.pings_today!=null ? ex.pings_today : null) : +b.dataset.n;
+  window.renderBar('pingbar', n, goal, 'pings today', '🎉');
 };
-window.updatePingBar=function(n,goal){
+// A draft was approved. `exact` is the same reply, carrying the week as an absolute figure.
+window.renderBar=function(id, n, goal, unit, emoji){
+  const el=document.getElementById(id); if(!el) return null;
+  const known = n!==null && n!==undefined && n!=='' && !isNaN(+n);
+  if(known){ el.dataset.n=+n; delete el.dataset.stale; } else { el.dataset.stale='1'; }
+  if(goal!==null && goal!==undefined && goal!=='' && !isNaN(+goal)) el.dataset.goal=+goal;
+  const v=+el.dataset.n||0, g=+el.dataset.goal||0, stale=el.dataset.stale==='1';
+  document.getElementById(id+'-fill').style.width=(g?Math.min(100,Math.round(100*v/g)):0)+'%';
+  document.getElementById(id+'-label').textContent =
+    v+' of '+g+' '+unit+(stale?' \u2014 not updated just now':(g&&v>=g?' '+emoji:''));
+  el.classList.toggle('stale', stale);
+  el.classList.toggle('done', !stale && g>0 && v>=g);
+  return {n:v, goal:g, known:known};
+};
+window.updatePingBar=function(n,goal,exact){
   const b=document.getElementById('pingbar'); if(!b) return;
-  const w=document.getElementById('weekbar');
-  if(w){ const wn=Math.max(0,(+w.dataset.n)+(n-(+b.dataset.n))), wg=+w.dataset.goal; w.dataset.n=wn;
-    document.getElementById('weekbar-fill').style.width=Math.min(100,Math.round(100*wn/wg))+'%';
-    document.getElementById('weekbar-label').textContent=wn+' of '+wg+' this week'+(wn>=wg?' 🏆':'');
-    w.classList.toggle('done',wn>=wg); if(wn>=wg){ w.classList.remove('bump'); void w.offsetWidth; w.classList.add('bump'); setTimeout(()=>weekParty(wn,wg),1400); } }
-  goal=goal||+b.dataset.goal; b.dataset.n=n; b.dataset.goal=goal;
-  document.getElementById('pingbar-fill').style.width=Math.min(100,Math.round(100*n/goal))+'%';
-  document.getElementById('pingbar-label').textContent=n+' of '+goal+' pings today'+(n>=goal?' 🎉':'');
-  b.classList.toggle('done',n>=goal); if(n>=goal){ b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
-  goalParty(n,goal);
+  const w=document.getElementById('weekbar'), ex=exact||{}, before=+b.dataset.n;
+  if(w){ const r=window.renderBar('weekbar', ex.week_n!=null?ex.week_n:null,
+                                  ex.week_goal!=null?ex.week_goal:+w.dataset.goal, 'this week', '🏆');
+    if(r&&r.known&&r.goal>0&&r.n>=r.goal){ w.classList.remove('bump'); void w.offsetWidth; w.classList.add('bump'); setTimeout(()=>weekParty(r.n,r.goal),1400); } }
+  const r=window.renderBar('pingbar', n, goal||+b.dataset.goal, 'pings today', '🎉');
+  if(!r) return;
+  if(r.known&&r.goal>0&&r.n>=r.goal){ b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
+  if(r.known&&r.n!==before) goalParty(r.n,r.goal);
 };
 (function(){ const w=document.getElementById('weekbar'); if(w){ w.classList.toggle('done',+w.dataset.n>=+w.dataset.goal);
   const go=()=>weekParty(+w.dataset.n,+w.dataset.goal); if(window.confetti) setTimeout(go,1500); else setTimeout(()=>window.confetti&&go(),2500); } })();
