@@ -92,6 +92,12 @@
         <span class="act-when muted tiny">{{ f.get('At')|when }}</span>
       </summary>
       <div class="act-detail">
+        {% set trail = story.get(e.id, []) %}{% if trail|length > 1 %}
+        <div class="label">The story so far</div>
+        <ol class="trail">{% for t in trail %}{% set tf = t.fields %}{% set tev = EV.get(tf.get('Event'), (tf.get('Event'), 'ev-quiet')) %}
+          <li class="{{ 'here' if t.id == e.id }}"><span class="trail-when muted tiny">{{ tf.get('At')|when }}</span>
+            <span class="ev-tag {{ tev[1] }}">{{ tev[0] }}</span> <span class="trail-sum">{{ tf.get('Summary') or '' }}</span>{% if t.id == e.id %} <span class="muted tiny">(this one)</span>{% endif %}</li>
+        {% endfor %}</ol>{% endif %}
         {% if f.get('Snippet') %}<div class="label">{{ 'What went out' if f.get('Event') == 'Sent' else 'The email' if f.get('Event') in ('Replied', 'Handed To Karlie', 'Auto-Reply') else 'Details' }}</div>
         <div class="act-snippet">{{ f['Snippet'] }}</div>{% else %}<div class="muted tiny">No email text was saved for this one.</div>{% endif %}
         <div class="row" style="margin-top:10px">

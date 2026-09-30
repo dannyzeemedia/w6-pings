@@ -287,8 +287,16 @@ def _handle_message(w, m):
         _cancel_pending(w, pid, sender, "The contact has left the company.")
         return "left"
     if auto:
-        log("Auto-Reply", "In", "Them", sender, partner=pid, contact=c and c["id"], summary="Automatic reply",
-            snippet=m["body"][:600], msg_id=m["id"], thread_id=m["thread_id"], at_time=m["dt"], handled=True, reviewed=True)
+        # Auto-replies often start a new thread, so find the email this answers: our latest send to them in 3 days
+        answered = at.list_records("log", f"AND({{Event}}='Sent', LOWER({{Email}})='{sender}', IS_AFTER({{At}}, '{(m['dt'] - dt.timedelta(days=3)).strftime('%Y-%m-%dT%H:%M:%SZ')}'))",
+                                   sort=[("At", "desc")], fields=["Draft", "Summary"], max_records=1)
+        drafts = (answered[0]["fields"].get("Draft") or []) if answered else []
+        rec = log("Auto-Reply", "In", "Them", sender, partner=pid, contact=c and c["id"],
+                  summary="Automatic reply" + (f" to: {answered[0]['fields'].get('Summary', '')}" if answered else ""),
+                  snippet=m["body"][:1500], msg_id=m["id"], thread_id=m["thread_id"], at_time=m["dt"], handled=True,
+                  reviewed=False)  # the overnight run reads it: away dates, "contact X instead", or nothing
+        if drafts and rec:
+            at.update("log", rec["id"], {"Draft": drafts[:1]})
         return "auto"
 
     # A real person wrote back. Phase 1: it goes straight to Karlie, and every queued email to that company stops.
@@ -355,7 +363,15 @@ def _window(w, contact):
     return lo, hi
 
 
+def away(contact):
+    """The date this person's auto-reply says they're back, if it's still in the future."""
+    u = (contact or {}).get("fields", {}).get("Away Until")
+    return u if u and u > dt.date.today().isoformat() else None
+
+
 def sendable_now(w, contact):
+    if away(contact):
+        return False  # their auto-reply said they're away: hold it until they're back
     tz = w.tz_for(contact)
     t = now().astimezone(tz)
     if t.strftime("%a") not in (w.s.get("Send Days") or []):
@@ -665,7 +681,8 @@ def pick_prospects(w, n):
     for pid, p in w.partners.items():
         if pid in queued or pid in recent or w.blocked(pid):
             continue
-        people = [c for c in w.contacts.values() if pid in c["fields"].get("Partner", []) and c["fields"].get("Status") == "Active"]
+        people = [c for c in w.contacts.values() if pid in c["fields"].get("Partner", []) and c["fields"].get("Status") == "Active"
+                  and not away(c)]
         if not people:
             continue
         f = p["fields"]
@@ -733,7 +750,7 @@ def due_followups(w):
         if w.blocked(pid):
             continue
         c = w.contacts.get((last.get("Contact") or [None])[0]) or w.by_email.get((last.get("To Email") or "").lower())
-        if c and c["fields"].get("Status") != "Active":
+        if c and (c["fields"].get("Status") != "Active" or away(c)):
             continue
         out.append({"thread": tid, "partner": pid, "contact": c and c["id"], "followup_number": n_prior_followups + 1,
                     "previous_drafts": [d["id"] for d in ds]})
@@ -1049,7 +1066,7 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
                for l in at.list_records("lessons", "{Active}")]
     # replies and events waiting to be read
     events = []
-    for r in at.list_records("log", "AND(NOT({Reviewed}), OR({Event}='Replied', {Event}='Left Company', {Event}='Bounced', AND({Event}='Sent', {By}='Karlie')))",
+    for r in at.list_records("log", "AND(NOT({Reviewed}), OR({Event}='Replied', {Event}='Left Company', {Event}='Bounced', {Event}='Auto-Reply', AND({Event}='Sent', {By}='Karlie')))",
                              sort=[("At", "asc")], max_records=25):
         f = r["fields"]
         tid = f.get("Gmail Thread ID")
@@ -1205,6 +1222,14 @@ def apply(payload):
             if e.get("ai_tell_check"):
                 hf["Suggestion Check"] = _txt(e["ai_tell_check"], False)[:3000]
             at.update("log", e["handoff_log_id"], hf)
+        if e.get("contact_id") and (e.get("contact_away_until") or e.get("contact_left")):
+            upd = {}
+            if e.get("contact_away_until"):
+                upd["Away Until"] = str(e["contact_away_until"])[:10]
+                upd["Away Note"] = (e.get("summary") or "")[:250]
+            if e.get("contact_left"):
+                upd.update({"Status": "Left Company", "Dead Reason": (e.get("summary") or "Their auto-reply says they've moved on.")[:500]})
+            at.update("contacts", e["contact_id"], upd)
         if e.get("contact_time_zone") and e.get("contact_id"):
             at.update("contacts", e["contact_id"], {"Time Zone": e["contact_time_zone"]})
         done["events"] += 1

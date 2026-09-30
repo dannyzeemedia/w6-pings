@@ -1231,11 +1231,18 @@ def results():
         recent = [e for e in recent if all(w in hay(e) for w in words)]
         matches = len(recent)
     recent = recent[:100 if (q or kind) else 40]
+    # the paper trail: everything that's happened with the same person, oldest first
+    by_email = {}
+    for e in sorted(pool, key=lambda e: e["fields"].get("At") or ""):
+        em = (e["fields"].get("Email") or "").lower()
+        if em:
+            by_email.setdefault(em, []).append(e)
+    story = {e["id"]: by_email.get((e["fields"].get("Email") or "").lower(), [])[-12:] for e in recent}
     names = at.partner_names([p for e in recent for p in e["fields"].get("Partner", [])])
     span = 1 if request.args.get("span", "today") == "today" else 7
     return render_template("results.html", weeks=weeks, peak=peak, totals=totals, acts=activity(span), span=span,
                            n_dead=len(dead), recent=recent, names=names, brands=brands_for(recent, "Email"),
-                           q=q, kind=kind, matches=matches,
+                           q=q, kind=kind, matches=matches, story=story,
                            gmail_thread=lambda t: f"https://mail.google.com/mail/u/{gmail.ME}/#all/{t}")
 
 

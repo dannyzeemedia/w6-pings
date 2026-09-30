@@ -798,3 +798,12 @@ details.rcpts .hint { padding-left: 74px; }
 .act-list mark { background: color-mix(in srgb, #e2dbbe 85%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
 /* tiles: white behind, so designs with see-through parts (Funnelytics) still show; solid tiles look the same */
 .brand-chip.tile { background: #fff; }
+
+/* Results: the paper trail with one person */
+.trail { list-style: none; margin: 4px 0 14px; padding: 0 0 0 14px; border-left: 2px solid var(--mint); display: grid; gap: 7px; }
+.trail li { position: relative; font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.trail li::before { content: ""; position: absolute; left: -20px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--card); border: 2px solid var(--mint); }
+.trail li.here::before { background: var(--green); border-color: var(--green); }
+.trail li.here .trail-sum { font-weight: 600; }
+.trail-when { min-width: 92px; }
+.trail .ev-tag { font-size: 10.5px; padding: 1px 8px; }
