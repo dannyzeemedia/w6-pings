@@ -827,14 +827,21 @@ class OpsLog:
         _say(f"run started: {self.job_name} ({self.trigger.lower()})")
         return self
 
-    def work_done(self, n=1):
-        """Tell the log that n units of real business work actually completed.
+    def work_done(self, n=1, of=None):
+        """Record completed business work, and the denominator when known.
 
-        The difference between a run that skipped everything and a run that did
-        most of it. Only this can let a Partial run count as a success.
+        Three different runs used to be indistinguishable, and QC rejected each
+        collapse in turn: work_done(17, of=18) is progress but NOT success —
+        a client's dashboard did not update; work_done(18, of=18) is complete
+        even if warnings made the status Partial; work_done(0, of=0) is a
+        successful no-op — the job checked and nothing was due. Only the caller
+        knows which of these happened, so only the caller can say.
         """
         try:
             self.completed = getattr(self, "completed", 0) + max(0, int(n))
+            if of is not None:
+                self.expected = max(getattr(self, "expected", None) or 0, int(of))
+            self.work_reported = True
         except Exception:
             pass
         return self.completed
@@ -848,6 +855,20 @@ class OpsLog:
         if status is None:
             status = "Failed" if self.errors else ("Partial" if self.warnings else "Success")
         text = summary or " · ".join(self.notes[-12:]) or "No detail recorded."
+        # The run's own machine-readable record of how much business work it
+        # did, ahead of the prose: "[work 17/18]", "[work 18/18]", or
+        # "[work nothing due]". blackbox/sync reads this off the newest run so
+        # the console can tell complete-with-warnings from work-left-undone
+        # from a no-op — Last Status alone says "Partial" for the first two.
+        if getattr(self, "work_reported", False):
+            _exp = getattr(self, "expected", None)
+            _comp = getattr(self, "completed", 0)
+            if _exp == 0 and _comp == 0:
+                text = "[work nothing due] " + text
+            elif _exp is not None:
+                text = f"[work {_comp}/{_exp}] " + text
+            else:
+                text = f"[work {_comp}/?] " + text
         global _CURRENT
         if _CURRENT is self:
             _CURRENT = None
@@ -874,20 +895,20 @@ class OpsLog:
             self._rollup_usage(ended)
         if self.job_rec:
             patch = {"Last Status": status}
-            # WHAT "LAST SUCCESS" MEANS. It used to advance on Partial too, so
-            # a run in which every client was skipped and NOTHING was done still
-            # moved the job's last-known-good timestamp forward.
-            #
-            # But a Partial run that refreshed 17 of 18 clients DID do the work,
-            # and treating that the same as a run that did none is the opposite
-            # error. finish() cannot tell them apart; the caller can, by calling
-            # work_done(n). Unset means unknown, and unknown does not stamp.
-            #
-            # Measured before changing it: over the 30 days to 2026-09-30, no
-            # job finished Partial on every run, so nothing loses a recent Last
-            # Success from this. Six jobs finish Partial sometimes and Success
-            # other times.
-            if status == "Success" or (status == "Partial" and getattr(self, "completed", 0) > 0):
+            # WHAT "LAST SUCCESS" MEANS, third and stricter revision. Round one
+            # let any Partial stamp it; round two let any Partial with at least
+            # one completed unit stamp it, and QC showed one-of-many completed
+            # then read as a healthy job on the dashboard. So: FULL COMPLETION
+            # ONLY. Success stamps. Partial stamps only when the caller reported
+            # completed >= expected with a real denominator — finished work that
+            # merely raised warnings. Progress that left work undone does not
+            # move the job's last-known-good time, however much was done; it is
+            # recorded in the "[work X/Y]" prefix instead, where the console
+            # shows it as its own state rather than as health.
+            _comp = getattr(self, "completed", 0)
+            _exp = getattr(self, "expected", None)
+            _full = _exp is not None and _exp > 0 and _comp >= _exp
+            if status == "Success" or (status == "Partial" and _full):
                 patch["Last Success"] = _iso(ended)
             self.at.update(T_JOBS, self.job_rec, patch)
         _say(f"run {status.lower()} in {dur}s "
