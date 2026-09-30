@@ -1077,7 +1077,15 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
             except Exception:
                 pass
         handoff = at.list_records("log", f"AND({{Gmail Thread ID}}='{tid}', {{Event}}='Handed To Karlie', NOT({{Handled}}))", fields=["Summary"], max_records=1) if tid else []
-        events.append({"log_id": r["id"], "event": f.get("Event"), "by": f.get("By"), "email": f.get("Email"),
+        answers = None
+        if f.get("Event") == "Auto-Reply" and f.get("Draft"):  # the email this auto-reply answered (often another thread)
+            try:
+                od = at.get("drafts", f["Draft"][0])["fields"]
+                answers = {"subject": od.get("Subject"), "body": (od.get("Body") or "")[:4000], "kind": od.get("Kind"),
+                           "sent_at": od.get("Sent At"), "thread_id": od.get("Gmail Thread ID")}
+            except Exception:
+                answers = None
+        events.append({"answers_email": answers, "log_id": r["id"], "event": f.get("Event"), "by": f.get("By"), "email": f.get("Email"),
                        "partner_id": (f.get("Partner") or [None])[0], "contact_id": (f.get("Contact") or [None])[0],
                        "thread_id": tid, "at": f.get("At"), "thread": thread, "handoff_log_id": handoff[0]["id"] if handoff else None})
     # Karlie's decisions to learn from
