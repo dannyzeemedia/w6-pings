@@ -44,6 +44,25 @@
   </a>
 </div>
 
+{% set overdue = promises|selectattr('state','equalto','overdue')|list %}
+{% if overdue %}<div class="card promise-alarm" role="alert">
+  <strong>⏰ {{ overdue|length }} promised follow-up{{ 's are' if overdue|length > 1 else ' is' }} overdue.</strong>
+  {% for p in overdue %}<div>{{ p.contact.fields.get('Name') or p.contact.fields.get('Email') }}{% for pid in p.contact.fields.get('Partner', []) %} at {{ pnames.get(pid) }}{% endfor %} was due {{ p.due.strftime('%a %-d %b') }}.</div>{% endfor %}
+  <div class="muted tiny">It's being written tonight and will land in To approve. If it's already handled, cross it off below.</div>
+</div>{% endif %}
+<div class="card" id="promises">
+  <h2>Promised follow-ups</h2>
+  <p class="muted tiny" style="margin:4px 0 8px">Everyone who asked to hear back later, or that you told you'd get back to. Two days before each date the email is written into To approve, ahead of everything else. Once an email goes to them, it's crossed off here.</p>
+  {% for p in promises %}{% set cf = p.contact.fields %}
+  <div class="plan promise {{ p.state }}">
+    <div><strong>{{ cf.get('Name') or cf.get('Email') }}</strong>{% for pid in cf.get('Partner', []) %}<span class="muted"> · {{ pnames.get(pid) }}</span>{% endfor %}
+      <span class="pstate">{{ {'upcoming': p.due.strftime('%a %-d %b'), 'due': 'Due ' ~ p.due.strftime('%a %-d %b') ~ ', being written', 'drafted': 'In To approve, due ' ~ p.due.strftime('%a %-d %b'), 'overdue': 'Overdue since ' ~ p.due.strftime('%a %-d %b')}[p.state] }}</span>
+      {% if p.why %}<div class="muted tiny">"{{ p.why }}"</div>{% endif %}</div>
+    <form method="post" action="{{ url_for('promise_done', cid=p.contact.id) }}"><button class="ghost small" title="No email needed for this one">Not needed</button></form>
+  </div>
+  {% else %}<p class="muted" style="margin-bottom:0">No promises waiting. When someone says "come back to me in two weeks", it shows up here.</p>{% endfor %}
+</div>
+
 <div class="card">
   <h2>Coming up</h2>
   <p class="muted tiny" style="margin:4px 0 8px">Pings planned for later, like when someone said "try me next quarter". Each one lands in To approve two days before it's due. If they get in touch first, it changes the plan instead of sending.</p>

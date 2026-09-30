@@ -153,7 +153,48 @@ def log(event, direction, by, email="", partner=None, sale=None, contact=None, d
         f["Handled"] = handled
     if reviewed is not None:
         f["Reviewed"] = reviewed
-    return at.create("log", {k: v for k, v in f.items() if v not in (None, "")})
+    rec = at.create("log", {k: v for k, v in f.items() if v not in (None, "")})
+    if event == "Sent":
+        try:
+            _keep_promise(contact, email)
+        except Exception:
+            pass
+    return rec
+
+
+def _keep_promise(contact_id, email):
+    """An email just went to this person: if we'd promised to get back to them around now, that promise is kept."""
+    c = at.get("contacts", contact_id) if contact_id else None
+    if not c and email:
+        hits = at.list_records("contacts", f"LOWER({{Email}})='{(email or '').lower()}'", max_records=1)
+        c = hits[0] if hits else None
+    if not c:
+        return
+    due = c["fields"].get("Call Back On")
+    if due and dt.date.today() >= dt.date.fromisoformat(due) - dt.timedelta(days=3):
+        at.update("contacts", c["id"], {"Call Back Kept": dt.date.today().isoformat(), "Call Back On": None})
+
+
+def promises(w=None, horizon_days=60):
+    """Every open promise: (contact, due date, why, state) where state is upcoming / due / overdue / drafted."""
+    today = dt.datetime.now(ZoneInfo("Australia/Brisbane")).date()
+    queued = {}
+    for d in at.list_records("drafts", "OR({Status}='Pending Approval', {Status}='Approved')", fields=["Contact", "To Email", "Status"]):
+        for cid in d["fields"].get("Contact", []):
+            queued[cid] = d["fields"].get("Status")
+    out = []
+    for c in at.list_records("contacts", "{Call Back On}!=''", fields=["Email", "Name", "Partner", "Status", "Call Back On", "Call Back Why"]):
+        f = c["fields"]
+        if not f.get("Call Back On") or f.get("Status") not in (None, "Active"):
+            continue
+        due = dt.date.fromisoformat(f["Call Back On"])
+        if (due - today).days > horizon_days:
+            continue
+        state = ("drafted" if c["id"] in queued else "overdue" if due < today - dt.timedelta(days=1)
+                 else "due" if (due - today).days <= 2 else "upcoming")
+        out.append({"contact": c, "due": due, "why": f.get("Call Back Why") or "", "state": state})
+    out.sort(key=lambda x: x["due"])
+    return out
 
 
 def known_message_ids():
@@ -1128,6 +1169,8 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
     rescues = rescue_targets(w)[:max(0, min(room, 3))]
     room -= len(rescues)
     # stalled deals get their own daily allowance: worth more than another cold pitch, so they never wait for room
+    # promises come first and are never capped: "contact me in two weeks" always gets its email
+    kept = [] if learn_only else [p for p in promises(w) if p["state"] in ("due", "overdue")]
     stalled = [] if (requests_only or learn_only) else stalled_deals(w, w.s.get("Stalled Deal Nudges Per Day") or 2)
     room = max(0, room - len(stalled))
     if learn_only:  # "Sync now": read and learn, write nothing new
@@ -1154,6 +1197,15 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
         gone = w.contacts[x["gone_contact"]]["fields"]
         work.append({"kind": "Gone-Contact Rescue", **x, "gone_name": gone.get("Name"), "gone_email": gone.get("Email"),
                      "other_known_people": others, "apollo_candidates": found, "company": company_history(w, x["partner"])})
+    for p_ in kept:
+        cf = p_["contact"]["fields"]
+        pid = (cf.get("Partner") or [None])[0]
+        last = at.list_records("log", f"AND(LOWER({{Email}})='{(cf.get('Email') or '').lower()}', {{Gmail Thread ID}}!='')",
+                               sort=[("At", "desc")], fields=["Gmail Thread ID"], max_records=1)
+        work.append({"kind": "Follow-up", "promise": True, "partner": pid, "contact": p_["contact"]["id"],
+                     "thread_id": last[0]["fields"]["Gmail Thread ID"] if last else None,
+                     "they_asked_for": p_["why"], "promised_for": p_["due"].isoformat(),
+                     "company": company_history(w, pid) if pid else None})
     for x in stalled:
         work.append({"kind": "Deal Nudge", **x, "company": company_history(w, x["partner"])})
     for x in cold:
@@ -1230,6 +1282,10 @@ def apply(payload):
             if e.get("ai_tell_check"):
                 hf["Suggestion Check"] = _txt(e["ai_tell_check"], False)[:3000]
             at.update("log", e["handoff_log_id"], hf)
+        if e.get("contact_id") and e.get("call_back_on"):
+            at.update("contacts", e["contact_id"], {"Call Back On": str(e["call_back_on"])[:10],
+                                                    "Call Back Why": (e.get("call_back_why") or e.get("summary") or "")[:1000],
+                                                    "Call Back Set": dt.date.today().isoformat(), "Call Back Kept": None})
         if e.get("contact_id") and (e.get("contact_away_until") or e.get("contact_left")):
             upd = {}
             if e.get("contact_away_until"):

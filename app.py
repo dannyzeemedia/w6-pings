@@ -308,8 +308,20 @@ def today():
                 if not h["fields"].get("Until") or h["fields"]["Until"] >= today_d]
     if session.get("user") == "karlie" or request.args.get("party"):
         _today_parties(f, sent_today, yours, tz)
+    proms = engine.promises()
+    pnames = at.partner_names([p for x in proms for p in x["contact"]["fields"].get("Partner", [])])
     return render_template("today.html", s=f, sent_today=sent_today, n_yours=len(yours),
-                           upcoming=upcoming, names=names, brands=brands_for(upcoming, "To Email"), handsoff=handsoff, partners=at.all_partners())
+                           upcoming=upcoming, names=names, brands=brands_for(upcoming, "To Email"), handsoff=handsoff, partners=at.all_partners(),
+                           promises=proms, pnames=pnames)
+
+
+@app.post("/promise/<cid>/done")
+@login_required
+def promise_done(cid):
+    """Karlie: this promise doesn't need an email (sorted on a call, no longer relevant...)."""
+    at.update("contacts", cid, {"Call Back On": None, "Call Back Kept": dt.date.today().isoformat()})
+    flash("Crossed off. It won't be chased.")
+    return redirect(url_for("today") + "#promises")
 
 
 def _today_parties(f, sent_today, yours, tz):
