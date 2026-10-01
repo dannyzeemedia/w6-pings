@@ -822,3 +822,6 @@ details.rcpts .hint { padding-left: 74px; }
 .loose-form { display: grid; gap: 8px; }
 .loose-form .row { margin: 0; flex-wrap: wrap; gap: 8px; }
 .plan.promise.later .pstate { background: var(--amber-bg); color: #6b4e00; }
+/* loose-end buttons: one size, one line */
+.loose-form .row { align-items: center; }
+.loose-form .row button { height: 38px; padding: 0 18px; font-size: 12px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; align-self: center; margin: 0; }

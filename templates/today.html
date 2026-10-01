@@ -57,7 +57,7 @@
   <div class="loose-end">
     <div><strong>{{ cf.get('Name') or cf.get('Email') }}</strong>{% for pid in cf.get('Partner', []) %}<span class="muted"> · {{ pnames.get(pid) }}</span>{% endfor %}
       <span class="pstate">Loose end{% if p.since %} · open since {{ p.since|nicedate }}{% endif %}</span></div>
-    {% if p.why %}<div class="loose-quote">"{{ p.why }}"</div>{% endif %}
+    {% if p.why %}<div class="loose-quote">{{ p.why if '"' in p.why else '"' ~ p.why ~ '"' }}</div>{% endif %}
     <form method="post" action="{{ url_for('promise_act', cid=p.contact.id) }}" class="loose-form">
       <input type="text" name="text" placeholder="What do you want to do? e.g. nudge him, say we're aiming for November" autocomplete="off">
       <div class="row">
@@ -74,7 +74,7 @@
   <div class="plan promise {{ p.state }}">
     <div><strong>{{ cf.get('Name') or cf.get('Email') }}</strong>{% for pid in cf.get('Partner', []) %}<span class="muted"> · {{ pnames.get(pid) }}</span>{% endfor %}
       <span class="pstate">{{ {'upcoming': p.due.strftime('%a %-d %b'), 'due': 'Due ' ~ p.due.strftime('%a %-d %b') ~ ', being written', 'drafted': 'In To approve, due ' ~ p.due.strftime('%a %-d %b'), 'overdue': 'Overdue since ' ~ p.due.strftime('%a %-d %b'), 'later': 'Loose end · check in ' ~ p.due.strftime('%a %-d %b')}[p.state] }}</span>
-      {% if p.why %}<div class="muted tiny">"{{ p.why }}"</div>{% endif %}</div>
+      {% if p.why %}<div class="muted tiny">{{ p.why if '"' in p.why else '"' ~ p.why ~ '"' }}</div>{% endif %}</div>
     <form method="post" action="{{ url_for('promise_done', cid=p.contact.id) }}"><button class="ghost small" title="No email needed for this one">Not needed</button></form>
   </div>
   {% else %}<p class="muted" style="margin-bottom:0">No promises waiting. When someone says "come back to me in two weeks", it shows up here.</p>{% endfor %}
