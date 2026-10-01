@@ -35,7 +35,7 @@
       <div class="big">{{ n_to_approve or 0 }}</div>
       <div class="muted">{{ 'Nothing to check.' if not n_to_approve else 'Emails to approve, tweak or bin →' }}</div>
     </a>
-    <div style="margin-top:12px">{% include "_more.html" %}</div>
+    <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap">{% if n_to_approve %}<a class="btn small catchup-btn" href="{{ url_for('catchup') }}">⚡ Catch up</a>{% endif %}{% include "_more.html" %}</div>
   </div>
   <a class="card" href="{{ url_for('yours') }}">
     <div class="label">Your turn</div>

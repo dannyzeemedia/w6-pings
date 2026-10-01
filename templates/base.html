@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=52" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=56" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -57,6 +57,7 @@
     <div class="mmenu-links">
       {% for ep, label, ico, count in [('today','Today','<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>', 0),
                                        ('approve','To approve','<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>', n_to_approve),
+                                       ('catchup','⚡ Catch up','<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>', n_to_approve),
                                        ('yours','Your turn','<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>', n_yours),
                                        ('bookings_page','Bookings','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>', 0),
                                        ('rules','Rules','<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>', 0),
@@ -509,7 +510,9 @@ window.updatePingBar=function(n,goal,exact){
     v=v.trim();
     if(v && v!==mine && !document.getElementById('update-bar')){
       const b=document.createElement('div'); b.id='update-bar'; b.className='update-bar';
-      b.innerHTML='<span>✨ There’s an update to Pings. Your work is saved. Press <b>Ctrl+R</b> (or <b>⌘R</b>) when you’re ready.</span><button type="button" onclick="location.reload()">Refresh now</button>';
+      const phone=matchMedia('(max-width: 640px)').matches;
+      b.innerHTML=phone ? '<span>✨ Pings has been updated. Your work is saved.</span><button type="button" onclick="location.reload()">Refresh</button>'
+                        : '<span>✨ There’s an update to Pings. Your work is saved. Press <b>Ctrl+R</b> (or <b>⌘R</b>) when you’re ready.</span><button type="button" onclick="location.reload()">Refresh now</button>';
       document.body.appendChild(b);
     }
   }).catch(()=>{});

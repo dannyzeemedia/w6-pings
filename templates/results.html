@@ -22,7 +22,7 @@
   <p class="muted" style="margin:0">Nothing actioned {{ 'today' if span == 1 else 'this week' }} yet.</p>
   {% endfor %}
 </div>
-<div class="grid">
+<div class="grid res-stats">
   <div class="card"><div class="label">Pings sent</div><div class="big">{{ totals.sent }}</div></div>
   <div class="card"><div class="label">Replied</div><div class="big">{{ totals.replied }}</div><div class="muted">{{ (totals.rate|string + '% of pings') if totals.rate is not none else 'No pings yet' }}</div></div>
   <div class="card"><div class="label">Passed to you</div><div class="big">{{ totals.handed }}</div></div>

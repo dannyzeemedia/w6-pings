@@ -281,7 +281,7 @@ def pending_drafts(fields=None):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        u = request.form.get("user", "").strip().lower()
+        u = (request.form.get("username") or request.form.get("user") or "").strip().lower()
         if u in USERS and check_password_hash(USERS[u], request.form.get("password", "")):
             session.permanent = True
             session["user"] = u
@@ -532,12 +532,25 @@ def _short_eta(t):
 @login_required
 def approve_undo(rid):
     d = at.get("drafts", rid)["fields"]
-    if d.get("Status") == "Approved":
+    ok = d.get("Status") == "Approved"
+    if ok:
         at.update("drafts", rid, {"Status": "Pending Approval", "Decided At": None, "Expected Send": None})
-        flash("Pulled back. It's in To approve again.")
-    else:
-        flash("Too late, that one has already gone.")
+    if request.headers.get("X-Fetch") == "1":  # Catch-up's Undo
+        return {"ok": ok, **progress_numbers()}
+    flash("Pulled back. It's in To approve again." if ok else "Too late, that one has already gone.")
     return redirect(url_for("approve"))
+
+
+@app.get("/catchup")
+@login_required
+def catchup():
+    """Catch-up: the To approve queue one email at a time, full screen. Send it, or leave it for later."""
+    drafts = [d for d in pending_drafts() if not d["fields"].get("Remix Request")]
+    names = at.partner_names([p for d in drafts for p in d["fields"].get("Partner", [])])
+    for d in drafts:
+        f = d["fields"]
+        d["html"] = richtext.sanitize(f.get("Body HTML")) if (f.get("Body HTML") or "").strip() else richtext.text_to_html(f.get("Body") or "")
+    return render_template("catchup.html", drafts=drafts, names=names, brands=brands_for(drafts, "To Email"))
 
 
 @app.post("/approve/<rid>/remix")

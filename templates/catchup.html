@@ -1,0 +1,130 @@
+{% extends "base.html" %}{% block title %}Catch up{% endblock %}{% block bodyclass %}catchup-mode{% endblock %}
+{% from "_brand.html" import chip %}
+{% block body %}
+{% set KIND = {'Cold': 'New pitch', 'Follow-up': 'Follow-up', 'Gone-Contact Rescue': 'Finding the right person', 'Deal Nudge': 'Stalled deal?'} %}
+<div class="cu" id="cu">
+  <div class="cu-top">
+    <a class="cu-x" href="{{ url_for('approve') }}" aria-label="Close catch-up">×</a>
+    <div class="cu-left"><span id="cu-left">{{ drafts|length }}</span> left</div>
+    <button type="button" class="cu-undo" id="cu-undo" disabled>Undo</button>
+  </div>
+  <div class="cu-stack" id="cu-stack">
+    {% for d in drafts %}{% set f = d.fields %}
+    <article class="cu-card" data-id="{{ d.id }}" data-action="{{ url_for('decide', rid=d.id) }}" data-undo="{{ url_for('approve_undo', rid=d.id) }}" hidden>
+      <div class="cu-stamp send">Send it</div><div class="cu-stamp later">Later</div>
+      <header class="cu-head">
+        {{ chip(brands.get(d.id), names.get((f.get('Partner') or [''])[0]) or f.get('To Email'), 40) }}
+        <div class="cu-who"><strong>{{ f.get('To Name') or f.get('To Email') }}</strong>
+          <span class="muted tiny">{% for p in f.get('Partner', []) %}{{ names.get(p) }} · {% endfor %}{{ f.get('To Email') }}</span></div>
+        <span class="tag {{ 'green' if f.get('Kind')=='Cold' }}{{ 'amber' if f.get('Kind')=='Deal Nudge' }}">{{ KIND.get(f.get('Kind'), f.get('Kind') or 'Email') }}</span>
+      </header>
+      {% if f.get('Why This Email') %}<div class="cu-why"><span>{{ f['Why This Email'] }}</span></div>{% endif %}
+      <div class="cu-mail">
+        {% if f.get('Subject') %}<div class="cu-subject">{{ f['Subject'] }}</div>{% endif %}
+        <div class="cu-body">{{ d.html|safe }}</div>
+      </div>
+      <textarea hidden data-f="subject">{{ f.get('Subject', '') }}</textarea>
+      <textarea hidden data-f="body">{{ f.get('Body', '') }}</textarea>
+      <textarea hidden data-f="body_html">{{ f.get('Body HTML', '') }}</textarea>
+    </article>
+    {% endfor %}
+    <div class="cu-done" id="cu-done" hidden>
+      <div class="cu-done-emoji">🎉</div>
+      <h2>All caught up</h2>
+      <p class="muted" id="cu-done-sum"></p>
+      <div class="row" style="justify-content:center"><a class="btn" href="{{ url_for('approve') }}">To approve</a><a class="btn ghost" href="{{ url_for('today') }}">Today</a></div>
+    </div>
+  </div>
+  <div class="cu-actions">
+    <button type="button" class="cu-later" id="cu-later">Later</button>
+    <button type="button" class="cu-send" id="cu-send">Send it</button>
+  </div>
+  <p class="cu-hint muted tiny">Swipe right to send, left to leave it for later. "Later" keeps it in To approve for when you want to edit it.</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script>
+(function(){
+  const stack=document.getElementById('cu-stack'); if(!stack) return;
+  const day=new Date().toDateString(), KEY='cu-later-'+day;
+  let later=[]; try{ later=JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(e){}
+  // emails she left for later today don't come round again in Catch-up (they're still in To approve)
+  let cards=[...stack.querySelectorAll('.cu-card')].filter(c=>!later.includes(c.dataset.id));
+  stack.querySelectorAll('.cu-card').forEach(c=>{ if(later.includes(c.dataset.id)) c.remove(); });
+  const leftEl=document.getElementById('cu-left'), undoBtn=document.getElementById('cu-undo');
+  let i=0, history=[], sent=0, saved=0, busy=false;
+  function show(){
+    cards.forEach((c,k)=>{ c.hidden=k<i||k>i+1; c.classList.toggle('next',k===i+1); c.classList.toggle('current',k===i); c.style.transform=''; c.style.opacity=''; });
+    leftEl.textContent=Math.max(0,cards.length-i);
+    const done=i>=cards.length; document.getElementById('cu-done').hidden=!done;
+    document.querySelector('.cu-actions').style.visibility=done?'hidden':'visible';
+    undoBtn.disabled=!history.length;
+    if(done){
+      document.getElementById('cu-done-sum').textContent=(sent?sent+' sent':'Nothing sent')+(saved?' · '+saved+' left for later, still in To approve':'')+'.';
+      if(window.confetti&&sent&&!matchMedia('(prefers-reduced-motion: reduce)').matches) confetti({particleCount:120,spread:100,origin:{y:.35},colors:['#265c51','#bee1de','#e2dbbe','#ffffff']});
+    }
+  }
+  function fly(card, dir, cb){
+    card.style.transition='transform .32s cubic-bezier(.3,.7,.3,1), opacity .32s';
+    card.style.transform=`translateX(${dir*130}%) rotate(${dir*16}deg)`; card.style.opacity='0';
+    setTimeout(cb,300);
+  }
+  function decide(dir){
+    if(busy||i>=cards.length) return; busy=true;
+    const card=cards[i];
+    if(dir>0){
+      const data=new FormData(); data.set('action','send');
+      card.querySelectorAll('textarea[data-f]').forEach(t=>data.set(t.dataset.f,t.value));
+      const req=fetch(card.dataset.action,{method:'POST',body:data,headers:{'X-Fetch':'1'}}).then(r=>r.json()).then(j=>{
+        if(!j.ok) throw 0;
+        if(window.updatePingBar) updatePingBar(j.pings_today,j.goal,j);
+      }).catch(()=>{ if(window.toast) toast('⚠️','That one didn\'t send','It\'s still in To approve. Try it from there.'); });
+      sent++; history.push({card,type:'send',req});
+    } else {
+      later.push(card.dataset.id); try{ localStorage.setItem(KEY,JSON.stringify(later)); }catch(e){}
+      saved++; history.push({card,type:'later'});
+    }
+    undoBtn.disabled=false;   // Undo works straight away, even while the card is still flying off
+    fly(card,dir,()=>{ i++; busy=false; show(); });
+  }
+  document.getElementById('cu-send').onclick=()=>decide(1);
+  document.getElementById('cu-later').onclick=()=>decide(-1);
+  undoBtn.onclick=()=>{
+    if(busy){ setTimeout(()=>undoBtn.onclick(),120); return; }   // tapped mid-animation: undo as soon as it lands
+    if(!history.length) return;
+    const h=history.pop(); i--;
+    if(h.type==='send'){ sent--;
+      (h.req||Promise.resolve()).then(()=>fetch(h.card.dataset.undo,{method:'POST',headers:{'X-Fetch':'1'}})).then(r=>r.json()).then(j=>{   // wait for the send to land first
+        if(!j.ok&&window.toast) toast('⏳','Too late for that one','It had already gone out.');
+        else if(window.updatePingBar) updatePingBar(j.pings_today,j.goal,j);
+      }).catch(()=>{});
+    } else { saved--; later=later.filter(x=>x!==h.card.dataset.id); try{ localStorage.setItem(KEY,JSON.stringify(later)); }catch(e){} }
+    h.card.style.transition='none'; show();
+    h.card.style.transform='translateY(-20px) scale(.97)'; h.card.style.opacity='0'; void h.card.offsetWidth;
+    h.card.style.transition='transform .3s cubic-bezier(.2,.7,.2,1), opacity .25s'; h.card.style.transform=''; h.card.style.opacity='';
+  };
+  document.addEventListener('keydown',e=>{ if(e.target.closest('input,textarea')) return;
+    if(e.key==='ArrowRight') decide(1); else if(e.key==='ArrowLeft') decide(-1); else if((e.metaKey||e.ctrlKey)&&e.key==='z'){ e.preventDefault(); undoBtn.click(); } });
+  // swipe: drag the card sideways; past a third of the way it goes, otherwise it springs back.
+  // Touch uses touch events (so up/down still scrolls the email); a mouse uses pointer events.
+  let sx=0, sy=0, dx=0, drag=false, decided=null;
+  const start=(x,y,target)=>{ const c=target.closest('.cu-card.current'); if(!c||busy) return; sx=x; sy=y; dx=0; drag=true; decided=null; c.style.transition='none'; };
+  const move=(x,y,e)=>{ if(!drag) return; const c=cards[i]; const mx=x-sx, my=y-sy;
+    if(decided===null && (Math.abs(mx)>8||Math.abs(my)>8)) decided=Math.abs(mx)>Math.abs(my);   // sideways = swipe, up/down = scroll
+    if(!decided) return; if(e.cancelable) e.preventDefault(); dx=mx;
+    c.style.transform=`translateX(${dx}px) rotate(${dx/22}deg)`;
+    c.querySelector('.cu-stamp.send').style.opacity=Math.max(0,Math.min(1,dx/110));
+    c.querySelector('.cu-stamp.later').style.opacity=Math.max(0,Math.min(1,-dx/110)); };
+  const end=()=>{ if(!drag) return; drag=false; const c=cards[i]; if(!c) return;
+    c.querySelectorAll('.cu-stamp').forEach(s=>s.style.opacity=0);
+    if(decided&&Math.abs(dx)>stack.offsetWidth/3) decide(dx>0?1:-1);
+    else { c.style.transition='transform .25s cubic-bezier(.3,1.4,.5,1)'; c.style.transform=''; } };
+  stack.addEventListener('touchstart',e=>start(e.touches[0].clientX,e.touches[0].clientY,e.target),{passive:true});
+  stack.addEventListener('touchmove',e=>move(e.touches[0].clientX,e.touches[0].clientY,e),{passive:false});
+  stack.addEventListener('touchend',end); stack.addEventListener('touchcancel',end);
+  stack.addEventListener('pointerdown',e=>{ if(e.pointerType==='mouse') start(e.clientX,e.clientY,e.target); });
+  stack.addEventListener('pointermove',e=>{ if(e.pointerType==='mouse') move(e.clientX,e.clientY,e); });
+  stack.addEventListener('pointerup',e=>{ if(e.pointerType==='mouse') end(); });
+  show();
+})();
+</script>
+{% endblock %}

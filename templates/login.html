@@ -7,9 +7,9 @@
     {% for m in get_flashed_messages() %}<div class="flash">{{ m }}</div>{% endfor %}
     <h1>Welcome back</h1>
     <p class="lede">Your sponsor pings, all in one place.</p>
-    <form method="post">
-      <div class="field"><label>Name</label><input type="text" name="user" autocomplete="username" autocapitalize="none" required autofocus></div>
-      <div class="field"><label>Password</label><input type="password" name="password" autocomplete="current-password" required></div>
+    <form method="post" action="{{ url_for('login') }}{{ ('?next=' ~ (request.args.get('next')|urlencode)) if request.args.get('next') else '' }}" id="login-form" name="login" autocomplete="on">
+      <div class="field"><label for="username">Name</label><input type="text" id="username" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus></div>
+      <div class="field"><label for="password">Password</label><input type="password" id="password" name="password" autocomplete="current-password" required></div>
       <button type="submit">Sign in</button>
     </form>
   </div>

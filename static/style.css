@@ -979,3 +979,63 @@ nav .ni, nav .nl-short { display: none; }
   .act-search, .act-list, #acts { margin-left: 0; margin-right: 0; }
 }
 @media (max-width: 640px) { main .status { margin-left: 8px; margin-right: 8px; padding: 14px 12px; border-radius: 16px; } }
+
+/* ===================== Catch-up: one email at a time ===================== */
+body.catchup-mode .top .wrap { display: none; }
+body.catchup-mode main.wrap { max-width: 640px; padding-bottom: 0; }
+.cu { display: flex; flex-direction: column; min-height: calc(100dvh - 70px); padding: 8px 0 calc(10px + env(safe-area-inset-bottom)); }
+.cu-top { display: grid; grid-template-columns: 60px 1fr 60px; align-items: center; padding: 4px 8px 10px; }
+.cu-x { font-size: 32px; line-height: 1; color: var(--ink-2); text-decoration: none; padding: 2px 8px; }
+.cu-left { text-align: center; font-weight: 600; font-size: 17px; color: var(--green); }
+.cu-left span { font-variant-numeric: tabular-nums; }
+.cu-undo { all: unset; cursor: pointer; justify-self: end; font-weight: 600; color: var(--green); padding: 6px 8px; }
+.cu-undo:disabled { color: var(--line); cursor: default; }
+.cu-stack { position: relative; flex: 1; display: grid; min-height: 0; margin: 0 8px; }
+.cu-card { grid-area: 1 / 1; display: flex; flex-direction: column; min-height: 0; max-height: calc(100dvh - 230px); background: var(--card); border: 1px solid var(--line);
+  border-radius: 22px; box-shadow: 0 10px 30px rgba(0,0,0,.08); padding: 16px; overflow: hidden; touch-action: pan-y; user-select: none; position: relative; will-change: transform; }
+.cu-card.next { transform: scale(.94) translateY(12px) !important; opacity: .35; box-shadow: none; pointer-events: none; z-index: 0; }
+.cu-card.current { z-index: 1; }
+.cu-head { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.cu-head .tag { grid-column: 1 / -1; justify-self: start; }
+.cu-who { display: grid; min-width: 0; } .cu-who strong { font-size: 17px; } .cu-who .tiny { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cu-why { font-size: 13.5px; color: var(--ink-2); background: var(--cream-2); border-radius: 12px; padding: 8px 10px; margin: 10px 0 0; }
+.cu-why span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cu-mail { margin-top: 12px; overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; min-height: 0; border-top: 1px solid var(--line); padding-top: 12px; }
+.cu-subject { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+.cu-body { font-size: 15.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.cu-body ul, .cu-body ol { padding-left: 22px; margin: 4px 0; }
+.cu-body a { color: var(--green); }
+.cu-stamp { position: absolute; top: 18px; z-index: 3; padding: 6px 14px; border-radius: 10px; font-weight: 800; font-size: 18px; letter-spacing: .06em;
+  text-transform: uppercase; opacity: 0; pointer-events: none; border: 3px solid; transform: rotate(-12deg); }
+.cu-stamp.send { left: 16px; color: var(--green); border-color: var(--green); background: color-mix(in srgb, var(--card) 85%, transparent); }
+.cu-stamp.later { right: 16px; color: #8a7840; border-color: #b9a66a; background: color-mix(in srgb, var(--card) 85%, transparent); transform: rotate(12deg); }
+.cu-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; padding: 14px 8px 0; }
+.cu-actions button { all: unset; box-sizing: border-box; text-align: center; padding: 16px; border-radius: 16px; font-weight: 700; font-size: 17px; cursor: pointer; transition: transform .1s; }
+.cu-actions button:active { transform: scale(.97); }
+.cu-actions .cu-later { background: color-mix(in srgb, #e2dbbe 55%, var(--card)); color: #6b5c28; border: 1px solid #e2dbbe; }
+.cu-actions .cu-send { background: var(--green); color: var(--on-green); box-shadow: 0 6px 16px color-mix(in srgb, #265c51 35%, transparent); }
+.cu-hint { text-align: center; margin: 10px 16px 0; }
+.cu-done { grid-area: 1 / 1; align-self: center; text-align: center; padding: 30px 16px; animation: pop-in .4s cubic-bezier(.2,.7,.2,1); }
+.cu-done-emoji { font-size: 54px; }
+.cu-done h2 { margin: 6px 0; }
+.catchup-btn { display: inline-flex; align-items: center; gap: 8px; }
+@media (min-width: 641px) { .cu { min-height: calc(100vh - 140px); } .cu-card { max-height: calc(100vh - 300px); } }
+
+.cu-card[hidden] { display: none !important; }
+.cu-actions { position: relative; z-index: 3; }
+.cu-card { max-height: calc(100dvh - 250px); }
+
+@media (max-width: 640px) {
+  /* "Pings has been updated": a tidy full-width bar under the top strip, not a squashed pill */
+  .update-bar { left: 8px !important; right: 8px !important; top: auto !important; bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+    transform: none !important; width: auto !important; max-width: none !important; border-radius: 16px !important;
+    display: flex !important; align-items: center; gap: 12px; padding: 10px 10px 10px 14px !important; font-size: 14px; line-height: 1.35; }
+  .update-bar span { flex: 1; min-width: 0; }
+  .update-bar button { flex: none; height: 38px; padding: 0 16px; }
+}
+@media (max-width: 640px) {
+  .res-stats { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  .res-stats .card { padding: 12px !important; }
+  .res-stats .big { font-size: 32px !important; margin: 2px 0 0; }
+  .res-stats .label { font-size: 10.5px; }
+}
