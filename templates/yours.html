@@ -30,7 +30,7 @@
       <details class="rcpts" data-rcpts>
         <summary><span class="rcpts-title">Sending to</span> <span class="rcpt-summary"></span>
           <span class="rcpt-flag" hidden></span>
-          <span class="rcpt-edit muted tiny">Change</span></summary>
+</summary>
         {% if plan.note %}<div class="rcpts-note">🙈 {{ plan.note }}</div>{% endif %}
         <div class="rcpt-rows">
           {% for r in ('to', 'cc', 'bcc') %}<div class="rcpt-row" data-role="{{ r }}"><span class="rcpt-label">{{ r|title }}</span><div class="rcpt-chips"></div></div>{% endfor %}

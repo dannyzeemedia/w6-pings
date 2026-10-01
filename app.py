@@ -1177,6 +1177,8 @@ def activity(days=7):
     out, now = [], now_utc()
     for d in rows:
         f = d["fields"]
+        if f.get("Subject") == "(skipped)":
+            continue  # the overnight run deciding not to write one: not something Karlie did
         st, kind = f.get("Status"), f.get("Kind")
         who = f.get("To Name") or f.get("To Email") or ""
         if kind == "Reply":

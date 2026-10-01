@@ -843,22 +843,6 @@ nav .ni, nav .nl-short { display: none; }
   .pingbar .pingbar-track, .pingbar.week .pingbar-track { height: 5px; }
   .pingbar.week { margin-top: -3px; padding-bottom: 8px; }
 
-  /* tabs: an app-style bar at the bottom, in thumb reach */
-  nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; width: auto; order: 0;
-    display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
-    background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    border-top: 1px solid var(--line); border-radius: 0; box-shadow: 0 -4px 20px rgba(0,0,0,.06); overflow: visible; }
-  nav a, nav a.on { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 6px 0 4px;
-    font-size: 10.5px; font-weight: 500; color: var(--ink-2); background: none !important; border-radius: 12px; position: relative; min-height: 48px; }
-  nav a.on { color: var(--green); font-weight: 600; }
-  nav a.on::after { display: none; }
-  nav a.on .ni { background: var(--mint-2); }
-  nav .ni { display: block; width: 44px; height: 28px; padding: 4px 12px; border-radius: 99px; transition: background-color .2s; }
-  nav .nl-long { display: none; } nav .nl-short { display: inline; }
-  nav .pill { position: absolute; top: 2px; left: calc(50% + 6px); margin: 0; font-size: 10px; padding: 0 5px; min-width: 17px; line-height: 16px; text-align: center; }
-  main.wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
-  .toast { bottom: calc(84px + env(safe-area-inset-bottom)) !important; }
-
   /* less nesting: cards get slimmer padding so emails have the width */
   .wrap { padding-left: 12px; padding-right: 12px; }
   .card { padding: 16px; border-radius: 18px; }
@@ -892,7 +876,7 @@ nav .ni, nav .nl-short { display: none; }
   .act-kinds::-webkit-scrollbar { display: none; }
   .act-kinds a { flex: none; }
   details.act-item > summary { grid-template-columns: auto 1fr; padding: 10px; gap: 10px; }
-  .act-when { grid-column: 2; padding-top: 0; }
+  details.act-item .act-when { grid-column: 2; padding-top: 0; }
   .act-detail { padding: 0 10px 12px; }
   .trail-when { min-width: 0; }
 
@@ -911,3 +895,87 @@ nav .ni, nav .nl-short { display: none; }
   .bk-stats .tiny { display: none; }
   .bk-legend { gap: 6px 12px; font-size: 13px; }
 }
+
+/* ===================== Phone: sandwich menu, flat layout ===================== */
+.menu-btn, .mmenu, .install-guide { display: none; }
+@media (max-width: 640px) {
+  /* header: logo left, menu right, both on one centred line; the bars sit under them */
+  .top .wrap { align-items: center; padding-top: 10px; padding-bottom: 6px; }
+  .brand { margin: 0; height: 24px; width: 140px; background-position: left center; }
+  nav, .sync-form, .top .theme { display: none !important; }
+  .menu-btn { display: grid; place-items: center; margin-left: auto; position: relative; width: 40px; height: 40px; padding: 0; border-radius: 12px;
+    background: transparent; border: 1px solid var(--line); color: var(--green); }
+  .menu-btn svg { width: 22px; height: 22px; }
+  .menu-btn path { transition: transform .25s cubic-bezier(.3,.8,.2,1), opacity .2s; transform-origin: 12px 12px; }
+  .menu-btn.x .mb1 { transform: translateY(5px) rotate(45deg); } .menu-btn.x .mb2 { opacity: 0; } .menu-btn.x .mb3 { transform: translateY(-5px) rotate(-45deg); }
+  .menu-dot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #c58b12; box-shadow: 0 0 0 2px var(--card); }
+  html.menu-open { overflow: hidden; }
+
+  /* the menu: drops down from the top, away from the phone's own buttons at the bottom */
+  .mmenu { display: block; position: fixed; inset: 0; z-index: 60; background: rgba(15,30,26,.32); opacity: 0; transition: opacity .2s; }
+  .mmenu.open { opacity: 1; }
+  .mmenu[hidden] { display: none; }
+  .mmenu-sheet { position: absolute; left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top)); background: var(--card); border-radius: 20px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.25); padding: 10px; transform: translateY(-12px) scale(.98); transform-origin: top right; transition: transform .25s cubic-bezier(.2,.7,.2,1); }
+  .mmenu.open .mmenu-sheet { transform: none; }
+  .mmenu-links { display: grid; gap: 2px; }
+  .mmenu-links a { display: flex; align-items: center; gap: 14px; padding: 13px 14px; border-radius: 14px; text-decoration: none; color: var(--ink); font-size: 17px; }
+  .mmenu-links a svg { width: 22px; height: 22px; color: var(--ink-2); flex: none; }
+  .mmenu-links a.on { background: var(--mint-2); color: var(--green); font-weight: 600; }
+  .mmenu-links a.on svg { color: var(--green); }
+  .mmenu-links em { margin-left: auto; font-style: normal; font-size: 13px; font-weight: 700; background: var(--green); color: var(--on-green); border-radius: 99px; padding: 2px 9px; }
+  .mmenu-actions { display: grid; gap: 2px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .mmenu-actions form { margin: 0; }
+  .mmenu-act { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 14px; width: 100%; padding: 13px 14px; border-radius: 14px; font-size: 16px; color: var(--ink); cursor: pointer; }
+  .mmenu-act svg { width: 22px; height: 22px; color: var(--green); flex: none; }
+  .mmenu-act:active { background: var(--mint-2); }
+  .install-btn { color: var(--green); font-weight: 600; }
+
+  /* "add to home screen" walkthrough */
+  .install-guide { display: grid; position: fixed; inset: 0; z-index: 70; place-items: end center; background: rgba(15,30,26,.4); padding: 12px 12px calc(16px + env(safe-area-inset-bottom)); }
+  .install-guide[hidden] { display: none; }
+  .ig-card { position: relative; width: 100%; background: var(--card); border-radius: 22px; padding: 22px 20px 16px; box-shadow: 0 20px 60px rgba(0,0,0,.3); animation: pop-in .3s cubic-bezier(.2,.7,.2,1); }
+  .ig-icon { width: 56px; height: 56px; border-radius: 14px; display: block; margin-bottom: 10px; }
+  .ig-card h3 { margin: 0 0 10px; font-size: 20px; }
+  .ig-steps { margin: 0 0 10px; padding-left: 22px; display: grid; gap: 10px; font-size: 16px; }
+  .ig-x { all: unset; position: absolute; top: 10px; right: 12px; font-size: 26px; line-height: 1; padding: 6px 10px; color: var(--ink-2); cursor: pointer; }
+
+  /* flat layout: the page's cards run edge to edge, and frames inside them drop their own side padding,
+     so text gets nearly the full width of the phone */
+  main.wrap { padding-left: 0; padding-right: 0; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  main .head { padding: 0 16px; }
+  main .card { border-radius: 16px; margin-left: 8px; margin-right: 8px; padding: 14px 12px; }
+  main .grid .card, main .bk-stats .card { margin-left: 0; margin-right: 0; }
+  main .grid { padding: 0 8px; }
+  .bk-stats .card { border-radius: 14px !important; border: 1px solid var(--line) !important; }
+  .email-zone, .draft .email-zone { margin-left: 0 !important; margin-right: 0 !important; padding: 0 !important; background: none !important; border: 0 !important; }
+  .rte { border-radius: 14px; }
+  .thread { padding: 10px 8px; border-radius: 14px; }
+  .context-box { padding: 10px 12px; }
+  .grid > .card { border-radius: 16px !important; }
+
+  /* every fold-out: contents never wider than the box they open in */
+  details > .dx > .dx-in { min-width: 0; }
+  details > .dx > .dx-in > * { max-width: 100%; box-sizing: border-box; }
+  details.rcpts > .dx > .dx-in { grid-template-columns: minmax(0, 1fr); padding: 0 12px 12px; }
+  .rcpt-row { grid-template-columns: 1fr; gap: 4px; }
+  .rcpt-chips { min-width: 0; }
+  .rcpt { max-width: 100%; }
+  .rcpt b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46vw; }
+  .rcpt-add { padding-left: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .rcpt-add input { width: 100%; max-width: none; min-width: 0; }
+  details.rcpts .hint { padding-left: 0; }
+
+  /* Your activity (Results): one column, time on top */
+  .act { grid-template-columns: 1fr !important; gap: 2px; padding: 12px; }
+  .act > .act-when { grid-column: auto !important; text-align: left; padding: 0; font-size: 12px; white-space: normal; }
+}
+
+@media (max-width: 640px) {
+  main .head { margin-top: 6px; }
+  details.rcpts.dx-open .rcpt-summary, details.rcpts.dx-open .rcpt-flag { display: none; }
+  details.offline .handsoff-form label { white-space: nowrap; font-size: 13px; }
+  details.offline .handsoff-form label .muted { font-weight: 400; }
+  .act-search, .act-list, #acts { margin-left: 0; margin-right: 0; }
+}
+@media (max-width: 640px) { main .status { margin-left: 8px; margin-right: 8px; padding: 14px 12px; border-radius: 16px; } }
