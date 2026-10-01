@@ -1118,9 +1118,34 @@ def company_history(w, pid, max_threads=8):
             "notes": (p.get("Notes") or "")[:2000], "sales": sales, "people": people, "ping_log": pings, "email_threads": threads}
 
 
+def sweep_missed(w, days=14):
+    """Safety net: any bounce, auto-reply or "no longer here" notice in the last `days` that Pings never logged
+    (the inbox sync was down, the laptop was off...) is handled now, exactly as if it had just arrived."""
+    known = known_message_ids()
+    q = (f'newer_than:{days}d (from:mailer-daemon OR from:postmaster OR subject:"automatic reply" OR subject:"auto-reply" '
+         f'OR subject:"out of office" OR subject:OOO OR subject:"undeliverable" OR "no longer with" OR "no longer works")')
+    done = []
+    for mid in gmail.search(q, 50):
+        if mid in known:
+            continue
+        try:
+            m = gmail.message(mid)
+            if m["is_me"]:
+                continue
+            done.append((mid, _handle_message(w, m)))
+        except Exception as ex:
+            done.append((mid, f"error: {ex}"))
+    return done
+
+
 def context(max_new=None, more=0, requests_only=False, learn_only=False):
     """Everything the brain needs for one run, as JSON."""
     w = World()
+    if not requests_only:
+        try:
+            sweep_missed(w)
+        except Exception:
+            pass
     s = w.s
     lessons = [{"id": l["id"], "lesson": l["fields"].get("Lesson"), "applies_to": l["fields"].get("Applies To"),
                 "about": l["fields"].get("About"), "source": l["fields"].get("Source")}
@@ -1139,7 +1164,12 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
                 pass
         handoff = at.list_records("log", f"AND({{Gmail Thread ID}}='{tid}', {{Event}}='Handed To Karlie', NOT({{Handled}}))", fields=["Summary"], max_records=1) if tid else []
         answers = None
-        if f.get("Event") == "Auto-Reply" and f.get("Draft"):  # the email this auto-reply answered (often another thread)
+        if f.get("Event") == "Left Company" and not f.get("Draft") and f.get("Email"):
+            last = at.list_records("log", f"AND({{Event}}='Sent', LOWER({{Email}})='{f['Email'].lower()}')", sort=[("At", "desc")],
+                                   fields=["Draft"], max_records=1)
+            if last and last[0]["fields"].get("Draft"):
+                f = dict(f, Draft=last[0]["fields"]["Draft"])
+        if f.get("Event") in ("Auto-Reply", "Left Company") and f.get("Draft"):  # the email it answered (often another thread)
             try:
                 od = at.get("drafts", f["Draft"][0])["fields"]
                 answers = {"subject": od.get("Subject"), "body": (od.get("Body") or "")[:4000], "kind": od.get("Kind"),
@@ -1272,6 +1302,20 @@ def _txt(v, bullets=True):
     return "" if v is None else str(v)
 
 
+def _existing_contact(w, email):
+    """The contact for this address, from this run's snapshot or straight from Airtable (another run may have added it)."""
+    e = (email or "").strip().lower()
+    if not e:
+        return None
+    if e in w.by_email:
+        return w.by_email[e]
+    hit = at.list_records("contacts", f"LOWER({{Email}})='{e}'", max_records=1)
+    if hit:
+        w.by_email[e] = hit[0]
+        return hit[0]
+    return None
+
+
 def apply(payload):
     w = World()
     t = iso(now())
@@ -1320,14 +1364,14 @@ def apply(payload):
             at.update("contacts", e["contact_id"], {"Time Zone": e["contact_time_zone"]})
         done["events"] += 1
     for c in payload.get("new_contacts", []):
-        if c.get("email") and c["email"].lower() not in w.by_email:
+        if c.get("email") and not _existing_contact(w, c["email"]):
             w.by_email[c["email"].lower()] = at.create("contacts", {"Email": c["email"].lower(), "Name": c.get("name"), "Title": c.get("title"), "Status": "Active",
                                    "Source": c.get("source") or "Referral", "Referred By": c.get("referred_by"),
                                    **({"Partner": [c["partner_id"]]} if c.get("partner_id") else {}),
                                    **({"Time Zone": c["time_zone"]} if c.get("time_zone") else {})})
             done["contacts"] += 1
     for d in payload.get("drafts", []):
-        contact = w.contacts.get(d.get("contact_id")) or w.by_email.get((d.get("to_email") or "").lower())
+        contact = w.contacts.get(d.get("contact_id")) or _existing_contact(w, d.get("to_email"))
         if not contact and d.get("to_email"):
             contact = at.create("contacts", {"Email": d["to_email"].lower(), "Name": d.get("to_name"), "Status": "Active",
                                              "Source": d.get("contact_source") or "Apollo",
