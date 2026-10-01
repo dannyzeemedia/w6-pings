@@ -273,6 +273,16 @@ def _new_partner_for(w, email):
     return rec["id"]
 
 
+def _tidy_inbox(m):
+    """Machine mail (auto-replies, bounces, "no longer here" notices) is logged and acted on by Pings, so take it out
+    of Karlie's inbox: mark read and archive, but only when it sits in a thread of its own (never a real conversation)."""
+    try:
+        if len(gmail.thread(m["thread_id"], max_age=0)) == 1:
+            gmail.mark_done(m["thread_id"])
+    except Exception:
+        pass
+
+
 def _handle_message(w, m):
     frm = m["from"]
     if m["is_me"]:
@@ -300,6 +310,7 @@ def _handle_message(w, m):
             log("Bounced", "In", "Them", e, partner=pid, contact=c and c["id"], summary="Email bounced. Address marked dead.",
                 snippet=m["body"][:600], msg_id=m["id"], thread_id=m["thread_id"], at_time=m["dt"], handled=True, reviewed=False)
             _cancel_pending(w, pid, e, "The address bounced.")
+        _tidy_inbox(m)
         return "bounced"
 
     sender = parseaddr(frm)[1].lower()
@@ -333,6 +344,7 @@ def _handle_message(w, m):
             contact=target and target["id"], summary="They've left the company. Address marked dead.",
             snippet=m["body"][:1500], msg_id=m["id"], thread_id=m["thread_id"], at_time=m["dt"], handled=True, reviewed=False)
         _cancel_pending(w, pid, sender, "The contact has left the company.")
+        _tidy_inbox(m)
         return "left"
     if auto:
         # Auto-replies often start a new thread, so find the email this answers: our latest send to them in 3 days
@@ -345,6 +357,7 @@ def _handle_message(w, m):
                   reviewed=False)  # the overnight run reads it: away dates, "contact X instead", or nothing
         if drafts and rec:
             at.update("log", rec["id"], {"Draft": drafts[:1]})
+        _tidy_inbox(m)
         return "auto"
 
     # A real person wrote back. Phase 1: it goes straight to Karlie, and every queued email to that company stops.
