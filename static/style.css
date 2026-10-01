@@ -825,3 +825,89 @@ details.rcpts .hint { padding-left: 74px; }
 /* loose-end buttons: one size, one line */
 .loose-form .row { align-items: center; }
 .loose-form .row button { height: 38px; padding: 0 18px; font-size: 12px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; align-self: center; margin: 0; }
+
+/* ===================== Phone layout ===================== */
+nav .ni, nav .nl-short { display: none; }
+@media (max-width: 640px) {
+  /* inputs at 16px so iPhone doesn't zoom in when she taps one */
+  input, textarea, select, .rte-area { font-size: 16px !important; }
+
+  /* top: a slim strip (logo + the two progress bars); it scrolls with her, the tabs live at the bottom */
+  .top .wrap { padding-top: 8px; gap: 8px; flex-wrap: nowrap; }
+  .brand { width: 132px; height: 22px; margin-bottom: 6px; }
+  .top .theme { width: 36px; height: 36px; margin-left: 0; }
+  .top .theme svg { width: 18px; height: 18px; }
+  .sync-form { margin-left: auto; }
+  .pingbar { padding: 0 16px 6px; gap: 8px; }
+  .pingbar .pingbar-label { min-width: 0; font-size: 11px; }
+  .pingbar .pingbar-track, .pingbar.week .pingbar-track { height: 5px; }
+  .pingbar.week { margin-top: -3px; padding-bottom: 8px; }
+
+  /* tabs: an app-style bar at the bottom, in thumb reach */
+  nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; width: auto; order: 0;
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--line); border-radius: 0; box-shadow: 0 -4px 20px rgba(0,0,0,.06); overflow: visible; }
+  nav a, nav a.on { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 6px 0 4px;
+    font-size: 10.5px; font-weight: 500; color: var(--ink-2); background: none !important; border-radius: 12px; position: relative; min-height: 48px; }
+  nav a.on { color: var(--green); font-weight: 600; }
+  nav a.on::after { display: none; }
+  nav a.on .ni { background: var(--mint-2); }
+  nav .ni { display: block; width: 44px; height: 28px; padding: 4px 12px; border-radius: 99px; transition: background-color .2s; }
+  nav .nl-long { display: none; } nav .nl-short { display: inline; }
+  nav .pill { position: absolute; top: 2px; left: calc(50% + 6px); margin: 0; font-size: 10px; padding: 0 5px; min-width: 17px; line-height: 16px; text-align: center; }
+  main.wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  .toast { bottom: calc(84px + env(safe-area-inset-bottom)) !important; }
+
+  /* less nesting: cards get slimmer padding so emails have the width */
+  .wrap { padding-left: 12px; padding-right: 12px; }
+  .card { padding: 16px; border-radius: 18px; }
+  .head h1 { font-size: 30px; }
+  .email-zone, .draft .email-zone { padding: 10px !important; margin-left: -6px; margin-right: -6px; }
+  .thread { padding: 10px; }
+  .context-box { padding: 10px 12px; }
+  details.msg > summary { padding: 10px 32px 10px 10px; }
+  details.msg .text { padding: 10px; }
+
+  /* the editor's toolbar: one row she can swipe sideways */
+  .rte-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .rte-bar::-webkit-scrollbar { display: none; }
+  .rte-group { flex: none; }
+  .rte-bar button { width: 36px; height: 36px; }
+  .rte-area { padding: 12px; min-height: 160px; }
+
+  /* bigger tap targets on the small controls */
+  .rcpt-seg button { padding: 6px 10px; font-size: 12px; }
+  .rcpt-x { padding: 6px 10px; font-size: 18px; }
+  .rcpt { flex-wrap: wrap; }
+  details.rcpts > summary { padding: 12px; }
+
+  /* the main buttons on a draft: full width, easy to hit */
+  form.draft > .row, .draft .row:last-of-type { gap: 8px; }
+  form.draft > .row > button { flex: 1 1 auto; min-height: 46px; }
+
+  /* Results: search + filters fit, filters scroll sideways */
+  .act-search-box { width: 100%; box-sizing: border-box; }
+  .act-kinds { max-width: 100%; overflow-x: auto; scrollbar-width: none; justify-self: stretch; }
+  .act-kinds::-webkit-scrollbar { display: none; }
+  .act-kinds a { flex: none; }
+  details.act-item > summary { grid-template-columns: auto 1fr; padding: 10px; gap: 10px; }
+  .act-when { grid-column: 2; padding-top: 0; }
+  .act-detail { padding: 0 10px 12px; }
+  .trail-when { min-width: 0; }
+
+  /* Today: goal stepper and loose-end buttons wrap neatly */
+  .loose-form .row button { flex: 1 1 calc(50% - 8px); }
+  .loose-form .row button[value="write"]:first-child { flex-basis: 100%; }
+  .handsoff-form { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width: 640px) {
+  /* Bookings: the six numbers as a tight 3 x 2 strip, so the calendar is on the first screen */
+  .bk-stats { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; margin-bottom: 12px; }
+  .bk-stats .card { padding: 10px 10px 8px !important; border-radius: 14px; margin: 0; }
+  .bk-stats .card:first-child { grid-column: auto; }
+  .bk-stats .label { font-size: 9.5px !important; letter-spacing: .03em; line-height: 1.25; min-height: 2.5em; }
+  .bk-stats .big { font-size: 24px !important; margin: 2px 0 0 !important; }
+  .bk-stats .tiny { display: none; }
+  .bk-legend { gap: 6px 12px; font-size: 13px; }
+}
