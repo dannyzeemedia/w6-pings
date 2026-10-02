@@ -971,9 +971,15 @@ def yours_reply(rid):
         # a sponsor-form inquiry: no thread yet, so this starts one (with her real signature)
         to_list = [x for x in (request.form.get("to_list") or "").split(",") if x.strip()] or [e.get("Email")]
         company = (e.get("Snippet") or "").split("Company: ", 1)[-1].split(" (", 1)[0] if "Company: " in (e.get("Snippet") or "") else ""
+        subject = f"{company} x Workspace6" if company else "Your Workspace6 sponsorship inquiry"
+        m = re.match(r"\s*Subject:\s*(.+?)\s*(?:\n|$)", text)
+        if m:  # the suggested reply carries its own subject line on top: use it, and take it out of the body
+            subject = m.group(1).strip()
+            text = text[m.end():].lstrip("\n")
+            if text_html:
+                text_html = re.sub(r"^\s*<div>\s*Subject:.*?</div>(\s*<div><br></div>)?", "", text_html, count=1, flags=re.S)
         try:
-            mid, tid = gmail.send(", ".join(to_list), f"{company} x Workspace6" if company else "Your Workspace6 sponsorship inquiry", text,
-                                  signature=True, body_html=text_html)
+            mid, tid = gmail.send(", ".join(to_list), subject, text, signature=True, body_html=text_html)
         except Exception as ex:
             flash(f"Couldn't send that one: {ex}. Nothing went out; your text is below.")
             session["unsent_" + rid] = text
