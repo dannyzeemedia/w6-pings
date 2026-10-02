@@ -541,6 +541,68 @@ def approve_undo(rid):
     return redirect(url_for("approve"))
 
 
+# ---------- inbound: the sponsor inquiry form (sponsors.workspace6.io) ----------
+INQUIRY_PREFIX = "inquiry:"
+
+
+def _inquiry_text(d):
+    chans = ", ".join(c if c != "Other" or not d.get("other_channel") else f"Other ({d['other_channel']})" for c in d.get("channels") or [])
+    return "\n".join([
+        f"Company: {d.get('company')} ({d.get('company_url') or 'no website'})",
+        f"From: {d.get('first_name', '')} {d.get('last_name', '')} <{d.get('email')}>".replace("  ", " "),
+        f"Budget: {d.get('budget') or '-'}",
+        f"Timing: {d.get('timing') or '-'}",
+        f"Channels: {chans or '-'}",
+        f"Creator referrals: {'Yes' if d.get('referrals') else 'No'}",
+        "",
+        "What they want to advertise:",
+        (d.get("advertising") or "").strip(),
+    ])
+
+
+@app.post("/api/inbound/sponsor")
+def inbound_sponsor():
+    """A sponsor filled in the inquiry form. It lands in Karlie's Your turn with the company and contact set up,
+    and the AI writes a suggested reply within a couple of minutes (laptop job, on Danny's subscription)."""
+    if not hmac.compare_digest(request.headers.get("X-Inbound-Token", ""), os.environ.get("INBOUND_TOKEN", "") or "\0"):
+        return {"error": "unauthorised"}, 401
+    d = request.get_json(silent=True) or {}
+    email = (d.get("email") or "").strip().lower()
+    company = (d.get("company") or "").strip()
+    if not email or "@" not in email or not company:
+        return {"error": "email and company are required"}, 400
+    msg_id = f"{INQUIRY_PREFIX}{email}:{d.get('created_at') or ''}"
+    if at.list_records("log", f"{{Gmail Message ID}}='{msg_id.replace(chr(39), '')}'", fields=["Event"], max_records=1):
+        return {"ok": True, "duplicate": True}
+    import brand
+    w = engine.World()
+    dom = brand.domain_from(d.get("company_url"), email)
+    pid = (w.dom2partner.get(dom) if dom else None) or next(
+        (i for i, p_ in w.partners.items() if p_["fields"].get("Name", "").strip().lower() == company.lower()), None)
+    today = dt.date.today().isoformat()
+    if not pid:
+        pid = at.create("partners", {"Name": company, "Stage": "Engaged", **({"Website": f"https://{dom}"} if dom else {}),
+                                     "Notes": f"🤖 {today}: came in through the sponsor inquiry form."}, typecast=True)["id"]
+    else:
+        pf = w.partners[pid]["fields"]
+        at.update("partners", pid, {"Notes": ((pf.get("Notes") or "").rstrip() + f"\n\n🤖 {today}: sent an inquiry through the sponsor form.").strip()})
+    name = f"{(d.get('first_name') or '').strip()} {(d.get('last_name') or '').strip()}".strip()
+    c = engine._existing_contact(w, email)
+    if c:
+        at.update("contacts", c["id"], {"Status": "Active", **({"Name": name} if name and not c["fields"].get("Name") else {})})
+    else:
+        c = at.create("contacts", {"Email": email, "Name": name or None, "Status": "Active", "Source": "Inquiry Form", "Partner": [pid]}, typecast=True)
+    text = _inquiry_text(d)
+    engine.log("Handed To Karlie", "In", "Them", email, partner=pid, contact=c["id"],
+               summary="New inquiry from the sponsor form. Summary coming shortly.", snippet=text, msg_id=msg_id,
+               handled=False, reviewed=False)
+    try:
+        engine._cancel_pending(w, pid, email, "They sent an inquiry through the sponsor form, so it's with Karlie now.")
+    except Exception:
+        pass
+    return {"ok": True}
+
+
 @app.get("/catchup")
 @login_required
 def catchup():
@@ -669,6 +731,16 @@ def yours():
                                 "link": gmail.open_link(msgs[-1]["msgid"]) if msgs[-1]["msgid"] else None}
             except Exception:
                 threads[tid] = None
+    for e in ev:  # sponsor-form inquiries: no email thread yet, the form itself is the first message
+        f = e["fields"]
+        if not f.get("Gmail Thread ID") and (f.get("Gmail Message ID") or "").startswith(INQUIRY_PREFIX):
+            nm = (f.get("Snippet") or "").split("From: ", 1)[-1].split(" <", 1)[0] if "From: " in (f.get("Snippet") or "") else f.get("Email")
+            at_ms = int((parse_ts(f.get("At")) or now_utc()).timestamp() * 1000)
+            threads["inquiry:" + e["id"]] = {
+                "msgs": [{"from": f"{nm} <{f.get('Email')}> · sponsor form", "is_me": False, "ts": at_ms, "body": f.get("Snippet") or "",
+                          "msgid": "inq-" + e["id"]}],
+                "earlier": 0, "via": None, "link": None, "inquiry": True,
+                "plan": {"people": [{"email": f.get("Email"), "name": nm or f.get("Email"), "role": "to", "team": False}], "note": None}}
     sums = {}
     for e in ev:
         try:
@@ -862,24 +934,8 @@ def yours_remix(rid):
     return redirect(url_for("yours") + f"#d-{rid}")
 
 
-@app.post("/yours/<rid>/reply")
-@login_required
-def yours_reply(rid):
-    e = at.get("log", rid)["fields"]
-    text, text_html = _body_from_form()
-    tid = e.get("Gmail Thread ID")
-    if not text or not tid:
-        flash("Nothing to send.")
-        return redirect(url_for("yours"))
-    try:
-        chosen = {}
-        if request.form.get("rcpt_set"):  # she used the "Sending to" chips; otherwise the default plan applies
-            chosen = {k: [x for x in (request.form.get(f"{k}_list") or "").split(",") if x.strip()] for k in ("to", "cc", "bcc")}
-        mid, to = gmail.reply(tid, text, body_html=text_html, **chosen)
-    except Exception as ex:
-        flash(f"Couldn't send that one: {ex}. Nothing went out; your text is below.")
-        session["unsent_" + rid] = text
-        return redirect(url_for("yours"))
+def _after_reply(rid, e, text, text_html, tid, mid, to):
+    """Record a reply Karlie sent from Your turn (draft row for learning, ping log, close the item, tidy her inbox)."""
     t = iso(now_utc())
     link = {"Partner": e.get("Partner", []), "Sale": e.get("Sale", [])}
     if e.get("Contact"):
@@ -903,6 +959,41 @@ def yours_reply(rid):
         pass
     celebrate("Sent!", f"On its way to {to}. Marked read and archived in your inbox, and it'll learn from how you wrote it.", "💌")
     return redirect(url_for("yours"))
+
+
+@app.post("/yours/<rid>/reply")
+@login_required
+def yours_reply(rid):
+    e = at.get("log", rid)["fields"]
+    text, text_html = _body_from_form()
+    tid = e.get("Gmail Thread ID")
+    if text and not tid and (e.get("Gmail Message ID") or "").startswith(INQUIRY_PREFIX):
+        # a sponsor-form inquiry: no thread yet, so this starts one (with her real signature)
+        to_list = [x for x in (request.form.get("to_list") or "").split(",") if x.strip()] or [e.get("Email")]
+        company = (e.get("Snippet") or "").split("Company: ", 1)[-1].split(" (", 1)[0] if "Company: " in (e.get("Snippet") or "") else ""
+        try:
+            mid, tid = gmail.send(", ".join(to_list), f"{company} x Workspace6" if company else "Your Workspace6 sponsorship inquiry", text,
+                                  signature=True, body_html=text_html)
+        except Exception as ex:
+            flash(f"Couldn't send that one: {ex}. Nothing went out; your text is below.")
+            session["unsent_" + rid] = text
+            return redirect(url_for("yours"))
+        at.update("log", rid, {"Gmail Thread ID": tid})
+        to = ", ".join(to_list)
+        return _after_reply(rid, e, text, text_html, tid, mid, to)
+    if not text or not tid:
+        flash("Nothing to send.")
+        return redirect(url_for("yours"))
+    try:
+        chosen = {}
+        if request.form.get("rcpt_set"):  # she used the "Sending to" chips; otherwise the default plan applies
+            chosen = {k: [x for x in (request.form.get(f"{k}_list") or "").split(",") if x.strip()] for k in ("to", "cc", "bcc")}
+        mid, to = gmail.reply(tid, text, body_html=text_html, **chosen)
+    except Exception as ex:
+        flash(f"Couldn't send that one: {ex}. Nothing went out; your text is below.")
+        session["unsent_" + rid] = text
+        return redirect(url_for("yours"))
+    return _after_reply(rid, e, text, text_html, tid, mid, to)
 
 
 # ---------- rules ----------

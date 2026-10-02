@@ -599,13 +599,18 @@ def summaries_queue():
     """Open 'Your turn' replies that still need a summary or a suggested reply, with everything needed to write one."""
     out, w = [], None
     for h in at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}))",
-                             fields=["Email", "Gmail Thread ID", "At", "Partner", "Summary", "Suggested Reply", "Message Summaries"], max_records=15):
+                             fields=["Email", "Gmail Thread ID", "Gmail Message ID", "Snippet", "At", "Partner", "Summary", "Suggested Reply", "Message Summaries"], max_records=15):
         f = h["fields"]
-        if not f.get("Gmail Thread ID") or now() - pts(f["At"]) < dt.timedelta(minutes=2):
+        inquiry = not f.get("Gmail Thread ID") and (f.get("Gmail Message ID") or "").startswith("inquiry:")
+        if (not f.get("Gmail Thread ID") and not inquiry) or now() - pts(f["At"]) < dt.timedelta(minutes=2 if not inquiry else 0):
             continue
-        try:
+        if inquiry:  # the sponsor form: their inquiry is the whole "thread" so far
+            msgs = [{"from": f"{f.get('Email')} (via the sponsor inquiry form)", "is_me": False, "msgid": f"inq-{h['id']}",
+                     "ts": int(pts(f["At"]).timestamp() * 1000), "body": f.get("Snippet") or "", "to": "", "cc": ""}]
+        else:
+          try:
             msgs = gmail.thread(f["Gmail Thread ID"])
-        except Exception:
+          except Exception:
             continue
         try:
             have = json.loads(f.get("Message Summaries") or "{}")
@@ -622,7 +627,7 @@ def summaries_queue():
             thread = [_reader(x) for x in gmail.with_earlier(msgs, 8)]
             w = w or World()
             pid = (f.get("Partner") or [None])[0]
-            rep = at.list_records("log", f"AND({{Gmail Thread ID}}='{f['Gmail Thread ID']}', {{Event}}='Replied', NOT({{Reviewed}}))", fields=["Event"], max_records=1)
+            rep = [] if inquiry else at.list_records("log", f"AND({{Gmail Thread ID}}='{f['Gmail Thread ID']}', {{Event}}='Replied', NOT({{Reviewed}}))", fields=["Event"], max_records=1)
             out.append({"handoff_log_id": h["id"], "log_id": rep[0]["id"] if rep else h["id"], "email": f.get("Email"),
                         "needs_summary": needs_summary, "needs_reply": needs_reply, "thread": thread,
                         "messages_to_summarise": missing, "company": company_history(w, pid, max_threads=3) if pid else None})

@@ -2,7 +2,7 @@
 {% from "_brand.html" import chip, site %}{% from "_rte.html" import rte %}
 {% block body %}
 <div class="head"><h1>Your turn</h1><p>These people replied with something real. Reply here or in Gmail. "Taking this offline?" keeps the system away from them while you talk on WhatsApp or a call.</p></div>
-{% for e in events %}{% set f = e.fields %}{% set th = threads.get(f.get('Gmail Thread ID')) %}
+{% for e in events %}{% set f = e.fields %}{% set th = threads.get(f.get('Gmail Thread ID') or ('inquiry:' ~ e.id)) %}
 <div class="card">
   <div class="draft-meta">
     <div class="who-row">{{ chip(brands.get(e.id), names.get((f.get('Partner') or [''])[0]) or f.get('Email')) }}
@@ -15,7 +15,7 @@
   {% if bd and bd.desc %}<details class="brief"><summary>What they do</summary><div class="about"><div>{{ bd.desc }}</div></div></details>{% endif %}
   </div>{% endif %}
   {% if th %}
-    <div class="thread"><div class="thread-label">The conversation</div>
+    <div class="thread"><div class="thread-label">{{ 'Their inquiry (sponsor form)' if th.inquiry else 'The conversation' }}</div>
       {% if th.earlier %}<div class="muted tiny" style="margin-bottom:10px">{{ th.earlier }} earlier message{{ 's' if th.earlier > 1 }} in Gmail</div>{% endif %}
       {% set ms = sums.get(e.id, {}) %}
       {% if th.msgs|length > 1 %}<button type="button" class="linkish tiny expand-all" onclick="expandAll(this)">Expand all</button>{% endif %}
