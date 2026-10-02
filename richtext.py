@@ -12,7 +12,7 @@ VOID = {"br"}
 BLOCK = {"div", "p", "li", "ul", "ol", "blockquote", "h1", "h2", "h3"}
 _COLOR = re.compile(r"^(#[0-9a-fA-F]{3,8}|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)|[a-zA-Z]+)$")
 _SIZES = {"1", "2", "3", "4", "5", "6", "7"}
-_URL = re.compile(r"(https?://[^\s<>()]+)")
+_URL = re.compile(r"(https?://[^\s<>()]+?)(?=[.,;:!?'\"]*(?:\s|$|<))")  # a full stop after a link is not part of it
 
 
 class _Clean(HTMLParser):
