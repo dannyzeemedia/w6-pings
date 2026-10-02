@@ -6,7 +6,7 @@
   <div class="cu-top">
     <a class="cu-x" href="{{ url_for('approve') }}" aria-label="Close catch-up">×</a>
     <div class="cu-left"><span id="cu-left">{{ drafts|length }}</span> left</div>
-    <button type="button" class="cu-undo" id="cu-undo" disabled>Undo</button>
+    <button type="button" class="cu-undo" id="cu-undo" disabled aria-label="Undo the last one"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Undo</button>
   </div>
   <div class="cu-stack" id="cu-stack">
     {% for d in drafts %}{% set f = d.fields %}
@@ -84,6 +84,7 @@
       saved++; history.push({card,type:'later'});
     }
     undoBtn.disabled=false;   // Undo works straight away, even while the card is still flying off
+    undoBtn.classList.remove('nudge'); void undoBtn.offsetWidth; undoBtn.classList.add('nudge');
     fly(card,dir,()=>{ i++; busy=false; show(); });
   }
   document.getElementById('cu-send').onclick=()=>decide(1);

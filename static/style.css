@@ -984,12 +984,17 @@ nav .ni, nav .nl-short { display: none; }
 body.catchup-mode .top .wrap { display: none; }
 body.catchup-mode main.wrap { max-width: 640px; padding-bottom: 0; }
 .cu { display: flex; flex-direction: column; min-height: calc(100dvh - 70px); padding: 8px 0 calc(10px + env(safe-area-inset-bottom)); }
-.cu-top { display: grid; grid-template-columns: 60px 1fr 60px; align-items: center; padding: 4px 8px 10px; }
+.cu-top { display: grid; grid-template-columns: 96px 1fr 96px; align-items: center; padding: 4px 8px 10px; }
 .cu-x { font-size: 32px; line-height: 1; color: var(--ink-2); text-decoration: none; padding: 2px 8px; }
 .cu-left { text-align: center; font-weight: 600; font-size: 17px; color: var(--green); }
 .cu-left span { font-variant-numeric: tabular-nums; }
-.cu-undo { all: unset; cursor: pointer; justify-self: end; font-weight: 600; color: var(--green); padding: 6px 8px; }
-.cu-undo:disabled { color: var(--line); cursor: default; }
+.cu-undo { all: unset; box-sizing: border-box; cursor: pointer; justify-self: end; display: inline-flex; align-items: center; gap: 6px;
+  font-weight: 700; font-size: 15px; color: var(--on-green); background: var(--green); padding: 9px 16px; border-radius: 99px;
+  box-shadow: 0 4px 12px color-mix(in srgb, #265c51 35%, transparent); transition: background-color .2s, color .2s, box-shadow .2s, transform .1s; }
+.cu-undo:active { transform: scale(.95); }
+.cu-undo:disabled { cursor: default; background: transparent; color: var(--ink-2); opacity: .45; box-shadow: none; border: 1px solid var(--line); }
+.cu-undo.nudge { animation: undo-nudge .5s cubic-bezier(.3,1.6,.4,1); }
+@keyframes undo-nudge { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
 .cu-stack { position: relative; flex: 1; display: grid; min-height: 0; margin: 0 8px; }
 .cu-card { grid-area: 1 / 1; display: flex; flex-direction: column; min-height: 0; max-height: calc(100dvh - 230px); background: var(--card); border: 1px solid var(--line);
   border-radius: 22px; box-shadow: 0 10px 30px rgba(0,0,0,.08); padding: 16px; overflow: hidden; touch-action: pan-y; user-select: none; position: relative; will-change: transform; }
@@ -1053,3 +1058,49 @@ body.catchup-mode .pingbar.week { padding-bottom: 10px; margin-top: 0; }
 
 @keyframes upd-pop { from { opacity: 0; transform: translate(-50%, -50%) scale(.92); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 @media (max-width: 640px) { .upd-later { color: var(--on-green); opacity: .8; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; } }
+
+/* ===================== Catch-up colours: deep W6 green, the card and buttons pop ===================== */
+body.catchup-mode {
+  --cu-bg: radial-gradient(120% 60% at 15% 0%, color-mix(in srgb, #bee1de 22%, transparent), transparent 60%),
+           radial-gradient(90% 50% at 100% 100%, color-mix(in srgb, #e2dbbe 18%, transparent), transparent 60%),
+           linear-gradient(170deg, #265c51 0%, #1b433b 55%, #15352f 100%);
+  --cu-ink: #ffffff; --cu-soft: #bee1de;
+  --cu-send-bg: #bee1de; --cu-send-ink: #15352f;
+  --cu-later-bg: color-mix(in srgb, #e2dbbe 16%, transparent); --cu-later-ink: #f3ecd2; --cu-later-line: color-mix(in srgb, #e2dbbe 55%, transparent);
+  --cu-undo-bg: #ffffff; --cu-undo-ink: #1b433b;
+  --cu-track: rgba(255,255,255,.18);
+  background: var(--cu-bg) fixed, #1b433b;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body.catchup-mode {
+  --cu-bg: radial-gradient(120% 60% at 15% 0%, color-mix(in srgb, #ffffff 60%, transparent), transparent 60%),
+           radial-gradient(90% 50% at 100% 100%, color-mix(in srgb, #e2dbbe 70%, transparent), transparent 60%),
+           linear-gradient(170deg, #d6ebe8 0%, #bee1de 55%, #cfe3d6 100%);
+  --cu-ink: #15352f; --cu-soft: #265c51; --cu-send-bg: #265c51; --cu-send-ink: #e6f3f1;
+  --cu-later-bg: color-mix(in srgb, #6b5c28 14%, transparent); --cu-later-ink: #4a3f19; --cu-later-line: color-mix(in srgb, #6b5c28 40%, transparent);
+  --cu-undo-bg: #15352f; --cu-undo-ink: #e6f3f1; --cu-track: rgba(21,53,47,.15); background: var(--cu-bg) fixed, #bee1de; } }
+:root[data-theme="dark"] body.catchup-mode {
+  --cu-bg: radial-gradient(120% 60% at 15% 0%, color-mix(in srgb, #ffffff 60%, transparent), transparent 60%),
+           radial-gradient(90% 50% at 100% 100%, color-mix(in srgb, #e2dbbe 70%, transparent), transparent 60%),
+           linear-gradient(170deg, #d6ebe8 0%, #bee1de 55%, #cfe3d6 100%);
+  --cu-ink: #15352f; --cu-soft: #265c51; --cu-send-bg: #265c51; --cu-send-ink: #e6f3f1;
+  --cu-later-bg: color-mix(in srgb, #6b5c28 14%, transparent); --cu-later-ink: #4a3f19; --cu-later-line: color-mix(in srgb, #6b5c28 40%, transparent);
+  --cu-undo-bg: #15352f; --cu-undo-ink: #e6f3f1; --cu-track: rgba(21,53,47,.15); background: var(--cu-bg) fixed, #bee1de; }
+
+body.catchup-mode .top { background: transparent; border-bottom: 0; box-shadow: none; }
+body.catchup-mode .pingbar .pingbar-label { color: var(--cu-ink); }
+body.catchup-mode .pingbar.week .pingbar-label { color: var(--cu-soft); }
+body.catchup-mode .pingbar .pingbar-track { background: var(--cu-track); }
+body.catchup-mode .cu-x { color: var(--cu-ink); opacity: .85; }
+body.catchup-mode .cu-left { color: var(--cu-ink); }
+body.catchup-mode .cu-undo { background: var(--cu-undo-bg); color: var(--cu-undo-ink); box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+body.catchup-mode .cu-undo:disabled { background: transparent; color: var(--cu-ink); border: 1px solid var(--cu-track); opacity: .5; box-shadow: none; }
+body.catchup-mode .cu-card { box-shadow: 0 24px 60px rgba(0,0,0,.35), 0 2px 6px rgba(0,0,0,.15); border-color: transparent; }
+body.catchup-mode .cu-card.next { box-shadow: none; opacity: .28; }
+body.catchup-mode .cu-actions .cu-send { background: var(--cu-send-bg); color: var(--cu-send-ink); box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+body.catchup-mode .cu-actions .cu-later { background: var(--cu-later-bg); color: var(--cu-later-ink); border: 1.5px solid var(--cu-later-line); }
+body.catchup-mode .cu-hint { color: var(--cu-soft); opacity: .85; }
+body.catchup-mode .cu-done, body.catchup-mode .cu-done h2 { color: var(--cu-ink); }
+body.catchup-mode .cu-done .muted { color: var(--cu-soft); }
+body.catchup-mode .update-bar { background: #ffffff; color: #1b433b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body.catchup-mode .pingbar.week .pingbar-label { color: #6b5c28; } }
+:root[data-theme="dark"] body.catchup-mode .pingbar.week .pingbar-label { color: #6b5c28; }
