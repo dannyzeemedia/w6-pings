@@ -16,9 +16,9 @@
         {{ chip(brands.get(d.id), names.get((f.get('Partner') or [''])[0]) or f.get('To Email'), 40) }}
         <div class="cu-who"><strong>{{ f.get('To Name') or f.get('To Email') }}</strong>
           <span class="muted tiny">{% for p in f.get('Partner', []) %}{{ names.get(p) }} · {% endfor %}{{ f.get('To Email') }}</span></div>
-        <span class="tag {{ 'green' if f.get('Kind')=='Cold' }}{{ 'amber' if f.get('Kind')=='Deal Nudge' }}">{{ KIND.get(f.get('Kind'), f.get('Kind') or 'Email') }}</span>
       </header>
-      {% if f.get('Why This Email') %}<div class="cu-why"><span>{{ f['Why This Email'] }}</span></div>{% endif %}
+      <div class="cu-kind"><span class="tag {{ 'green' if f.get('Kind')=='Cold' }}{{ 'amber' if f.get('Kind')=='Deal Nudge' }}">{{ KIND.get(f.get('Kind'), f.get('Kind') or 'Email') }}</span></div>
+      {% if f.get('Why This Email') %}<details class="cu-why"><summary>Why this one?</summary><div class="cu-why-text">{{ f['Why This Email'] }}</div></details>{% endif %}
       <div class="cu-mail">
         {% if f.get('Subject') %}<div class="cu-subject">{{ f['Subject'] }}</div>{% endif %}
         <div class="cu-body">{{ d.html|safe }}</div>

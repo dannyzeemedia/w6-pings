@@ -998,8 +998,10 @@ body.catchup-mode main.wrap { max-width: 640px; padding-bottom: 0; }
 .cu-head { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
 .cu-head .tag { grid-column: 1 / -1; justify-self: start; }
 .cu-who { display: grid; min-width: 0; } .cu-who strong { font-size: 17px; } .cu-who .tiny { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cu-why { font-size: 13.5px; color: var(--ink-2); background: var(--cream-2); border-radius: 12px; padding: 8px 10px; margin: 10px 0 0; }
-.cu-why span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cu-kind { margin-top: 10px; }
+details.cu-why { margin-top: 8px; font-size: 13.5px; }
+details.cu-why > summary { color: var(--green); font-weight: 600; cursor: pointer; padding: 2px 0; width: max-content; }
+.cu-why-text { color: var(--ink-2); background: var(--cream-2); border-radius: 12px; padding: 8px 10px; margin-top: 6px; }
 .cu-mail { margin-top: 12px; overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; min-height: 0; border-top: 1px solid var(--line); padding-top: 12px; }
 .cu-subject { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
 .cu-body { font-size: 15.5px; line-height: 1.55; overflow-wrap: anywhere; }
@@ -1039,3 +1041,9 @@ body.catchup-mode main.wrap { max-width: 640px; padding-bottom: 0; }
   .res-stats .big { font-size: 32px !important; margin: 2px 0 0; }
   .res-stats .label { font-size: 10.5px; }
 }
+
+/* Catch-up: the two bars get room to breathe at the top (and clear the phone's status bar from the home screen) */
+body.catchup-mode .top { padding-top: calc(10px + env(safe-area-inset-top)); }
+body.catchup-mode .pingbar { padding-top: 0; padding-bottom: 6px; }
+body.catchup-mode .pingbar.week { padding-bottom: 10px; margin-top: 0; }
+@media (max-width: 640px) { .top { padding-top: env(safe-area-inset-top); } }
