@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=57" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=59" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -508,10 +508,10 @@ window.updatePingBar=function(n,goal,exact){
   const mine=document.documentElement.dataset.version; if(!mine||window.__verPoll) return; window.__verPoll=1;
   const check=()=>fetch('/version',{cache:'no-store'}).then(r=>r.text()).then(v=>{
     v=v.trim();
-    if(v && v!==mine && !document.getElementById('update-bar')){
+    if(v && v!==mine && !document.getElementById('update-bar') && !(window.__updLater && Date.now()-window.__updLater<600000)){
       const b=document.createElement('div'); b.id='update-bar'; b.className='update-bar';
       const phone=matchMedia('(max-width: 640px)').matches;
-      b.innerHTML=phone ? '<span>✨ Pings has been updated. Your work is saved.</span><button type="button" onclick="location.reload()">Refresh</button>'
+      b.innerHTML=phone ? '<span>✨ Pings has been updated. Your work is saved.</span><button type="button" onclick="location.reload()">Refresh</button><a href="#" class="upd-later" onclick="event.preventDefault();this.parentElement.remove();window.__updLater=Date.now()">Not now</a>'
                         : '<span>✨ There’s an update to Pings. Your work is saved. Press <b>Ctrl+R</b> (or <b>⌘R</b>) when you’re ready.</span><button type="button" onclick="location.reload()">Refresh now</button>';
       document.body.appendChild(b);
     }

@@ -1029,11 +1029,14 @@ details.cu-why > summary { color: var(--green); font-weight: 600; cursor: pointe
 
 @media (max-width: 640px) {
   /* "Pings has been updated": a tidy full-width bar under the top strip, not a squashed pill */
-  .update-bar { left: 8px !important; right: 8px !important; top: auto !important; bottom: calc(12px + env(safe-area-inset-bottom)) !important;
-    transform: none !important; width: auto !important; max-width: none !important; border-radius: 16px !important;
-    display: flex !important; align-items: center; gap: 12px; padding: 10px 10px 10px 14px !important; font-size: 14px; line-height: 1.35; }
-  .update-bar span { flex: 1; min-width: 0; }
-  .update-bar button { flex: none; height: 38px; padding: 0 16px; }
+  /* a small card in the middle of the screen, over a soft dimmed backdrop */
+  .update-bar { left: 50% !important; top: 50% !important; bottom: auto !important; right: auto !important;
+    transform: translate(-50%, -50%) !important; width: min(320px, calc(100vw - 48px)) !important; max-width: none !important;
+    border-radius: 22px !important; display: grid !important; justify-items: center; gap: 14px; text-align: center;
+    padding: 22px 20px 18px !important; font-size: 15.5px; line-height: 1.45; animation: upd-pop .35s cubic-bezier(.2,.7,.2,1) both !important;
+    box-shadow: 0 0 0 100vmax rgba(15,30,26,.35), 0 20px 50px rgba(0,0,0,.35) !important; }
+  .update-bar span { min-width: 0; }
+  .update-bar button { height: 44px; padding: 0 28px; font-size: 13px; width: 100%; }
 }
 @media (max-width: 640px) {
   .res-stats { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
@@ -1047,3 +1050,6 @@ body.catchup-mode .top { padding-top: calc(10px + env(safe-area-inset-top)); }
 body.catchup-mode .pingbar { padding-top: 0; padding-bottom: 6px; }
 body.catchup-mode .pingbar.week { padding-bottom: 10px; margin-top: 0; }
 @media (max-width: 640px) { .top { padding-top: env(safe-area-inset-top); } }
+
+@keyframes upd-pop { from { opacity: 0; transform: translate(-50%, -50%) scale(.92); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@media (max-width: 640px) { .upd-later { color: var(--on-green); opacity: .8; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; } }
