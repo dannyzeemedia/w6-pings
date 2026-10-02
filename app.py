@@ -547,11 +547,19 @@ INQUIRY_PREFIX = "inquiry:"
 
 def _inquiry_text(d):
     chans = ", ".join(c if c != "Other" or not d.get("other_channel") else f"Other ({d['other_channel']})" for c in d.get("channels") or [])
-    return "\n".join([
+    old = []
+    if d.get("source") == "google_form":  # the old Google Form: nobody saw these at the time
+        when = (d.get("created_at") or "")[:10]
+        old = [f"Sent through our OLD Google Form on {when}. Nobody replied: the form wasn't connected to anything, so it never "
+               "reached us. Now fixed. This reply is the first they hear from us.", ""]
+    if d.get("history"):
+        old += [f"What we already know about them: {d['history']}", ""]
+    return "\n".join(old + [
         f"Company: {d.get('company')} ({d.get('company_url') or 'no website'})",
         f"From: {d.get('first_name', '')} {d.get('last_name', '')} <{d.get('email')}>".replace("  ", " "),
         f"Budget: {d.get('budget') or '-'}",
         f"Timing: {d.get('timing') or '-'}",
+        *([f"Also from the same company: {d['also']}"] if d.get("also") else []),
         f"Channels: {chans or '-'}",
         f"Creator referrals: {'Yes' if d.get('referrals') else 'No'}",
         "",
@@ -660,6 +668,12 @@ def _file_inquiry_now(d, email, company, msg_id):
         engine._cancel_pending(w, pid, email, "They sent an inquiry through the sponsor form, so it's with Karlie now.")
     except Exception:
         pass
+    for x in d.get("extra_contacts") or []:  # a colleague who filled in the form too
+        x = (x or "").strip().lower()
+        if "@" in x and not engine._existing_contact(w, x):
+            at.create("contacts", {"Email": x, "Status": "Active", "Source": "Inquiry Form", "Partner": [pid]}, typecast=True)
+    if d.get("quiet"):  # a backfill of old submissions: no Slack post for each one
+        return
     try:
         _slack_inquiry(d)
     except Exception as ex:
