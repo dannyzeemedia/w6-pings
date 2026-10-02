@@ -607,8 +607,26 @@ def inbound_sponsor():
     if not email or "@" not in email or not company:
         return {"error": "email and company are required"}, 400
     msg_id = f"{INQUIRY_PREFIX}{email}:{d.get('created_at') or ''}"
-    if at.list_records("log", f"{{Gmail Message ID}}='{msg_id.replace(chr(39), '')}'", fields=["Event"], max_records=1):
+    if msg_id in _inquiries_seen or at.list_records("log", f"{{Gmail Message ID}}='{msg_id.replace(chr(39), '')}'", fields=["Event"], max_records=1):
         return {"ok": True, "duplicate": True}
+    _inquiries_seen.add(msg_id)
+    # Setting it up takes ~10s (it reads the whole pipeline), so answer the form now and do it in the background.
+    _threading.Thread(target=_file_inquiry, args=(d, email, company, msg_id), daemon=True).start()
+    return {"ok": True}
+
+
+_inquiries_seen = set()
+
+
+def _file_inquiry(d, email, company, msg_id):
+    try:
+        _file_inquiry_now(d, email, company, msg_id)
+    except Exception as ex:
+        _inquiries_seen.discard(msg_id)
+        app.logger.exception("filing inquiry %s failed: %s", msg_id, ex)
+
+
+def _file_inquiry_now(d, email, company, msg_id):
     import brand
     w = engine.World()
     dom = brand.domain_from(d.get("company_url"), email)
@@ -639,7 +657,6 @@ def inbound_sponsor():
         _slack_inquiry(d)
     except Exception as ex:
         app.logger.warning("inquiry slack post failed: %s", ex)
-    return {"ok": True}
 
 
 @app.get("/catchup")
