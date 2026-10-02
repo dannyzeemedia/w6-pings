@@ -560,6 +560,41 @@ def _inquiry_text(d):
     ])
 
 
+KARLIE_SLACK_ID, W6_TEAM_CHANNEL = "U09JHPUV6N8", "C09J30RP80K"
+
+
+def _slack_inquiry(d):
+    """Tell #w6-team (as Clara, tagging Karlie) that an inquiry came in. Our own test inquiries (zee.media
+    addresses) go to Danny's DMs instead, so a test never pings Karlie."""
+    tok = os.environ.get("SLACK_BOT_TOKEN")
+    if not tok:
+        return
+    esc = lambda v: str(v or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    email = (d.get("email") or "").strip().lower()
+    test = email.endswith("@zee.media")
+    chans = ", ".join(c if c != "Other" or not d.get("other_channel") else f"Other ({d['other_channel']})" for c in d.get("channels") or [])
+    ad = (d.get("advertising") or "").strip()
+    ad = ad[:500].rstrip() + "…" if len(ad) > 500 else ad
+    url = (d.get("company_url") or "").replace("|", "%7C")
+    company = f"*<{esc(url)}|{esc(d.get('company'))}>*" if url else f"*{esc(d.get('company'))}*"
+    name = f"{d.get('first_name') or ''} {d.get('last_name') or ''}".strip()
+    text = "\n".join([
+        ("🧪 TEST (only you can see this one): new sponsor inquiry" if test else f"New sponsor inquiry <@{KARLIE_SLACK_ID}>"),
+        company,
+        f"{esc(name)} · {esc(email)}",
+        f"{esc(d.get('budget'))} · {esc(d.get('timing'))}",
+        f"Channels: {esc(chans)}",
+        ">" + esc(ad).replace("\n", "\n>"),
+        f"Creator referrals: {'Yes' if d.get('referrals') else 'No'}",
+        "A suggested reply will be ready in Your turn in a couple of minutes: https://pings.workspace6.io/yours",
+    ])
+    channel = os.environ.get("DANNY_SLACK_ID", "UJF18F3SA") if test else W6_TEAM_CHANNEL
+    r = requests.post("https://slack.com/api/chat.postMessage", headers={"Authorization": f"Bearer {tok}"}, timeout=15,
+                      json={"channel": channel, "text": text, "unfurl_links": False}).json()
+    if not r.get("ok"):
+        app.logger.warning("inquiry slack post failed: %s", r.get("error"))
+
+
 @app.post("/api/inbound/sponsor")
 def inbound_sponsor():
     """A sponsor filled in the inquiry form. It lands in Karlie's Your turn with the company and contact set up,
@@ -600,6 +635,10 @@ def inbound_sponsor():
         engine._cancel_pending(w, pid, email, "They sent an inquiry through the sponsor form, so it's with Karlie now.")
     except Exception:
         pass
+    try:
+        _slack_inquiry(d)
+    except Exception as ex:
+        app.logger.warning("inquiry slack post failed: %s", ex)
     return {"ok": True}
 
 
