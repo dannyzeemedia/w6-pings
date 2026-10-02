@@ -26,7 +26,7 @@ CACHE_TTL = 45  # seconds; any write clears it (single worker process, so the cl
 
 STALE_OK = 900  # seconds: past the TTL, keep answering from the saved copy while a background refresh runs
 _refreshing = set()
-_gen = [0]  # bumped on every write; a refresh that started before a write must not store its older copy
+_gen = {}  # per table, bumped on every write to it; a refresh that started before that write must not store its older copy
 import threading as _th
 _local = _th.local()  # _local.fresh = True for the sending engine: never answer it from a stale copy
 
@@ -46,9 +46,13 @@ def _worker():
 _th.Thread(target=_worker, daemon=True).start()
 
 
+def _tbl(url):
+    return url.split(f"/{BASE}/", 1)[-1].split("/", 1)[0].split("?", 1)[0]
+
+
 def _refresh(key, url, kw):
     try:
-        _fetch("GET", url, key, gen=_gen[0], **kw)
+        _fetch("GET", url, key, gen=_gen.get(_tbl(url), 0), **kw)
     except Exception:
         pass
     finally:
@@ -68,9 +72,9 @@ def _req(method, url, **kw):
                     _refreshing.add(key)
                     _queue.put((key, url, kw))
                 return hit[1]
-        return _fetch(method, url, key, gen=_gen[0], **kw)
+        return _fetch(method, url, key, gen=_gen.get(_tbl(url), 0), **kw)
     # a write: that table re-reads fresh (so she always sees her own change); other tables keep their saved copy
-    tbl = url.split(f"/{BASE}/", 1)[-1].split("/", 1)[0].split("?", 1)[0]
+    tbl = _tbl(url)
     _forget(tbl)
     try:
         return _fetch(method, url, None, **kw)
@@ -81,7 +85,7 @@ def _req(method, url, **kw):
 def _forget(tbl):
     for k in [k for k in list(_cache) if f"/{BASE}/{tbl}" in k[0]]:
         _cache.pop(k, None)
-    _gen[0] += 1
+    _gen[tbl] = _gen.get(tbl, 0) + 1  # only this table's in-flight refreshes are now out of date
 
 
 def _fetch(method, url, key, gen=None, **kw):
@@ -93,7 +97,7 @@ def _fetch(method, url, key, gen=None, **kw):
         if r.status_code >= 400:
             raise requests.HTTPError(f"{r.status_code} {r.text[:500]}", response=r)
         j = r.json()
-        if method == "GET" and key is not None and (gen is None or gen == _gen[0]):
+        if method == "GET" and key is not None and (gen is None or gen == _gen.get(_tbl(url), 0)):
             _cache[key] = (time.time(), j)
         return j
     r.raise_for_status()
