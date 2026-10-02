@@ -598,8 +598,10 @@ def _reader(x, n=8000):
 def summaries_queue():
     """Open 'Your turn' replies that still need a summary or a suggested reply, with everything needed to write one."""
     out, w = [], None
-    for h in at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}))",
-                             fields=["Email", "Gmail Thread ID", "Gmail Message ID", "Snippet", "At", "Partner", "Summary", "Suggested Reply", "Message Summaries"], max_records=15):
+    open_ = at.list_records("log", "AND({Event}='Handed To Karlie', NOT({Handled}))",
+                            fields=["Email", "Gmail Thread ID", "Gmail Message ID", "Snippet", "At", "Partner", "Summary", "Suggested Reply", "Message Summaries"])
+    # every open card, those still waiting on a reply first (a cap here once left a big batch half-written)
+    for h in sorted(open_, key=lambda h: bool((h["fields"].get("Suggested Reply") or "").strip())):
         f = h["fields"]
         inquiry = not f.get("Gmail Thread ID") and (f.get("Gmail Message ID") or "").startswith("inquiry:")
         if (not f.get("Gmail Thread ID") and not inquiry) or now() - pts(f["At"]) < dt.timedelta(minutes=2 if not inquiry else 0):
