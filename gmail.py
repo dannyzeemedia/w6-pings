@@ -356,7 +356,7 @@ def signature_html():
     return _sig["html"]
 
 
-_URL = re.compile(r"(https?://[^\s<>()]+)")
+_URL = re.compile(r"(https?://[^\s<>()]+?)(?=[.,;:!?'\"]*(?:\s|$|<))")  # a full stop after a link is not part of it
 
 
 def _to_html(text):
