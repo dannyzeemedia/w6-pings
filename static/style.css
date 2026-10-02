@@ -1104,3 +1104,6 @@ body.catchup-mode .cu-done .muted { color: var(--cu-soft); }
 body.catchup-mode .update-bar { background: #ffffff; color: #1b433b; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body.catchup-mode .pingbar.week .pingbar-label { color: #6b5c28; } }
 :root[data-theme="dark"] body.catchup-mode .pingbar.week .pingbar-label { color: #6b5c28; }
+
+/* Your turn: a reply's subject is shown but fixed (changing it would split the thread in their inbox) */
+.subj-ro { padding: 10px 12px; border: 1px dashed var(--line); border-radius: var(--r-sm); color: var(--muted); font-size: 14px; background: transparent; overflow-wrap: anywhere; }

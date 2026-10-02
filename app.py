@@ -565,7 +565,7 @@ KARLIE_SLACK_ID, W6_TEAM_CHANNEL = "U09JHPUV6N8", "C09J30RP80K"
 
 def _slack_inquiry(d):
     """Tell #w6-team (as Clara, tagging Karlie) that an inquiry came in. Our own test inquiries (zee.media
-    addresses) go to Danny's DMs instead, so a test never pings Karlie."""
+    addresses) post there too, marked as a test and without tagging Karlie."""
     tok = os.environ.get("SLACK_BOT_TOKEN")
     if not tok:
         return
@@ -579,7 +579,7 @@ def _slack_inquiry(d):
     company = f"*<{esc(url)}|{esc(d.get('company'))}>*" if url else f"*{esc(d.get('company'))}*"
     name = f"{d.get('first_name') or ''} {d.get('last_name') or ''}".strip()
     text = "\n".join([
-        ("🧪 TEST (only you can see this one): new sponsor inquiry" if test else f"New sponsor inquiry <@{KARLIE_SLACK_ID}>"),
+        ("🧪 Test sponsor inquiry (from the team, not a real sponsor)" if test else f"New sponsor inquiry <@{KARLIE_SLACK_ID}>"),
         company,
         f"{esc(name)} · {esc(email)}",
         f"{esc(d.get('budget'))} · {esc(d.get('timing'))}",
@@ -588,11 +588,18 @@ def _slack_inquiry(d):
         f"Creator referrals: {'Yes' if d.get('referrals') else 'No'}",
         "A suggested reply will be ready in Your turn in a couple of minutes: https://pings.workspace6.io/yours",
     ])
-    channel = os.environ.get("DANNY_SLACK_ID", "UJF18F3SA") if test else W6_TEAM_CHANNEL
+    channel = W6_TEAM_CHANNEL
     r = requests.post("https://slack.com/api/chat.postMessage", headers={"Authorization": f"Bearer {tok}"}, timeout=15,
                       json={"channel": channel, "text": text, "unfurl_links": False}).json()
     if not r.get("ok"):
         app.logger.warning("inquiry slack post failed: %s", r.get("error"))
+    return r
+
+
+def _inquiry_subject(f):
+    snip = f.get("Snippet") or ""
+    company = snip.split("Company: ", 1)[-1].split(" (", 1)[0] if "Company: " in snip else ""
+    return f"{company} x Workspace6" if company else "Your Workspace6 sponsorship inquiry"
 
 
 @app.post("/api/inbound/sponsor")
@@ -782,7 +789,9 @@ def yours():
                 msgs = gmail.thread(tid)
                 team = next((m["from"].split("<")[0].strip(' "') for m in msgs if not m["is_me"]
                              and "@workspace6.io" in m["from"].lower()), None)  # a teammate looped her in
+                subj = next((m["subject"] for m in reversed(msgs) if not m["is_me"] and m.get("subject")), None) or msgs[0].get("subject") or ""
                 threads[tid] = {"msgs": gmail.with_earlier(msgs, 10), "earlier": max(0, len(msgs) - 10), "via": team,
+                                "subject": subj if subj.lower().startswith("re:") else f"Re: {subj}",
                                 "plan": gmail.reply_plan(msgs),
                                 "link": gmail.open_link(msgs[-1]["msgid"]) if msgs[-1]["msgid"] else None}
             except Exception:
@@ -795,7 +804,7 @@ def yours():
             threads["inquiry:" + e["id"]] = {
                 "msgs": [{"from": f"{nm} <{f.get('Email')}> · sponsor form", "is_me": False, "ts": at_ms, "body": f.get("Snippet") or "",
                           "msgid": "inq-" + e["id"]}],
-                "earlier": 0, "via": None, "link": None, "inquiry": True,
+                "earlier": 0, "via": None, "link": None, "inquiry": True, "subject": f.get("Suggested Subject") or _inquiry_subject(f),
                 "plan": {"people": [{"email": f.get("Email"), "name": nm or f.get("Email"), "role": "to", "team": False}], "note": None}}
     sums = {}
     for e in ev:
@@ -972,7 +981,9 @@ def autopilot_seen():
 @login_required
 def yours_save(rid):
     body, body_html = _body_from_form()
-    at.update("log", rid, {"Suggested Reply": body, "Suggested Reply HTML": body_html})
+    subj = request.form.get("subject")
+    at.update("log", rid, {"Suggested Reply": body, "Suggested Reply HTML": body_html,
+                           **({"Suggested Subject": subj.strip()[:200]} if subj is not None else {})})
     if request.headers.get("X-Fetch") == "1":  # quiet background save while she types
         return {"ok": True}
     flash("Edits saved.")
@@ -1026,11 +1037,10 @@ def yours_reply(rid):
     if text and not tid and (e.get("Gmail Message ID") or "").startswith(INQUIRY_PREFIX):
         # a sponsor-form inquiry: no thread yet, so this starts one (with her real signature)
         to_list = [x for x in (request.form.get("to_list") or "").split(",") if x.strip()] or [e.get("Email")]
-        company = (e.get("Snippet") or "").split("Company: ", 1)[-1].split(" (", 1)[0] if "Company: " in (e.get("Snippet") or "") else ""
-        subject = f"{company} x Workspace6" if company else "Your Workspace6 sponsorship inquiry"
+        subject = request.form.get("subject", "").strip() or e.get("Suggested Subject") or _inquiry_subject(e)
         m = re.match(r"\s*Subject:\s*(.+?)\s*(?:\n|$)", text)
-        if m:  # the suggested reply carries its own subject line on top: use it, and take it out of the body
-            subject = m.group(1).strip()
+        if m:  # an old suggested reply still carrying "Subject:" on top: take it out of the body
+            subject = request.form.get("subject", "").strip() or m.group(1).strip()
             text = text[m.end():].lstrip("\n")
             if text_html:
                 text_html = re.sub(r"^\s*<div>\s*Subject:.*?</div>(\s*<div><br></div>)?", "", text_html, count=1, flags=re.S)

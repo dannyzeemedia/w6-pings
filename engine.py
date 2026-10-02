@@ -672,15 +672,39 @@ def remix_queue():
             "sync_requested": bool(w.s.get("Sync Requested"))}
 
 
+_GREET = re.compile(r"^(hi|hey|hello|dear|good (morning|afternoon|evening))\b", re.I)
+
+
+def split_subject(text, subject=None):
+    """(subject, body). The AI sometimes puts the subject on top of the email ("Subject: X", or just a bare first line
+    above the greeting). Pull it out so it never goes out as the first line of the email."""
+    text = (text or "").strip("\n")
+    lines = text.split("\n")
+    m = re.match(r"\s*subject:\s*(.+)$", lines[0] if lines else "", re.I)
+    if m:
+        return (subject or m.group(1).strip()), "\n".join(lines[1:]).lstrip("\n")
+    rest = [l for l in lines[1:] if l.strip()]
+    first = lines[0].strip() if lines else ""
+    if (first and rest and len(first) <= 100 and not _GREET.match(first) and _GREET.match(rest[0].strip())
+            and not first.endswith((".", ",", "?", "!", ":"))):
+        return (subject or first), "\n".join(lines[1:]).lstrip("\n")
+    return subject, text
+
+
 def remix_apply(item):
     if item.get("log_id"):
         lg = at.get("log", item["log_id"])["fields"]
         hist = (f"[{dt.date.today().isoformat()}] Asked: {lg.get('Remix Request', '')}\nBefore:\n{lg.get('Suggested Reply', '')}\n\n"
                 + (lg.get("Remix History") or ""))[:20000]
         import richtext
-        plain, rich = richtext.from_ai(_txt(item["body"], False))
+        body = _txt(item["body"], False)
+        subj = None
+        if (lg.get("Gmail Message ID") or "").startswith("inquiry:") and not lg.get("Gmail Thread ID"):
+            subj, body = split_subject(body, item.get("subject"))
+        plain, rich = richtext.from_ai(body)
         at.update("log", item["log_id"], {"Suggested Reply": plain[:8000], "Suggested Reply HTML": rich, "Remix Request": "",
-                                          "Remix History": hist, "Suggestion Check": _txt(item.get("ai_tell_check"), False)[:3000]})
+                                          "Remix History": hist, "Suggestion Check": _txt(item.get("ai_tell_check"), False)[:3000],
+                                          **({"Suggested Subject": subj[:200]} if subj else {})})
         return {"ok": True}
     d = at.get("drafts", item["draft_id"])["fields"]
     hist = (d.get("Remix History") or "")
@@ -1346,8 +1370,14 @@ def apply(payload):
                 hf["Summary"] = e["summary"][:250]
             if e.get("suggested_reply"):
                 import richtext
-                plain, rich = richtext.from_ai(_txt(e["suggested_reply"], False))
+                body, subj = _txt(e["suggested_reply"], False), e.get("suggested_subject")
+                lg = at.get("log", e["handoff_log_id"])["fields"]
+                if (lg.get("Gmail Message ID") or "").startswith("inquiry:") and not lg.get("Gmail Thread ID"):
+                    subj, body = split_subject(body, subj)  # a fresh email: its subject lives in its own field
+                plain, rich = richtext.from_ai(body)
                 hf["Suggested Reply"], hf["Suggested Reply HTML"] = plain[:8000], rich
+                if subj:
+                    hf["Suggested Subject"] = _txt(subj, False)[:200]
             if e.get("ai_tell_check"):
                 hf["Suggestion Check"] = _txt(e["ai_tell_check"], False)[:3000]
             at.update("log", e["handoff_log_id"], hf)
