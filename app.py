@@ -1030,7 +1030,7 @@ def _after_reply(rid, e, text, text_html, tid, mid, to):
                                  **({"Remix History": hist} if hist else {}),
                                  **({"Karlie Feedback": request.form.get("feedback", "").strip()} if request.form.get("feedback", "").strip() else {}),
                                  "Gmail Thread ID": tid, "Sent At": t, "Decided At": t, **link})
-    at.create("log", {"Summary": "Karlie replied from the dashboard", "Event": "Sent", "Direction": "Out",
+    at.create("log", {"Summary": "Karlie replied from the dashboard", "Event": "Sent", "Direction": "Out", "By": "Karlie",
                       "Email": to, "At": t, "Snippet": text[:500], "Gmail Message ID": mid,
                       "Gmail Thread ID": tid, "Draft": [draft["id"]], "Handled": True, **link})
     at.update("log", rid, {"Handled": True})
