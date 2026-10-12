@@ -43,14 +43,26 @@ def _worker():
         time.sleep(0.05)
 
 
-_worker_thread = _th.Thread(target=_worker, daemon=True)
-_worker_thread.start()
+_worker_thread = None
+_worker_lock = _th.Lock()
+
+
+def _ensure_worker():
+    """Start the refresh worker in THIS process. A thread started at import can be lost (the web server forks its
+    workers after loading the app), and then queued refreshes never run and pages stay stale for 15 minutes."""
+    global _worker_thread
+    if _worker_thread is not None and _worker_thread.is_alive():
+        return
+    with _worker_lock:
+        if _worker_thread is None or not _worker_thread.is_alive():
+            _worker_thread = _th.Thread(target=_worker, daemon=True)
+            _worker_thread.start()
 _last_refresh = [None, None]  # (finished at, key) of the most recent background refresh
 
 
 def cache_health():
     now = time.time()
-    return {"worker_alive": _worker_thread.is_alive(), "queued": _queue.qsize(), "refreshing": len(_refreshing),
+    return {"worker_alive": bool(_worker_thread and _worker_thread.is_alive()), "queued": _queue.qsize(), "refreshing": len(_refreshing),
             "entries": len(_cache), "oldest_age_s": int(max((now - v[0] for v in _cache.values()), default=0)),
             "last_refresh_s_ago": int(now - _last_refresh[0]) if _last_refresh[0] else None,
             "last_refresh_key": (_last_refresh[1] or ("",))[0][-40:] if _last_refresh[1] else None}
@@ -79,6 +91,7 @@ def _req(method, url, **kw):
             if age < CACHE_TTL:
                 return hit[1]
             if age < STALE_OK and not getattr(_local, "fresh", False):  # never make her wait: answer now, freshen underneath
+                _ensure_worker()
                 if key not in _refreshing:
                     _refreshing.add(key)
                     _queue.put((key, url, kw))
