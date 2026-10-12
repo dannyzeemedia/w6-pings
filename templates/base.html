@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=70" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=71" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -20,10 +20,18 @@
     <a href="{{ url_for('today') }}" class="{{ 'on' if here=='today' }}"{% if here != 'today' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span class="nl">Today</span></a>
     <a href="{{ url_for('approve') }}" class="{{ 'on' if here=='approve' }}"{% if here != 'approve' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg><span class="nl"><span class="nl-long">To approve</span><span class="nl-short">Approve</span></span>{% if n_to_approve %}<span class="pill">{{ n_to_approve }}</span>{% endif %}</a>
     <a href="{{ url_for('yours') }}" class="{{ 'on' if here=='yours' }}"{% if here != 'yours' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg><span class="nl">Your turn</span>{% if n_yours %}<span class="pill">{{ n_yours }}</span>{% endif %}</a>
-    <a href="{{ url_for('bookings_page') }}" class="{{ 'on' if here=='bookings_page' }}"{% if here != 'bookings_page' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="nl">Bookings</span></a>
-    <a href="{{ url_for('rules') }}" class="{{ 'on' if here=='rules' }}"{% if here != 'rules' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span class="nl">Rules</span></a>
-    <a href="{{ url_for('results') }}" class="{{ 'on' if here=='results' }}"{% if here != 'results' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="nl">Results</span></a>
+    <div class="navdrop">
+  <a href="{{ url_for('results') }}" class="{{ 'on' if here in ('results','bookings_page','onboarding_list','onboarding_new','onboarding_view') }}"{% if here != 'results' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="nl">Results</span><svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></a>
+      <div class="navdrop-menu" role="menu">
+        <a href="{{ url_for('results') }}" class="{{ 'cur' if here=='results' }}" role="menuitem">Summary</a>
+        <a href="{{ url_for('bookings_page') }}" class="{{ 'cur' if here=='bookings_page' }}" role="menuitem">Bookings</a>
+        <a href="{{ url_for('onboarding_list') }}" class="{{ 'cur' if here in ('onboarding_list','onboarding_new','onboarding_view') }}" role="menuitem">Onboarding</a>
+      </div>
+    </div>
   </nav>
+  <a class="theme rules-btn{{ ' on' if here=='rules' }}" href="{{ url_for('rules') }}" aria-label="Rules" title="Rules"{% if here != 'rules' %} data-turbo-preload{% endif %}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z"/><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/><path d="m9 13 2 2 4-4"/></svg>
+  </a>
   <form method="post" action="{{ url_for('sync_now') }}" class="sync-form" onsubmit="this.querySelector('button').classList.add('spinning')">
     <button class="theme sync" type="submit" aria-label="Sync now" title="Sync now: pull in new replies and emails you sent, and learn from them">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/></svg>
@@ -60,6 +68,7 @@
                                        ('catchup','⚡ Catch up','<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>', n_to_approve),
                                        ('yours','Your turn','<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>', n_yours),
                                        ('bookings_page','Bookings','<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>', 0),
+                                       ('onboarding_list','Onboarding','<path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z"/><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/><path d="M9 12h6M9 16h4"/>', 0),
                                        ('rules','Rules','<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>', 0),
                                        ('results','Results','<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>', 0)] %}
       <a href="{{ url_for(ep) }}" class="{{ 'on' if here == ep }}" onclick="closeMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ ico|safe }}</svg><span>{{ label }}</span>{% if count %}<em>{{ count }}</em>{% endif %}</a>
