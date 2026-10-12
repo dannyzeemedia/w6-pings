@@ -12,6 +12,18 @@
   </div>
   <div class="bar-labels">{% for w in weeks %}<div>{{ w.label }}</div>{% endfor %}</div>
   <div class="legend"><span><i style="background:var(--mint)"></i>Sent</span><span><i style="background:var(--green)"></i>Replied</span></div>
+  <h3 class="chart-sub">Deals</h3>
+  <div class="bars deal-bars" role="img" aria-label="Businesses pencilled in and converted each week">
+    {% for w in weeks %}<div class="bar dbar">
+      <div class="dpair">
+        <div class="dp" style="height:{{ (100 * w.pencilled / deal_peak)|round }}%">{% if w.pencilled %}<span class="dv">{{ w.pencilled }}</span>{% endif %}</div>
+        <div class="dc" style="height:{{ (100 * w.converted / deal_peak)|round }}%">{% if w.converted %}<span class="dv">{{ w.converted }}</span>{% endif %}</div>
+      </div>
+      <div class="tip">Week of {{ w.label }}: {{ w.pencilled }} pencilled in (${{ '{:,}'.format(w.pencilled_usd) }}), {{ w.converted }} converted (${{ '{:,}'.format(w.converted_usd) }})</div>
+    </div>{% endfor %}
+  </div>
+  <div class="bar-labels">{% for w in weeks %}<div>{{ w.label }}</div>{% endfor %}</div>
+  <div class="legend"><span><i style="background:var(--bar-pencil)"></i>Pencilled in</span><span><i style="background:var(--bar-convert)"></i>Converted</span><span class="muted">Businesses. Hover a week for the dollars.</span></div>
   <div class="muted tiny" style="margin-top:6px">Weeks run Monday to Sunday, US Eastern time, the same as the Leadership Scorecard.</div>
 </div>
 <div class="grid res-stats">

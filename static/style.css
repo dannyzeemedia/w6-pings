@@ -5,7 +5,7 @@
   --ink: #202020; --ink-2: #5b605e; --line: #e3e6e4; --bg: #fbfaf6; --card: #ffffff; --field: #ffffff;
   --red: #b3412f; --red-bg: #f8e7e3; --red-line: #e2b8ae;
   --amber-bg: #fbf1d6; --amber-line: #efd99c; --amber-dot: #c58b12;
-  --bar-sent: #bee1de; --bar-reply: #265c51;
+  --bar-sent: #bee1de; --bar-reply: #265c51; --bar-pencil: #b8a25a; --bar-convert: #265c51;
   --r: 24px; --r-sm: 14px;
   --logo: url("logo-pings.png");
   color-scheme: light;
@@ -17,7 +17,7 @@
     --ink: #ecefed; --ink-2: #a3aba8; --line: #2c3431; --bg: #111615; --card: #181f1d; --field: #131a18;
     --red: #f0907d; --red-bg: #3a1f1a; --red-line: #6b3a30;
     --amber-bg: #2e2715; --amber-line: #5c4c1f; --amber-dot: #e2b04a;
-    --bar-sent: #2d5a52; --bar-reply: #7fc4b6;
+    --bar-sent: #2d5a52; --bar-reply: #7fc4b6; --bar-pencil: #a8975a; --bar-convert: #7fc4b6; --bar-pencil: #a8975a; --bar-convert: #7fc4b6;
     --logo: url("logo-pings-mint.png");
     color-scheme: dark;
   }
@@ -1136,3 +1136,12 @@ body.catchup-mode .update-bar { background: #ffffff; color: #1b433b; }
 .deal-usd { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 999px; padding: 0 10px; background: var(--card); color: var(--ink, #202020); }
 .deal-usd input { all: unset; width: 70px; padding: 7px 0; font-size: 14px; }
 @media (max-width: 640px) { .deal-confirm { flex-direction: column; align-items: stretch; } .deal-val { justify-content: space-between; } .deal-usd input { width: 100px; } }
+
+/* Results: the Deals chart under Week by week (businesses pencilled in vs converted, own scale) */
+.chart-sub { font: 500 13px Inter; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin: 22px 0 0; }
+.deal-bars { height: 90px; margin-top: 18px; }
+.dbar .dpair { display: flex; align-items: flex-end; justify-content: center; gap: 2px; height: 100%; }
+.dbar .dp, .dbar .dc { position: relative; width: 38%; max-width: 34px; min-height: 2px; border-radius: 4px 4px 0 0; transform-origin: bottom; animation: grow 600ms cubic-bezier(.2,.7,.2,1) both; }
+.dbar .dp { background: var(--bar-pencil); }
+.dbar .dc { background: var(--bar-convert); }
+.dbar .dv { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--ink-2); margin-bottom: 2px; }

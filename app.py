@@ -1496,9 +1496,15 @@ def results():
         start = (now_et - dt.timedelta(days=now_et.weekday() + 7 * w)).replace(hour=0, minute=0, second=0, microsecond=0)
         end = start + dt.timedelta(days=7)
         inw = [e for e in ev if start <= at_of(e).astimezone(et) < end]
+        bw = lambda k: {(e["fields"].get("Partner") or [None])[0] or (e["fields"].get("Email") or "").lower()
+                        for e in inw if e["fields"].get("Event") == k} - {""}
+        pw, cw = bw("Pencilled In"), bw("Confirmed")
         weeks.append({"label": start.strftime("%-d %b"),
                       "sent": sum(e["fields"].get("Event") == "Sent" for e in inw),
-                      "replied": sum(e["fields"].get("Event") == "Replied" for e in inw)})
+                      "replied": sum(e["fields"].get("Event") == "Replied" for e in inw),
+                      "pencilled": len(pw), "converted": len(cw),
+                      "pencilled_usd": _deal_value(pw, "Pencilled Value", False) if pw else 0,
+                      "converted_usd": _deal_value(cw, "Value", True) if cw else 0})
     last30 = [e for e in ev if at_of(e) > now_utc() - dt.timedelta(days=30)]
     c = lambda k: sum(e["fields"].get("Event") == k for e in last30)
     totals = {"sent": c("Sent"), "replied": c("Replied"), "handed": c("Handed To Karlie"),
@@ -1513,6 +1519,7 @@ def results():
     totals["value_rate"] = round(100 * totals["converted_usd"] / totals["pencilled_usd"]) if totals["pencilled_usd"] else None
     dead = at.list_records("contacts", "AND({Status}!='Active', {Status}!='')", fields=["Status"])
     peak = max([w["sent"] for w in weeks] + [1])
+    deal_peak = max([max(w["pencilled"], w["converted"]) for w in weeks] + [1])
     # latest activity: one line per thing that happened (a reply and its "your turn" hand-off are the same moment)
     handoffs = {(e["fields"].get("Gmail Thread ID"), (e["fields"].get("At") or "")[:16]) for e in ev
                 if e["fields"].get("Event") == "Handed To Karlie"}
@@ -1559,7 +1566,7 @@ def results():
     story = {e["id"]: by_email.get((e["fields"].get("Email") or "").lower(), [])[-12:] for e in recent}
     names = at.partner_names([p for e in recent for p in e["fields"].get("Partner", [])])
     span = 1 if request.args.get("span", "today") == "today" else 7
-    return render_template("results.html", weeks=weeks, peak=peak, totals=totals,
+    return render_template("results.html", weeks=weeks, peak=peak, deal_peak=deal_peak, totals=totals,
                            n_dead=len(dead), recent=recent, names=names, brands=brands_for(recent, "Email"),
                            q=q, kind=kind, matches=matches, story=story, deals=_safe(bk.deals, []),
                            gmail_thread=lambda t: f"https://mail.google.com/mail/u/{gmail.ME}/#all/{t}")
