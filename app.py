@@ -782,6 +782,13 @@ def engine_summaries():
     return engine.summaries_queue()
 
 
+@app.get("/api/engine/cache")
+def engine_cache():
+    if not engine_auth():
+        return {"error": "unauthorised"}, 401
+    return at.cache_health()
+
+
 @app.post("/api/engine/remix")
 def engine_remix_apply():
     if not engine_auth():

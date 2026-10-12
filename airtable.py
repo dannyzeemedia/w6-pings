@@ -43,7 +43,17 @@ def _worker():
         time.sleep(0.05)
 
 
-_th.Thread(target=_worker, daemon=True).start()
+_worker_thread = _th.Thread(target=_worker, daemon=True)
+_worker_thread.start()
+_last_refresh = [None, None]  # (finished at, key) of the most recent background refresh
+
+
+def cache_health():
+    now = time.time()
+    return {"worker_alive": _worker_thread.is_alive(), "queued": _queue.qsize(), "refreshing": len(_refreshing),
+            "entries": len(_cache), "oldest_age_s": int(max((now - v[0] for v in _cache.values()), default=0)),
+            "last_refresh_s_ago": int(now - _last_refresh[0]) if _last_refresh[0] else None,
+            "last_refresh_key": (_last_refresh[1] or ("",))[0][-40:] if _last_refresh[1] else None}
 
 
 def _tbl(url):
@@ -57,6 +67,7 @@ def _refresh(key, url, kw):
         pass
     finally:
         _refreshing.discard(key)
+        _last_refresh[0], _last_refresh[1] = time.time(), key
 
 
 def _req(method, url, **kw):
