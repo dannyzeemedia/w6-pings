@@ -36,7 +36,7 @@
   </details>{% endif %}
   <div class="email-zone">
     <div class="field"><label>Subject</label><input type="text" name="subject" value="{{ f.get('Subject', '') }}"></div>
-    <div class="field"><label>Email</label>{{ rte(f.get('Body', ''), f.get('Body HTML')) }}</div>
+    <div class="field"><label>Email</label>{{ rte(f.get('Body', ''), f.get('Body HTML'), att={'kind': 'drafts', 'rid': d.id, 'files': f.get('Attachments')}) }}</div>
     {% if f.get('Remix Request') %}
     <div class="remix-overlay" data-id="{{ d.id }}">
       <div class="remix-card">

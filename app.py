@@ -680,6 +680,57 @@ def _file_inquiry_now(d, email, company, msg_id):
         app.logger.warning("inquiry slack post failed: %s", ex)
 
 
+# ---------- attachments (any email she sends) ----------
+ATTACH_FIELD = {"drafts": "Attachments", "log": "Reply Attachments"}
+ATTACH_MAX = 5 * 1024 * 1024  # Airtable's upload limit per file
+
+
+def _att_view(files):
+    return [{"id": a.get("id"), "filename": a.get("filename"), "size": a.get("size"), "type": a.get("type"),
+             "thumb": ((a.get("thumbnails") or {}).get("small") or {}).get("url")} for a in files or []]
+
+
+@app.post("/attach/<kind>/<rid>")
+@login_required
+def attach_add(kind, rid):
+    """Upload files onto the email's record. They go out with it whenever it sends."""
+    field = ATTACH_FIELD.get(kind)
+    if not field or not re.match(r"rec\w+$", rid):
+        return {"error": "Unknown email"}, 400
+    import base64 as _b64
+    errors = []
+    for up in request.files.getlist("files"):
+        data = up.read()
+        if not data:
+            continue
+        if len(data) > ATTACH_MAX:
+            errors.append(f"{up.filename} is over 5 MB")
+            continue
+        r = requests.post(f"https://content.airtable.com/v0/{at.BASE}/{rid}/{field}/uploadAttachment", headers=at._h(), timeout=120,
+                          json={"contentType": up.mimetype or "application/octet-stream", "filename": up.filename or "attachment",
+                                "file": _b64.b64encode(data).decode()})
+        if not r.ok:
+            errors.append(f"{up.filename} didn't upload ({r.status_code})")
+    at._forget(at.TABLES[kind])
+    files = at.get(kind, rid)["fields"].get(field) or []
+    return {"files": _att_view(files), "errors": errors}
+
+
+@app.post("/attach/<kind>/<rid>/remove")
+@login_required
+def attach_remove(kind, rid):
+    field = ATTACH_FIELD.get(kind)
+    if not field:
+        return {"error": "Unknown email"}, 400
+    gone = request.form.get("id")
+    files = [{"id": a["id"]} for a in (at.get(kind, rid)["fields"].get(field) or []) if a.get("id") != gone]
+    at.update(kind, rid, {field: files})
+    return {"files": _att_view(at.get(kind, rid)["fields"].get(field) or [])}
+
+
+app.jinja_env.globals["att_view"] = _att_view
+
+
 @app.get("/catchup")
 @login_required
 def catchup():
@@ -1066,7 +1117,8 @@ def yours_reply(rid):
             if text_html:
                 text_html = re.sub(r"^\s*<div>\s*Subject:.*?</div>(\s*<div><br></div>)?", "", text_html, count=1, flags=re.S)
         try:
-            mid, tid = gmail.send(", ".join(to_list), subject, text, signature=True, body_html=text_html)
+            mid, tid = gmail.send(", ".join(to_list), subject, text, signature=True, body_html=text_html,
+                                  attachments=at.get("log", rid)["fields"].get("Reply Attachments"))
         except Exception as ex:
             flash(f"Couldn't send that one: {ex}. Nothing went out; your text is below.")
             session["unsent_" + rid] = text
@@ -1081,7 +1133,7 @@ def yours_reply(rid):
         chosen = {}
         if request.form.get("rcpt_set"):  # she used the "Sending to" chips; otherwise the default plan applies
             chosen = {k: [x for x in (request.form.get(f"{k}_list") or "").split(",") if x.strip()] for k in ("to", "cc", "bcc")}
-        mid, to = gmail.reply(tid, text, body_html=text_html, **chosen)
+        mid, to = gmail.reply(tid, text, body_html=text_html, attachments=at.get("log", rid)["fields"].get("Reply Attachments"), **chosen)
     except Exception as ex:
         flash(f"Couldn't send that one: {ex}. Nothing went out; your text is below.")
         session["unsent_" + rid] = text

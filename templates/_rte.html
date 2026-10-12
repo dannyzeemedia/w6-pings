@@ -17,11 +17,12 @@
 {%- elif name == 'quote' %}<path d="M7 7h3v5H6v-1a4 4 0 0 1 4-4"/><path d="M15 7h3v5h-4v-1a4 4 0 0 1 4-4"/><path d="M5 17h14"/>
 {%- elif name == 'link' %}<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>
 {%- elif name == 'emoji' %}<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01" stroke-width="2.6"/>
+{%- elif name == 'clip' %}<path d="m21.4 11.6-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8"/>
 {%- elif name == 'clear' %}<path d="M4 7V5h12v2M10 5l-3 14"/><path d="m15 13 6 6M21 13l-6 6"/>
 {%- endif %}</svg>
 {%- endmacro %}
 
-{% macro rte(text, html_value, placeholder='') %}
+{% macro rte(text, html_value, placeholder='', att=None) %}
 <div class="rte" data-rte>
   <div class="rte-bar" role="toolbar" aria-label="Formatting">
     <div class="rte-group">
@@ -47,10 +48,16 @@
       <button type="button" data-pop="link" title="Link (Ctrl+K)" aria-label="Link">{{ icon('link') }}</button>
       <button type="button" data-pop="emoji" title="Emoji" aria-label="Emoji">{{ icon('emoji') }}</button>
       <button type="button" data-cmd="clear" title="Clear formatting" aria-label="Clear formatting">{{ icon('clear') }}</button>
+      {% if att %}<button type="button" class="rte-clip" title="Attach files (or drag them onto the email)" aria-label="Attach files">{{ icon('clip') }}</button>{% endif %}
     </div>
   </div>
   <div class="rte-area" contenteditable="true" role="textbox" aria-multiline="true" spellcheck="true" data-placeholder="{{ placeholder }}"></div>
   <div class="rte-pop" hidden></div>
+  {% if att %}<div class="rte-att" data-url="{{ url_for('attach_add', kind=att.kind, rid=att.rid) }}" data-remove="{{ url_for('attach_remove', kind=att.kind, rid=att.rid) }}">
+    <input type="file" multiple hidden>
+    <div class="att-list"></div>
+    <script type="application/json" class="att-data">{{ att_view(att.files)|tojson }}</script>
+  </div>{% endif %}
   <textarea name="body" hidden>{{ text }}</textarea>
   <textarea name="body_html" hidden>{{ html_value or text_to_html(text) }}</textarea>
 </div>

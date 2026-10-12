@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=64" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=65" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -215,8 +215,34 @@ window.flipTheme=function(){
     htm.addEventListener('input',()=>{ if(!syncing) area.innerHTML=htm.value; }); // put back after a refresh / remix
     area.addEventListener('input',sync);
     area.addEventListener('focus',()=>{ try{ document.execCommand('styleWithCSS',false,false); document.execCommand('defaultParagraphSeparator',false,'div'); }catch(e){} });
+    // attachments: the paperclip, dropping files onto the email, or pasting an image
+    const att=root.querySelector('.rte-att');
+    if(att){
+      const list=att.querySelector('.att-list'), input=att.querySelector('input[type=file]');
+      const kb=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+      const esc=t=>String(t||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      const draw=files=>{ list.innerHTML=files.map(f=>'<span class="att-chip" data-id="'+esc(f.id)+'">'+(f.thumb?'<img src="'+esc(f.thumb)+'" alt="">':'<span class="att-ico">📄</span>')+
+          '<span class="att-name">'+esc(f.filename)+'</span><span class="att-size">'+kb(f.size||0)+'</span><button type="button" class="att-x" aria-label="Remove '+esc(f.filename)+'">×</button></span>').join(''); };
+      try{ draw(JSON.parse(att.querySelector('.att-data').textContent)||[]); }catch(e){}
+      const upload=fl=>{ fl=[...fl].filter(f=>f&&f.size); if(!fl.length) return;
+        const fd=new FormData(); fl.forEach(f=>fd.append('files',f,f.name||('pasted-image.'+((f.type||'image/png').split('/')[1]||'png'))));
+        const busy=document.createElement('span'); busy.className='att-chip busy'; busy.innerHTML='<span class="spin"></span><span class="att-name">Attaching '+fl.length+' file'+(fl.length>1?'s':'')+'…</span>'; list.appendChild(busy);
+        fetch(att.dataset.url,{method:'POST',body:fd,headers:{'X-Fetch':'1'}}).then(r=>r.json()).then(j=>{ draw(j.files||[]); if(j.errors&&j.errors.length&&window.toast) toast('📎',"Some files didn't attach",j.errors.join(' · ')); })
+          .catch(()=>{ busy.remove(); if(window.toast) toast('⚠️',"That didn't attach",'Try again in a moment.'); }); };
+      root._attUpload=upload;
+      root.querySelector('.rte-clip').addEventListener('click',()=>input.click(),sig);
+      input.addEventListener('change',()=>{ upload(input.files); input.value=''; },sig);
+      list.addEventListener('click',e=>{ const x=e.target.closest('.att-x'); if(!x) return; const chip=x.closest('.att-chip'); chip.classList.add('busy');
+        const fd=new FormData(); fd.set('id',chip.dataset.id);
+        fetch(att.dataset.remove,{method:'POST',body:fd,headers:{'X-Fetch':'1'}}).then(r=>r.json()).then(j=>draw(j.files||[])).catch(()=>chip.classList.remove('busy')); },sig);
+      root.addEventListener('dragover',e=>{ if([...(e.dataTransfer?.types||[])].includes('Files')){ e.preventDefault(); root.classList.add('dropping'); } },sig);
+      root.addEventListener('dragleave',e=>{ if(!root.contains(e.relatedTarget)) root.classList.remove('dropping'); },sig);
+      root.addEventListener('drop',e=>{ if(e.dataTransfer?.files?.length){ e.preventDefault(); root.classList.remove('dropping'); upload(e.dataTransfer.files); } },sig);
+    }
     area.addEventListener('paste',e=>{
-      const cd=e.clipboardData; if(!cd) return; e.preventDefault();
+      const cd=e.clipboardData; if(!cd) return;
+      if(root._attUpload && cd.files && cd.files.length){ e.preventDefault(); root._attUpload(cd.files); return; }  // a pasted screenshot becomes an attachment
+      e.preventDefault();
       const plain=(cd.getData('text/plain')||'').trim(), sel=getSelection();
       const url=/^(https?:\/\/|www\.)[^\s<>"]+$/i.test(plain)?(/^www\./i.test(plain)?'https://'+plain:plain):null;
       if(url && sel.rangeCount && !sel.isCollapsed && area.contains(sel.anchorNode)){ document.execCommand('createLink',false,url); sync(); return; }  // selected words + copied link = hyperlink

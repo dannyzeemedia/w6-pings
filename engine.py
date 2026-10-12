@@ -513,7 +513,7 @@ def _send(w, d, contact):
     tid = f.get("Gmail Thread ID")
     first = not tid
     mid, tid = gmail.send(to, f.get("Subject") or "", f.get("Body") or "", thread_id=tid, signature=first, body_html=f.get("Body HTML"),
-                          to_name=f.get("To Name"))
+                          to_name=f.get("To Name"), attachments=f.get("Attachments"))
     t = now()
     at.update("drafts", d["id"], {"Status": "Sent", "Sent At": iso(t), "Gmail Thread ID": tid,
                                   **({} if f.get("Decided At") else {"Decided At": iso(t)})})

@@ -22,6 +22,7 @@
       <div class="cu-mail">
         {% if f.get('Subject') %}<div class="cu-subject">{{ f['Subject'] }}</div>{% endif %}
         <div class="cu-body">{{ d.html|safe }}</div>
+        {% if f.get('Attachments') %}<div class="cu-att">📎 {% for a in f['Attachments'] %}{{ a.filename }}{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
       </div>
       <textarea hidden data-f="subject">{{ f.get('Subject', '') }}</textarea>
       <textarea hidden data-f="body">{{ f.get('Body', '') }}</textarea>

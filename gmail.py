@@ -247,7 +247,7 @@ def reply_plan(msgs):
             "note": note}
 
 
-def reply(tid, text, body_html=None, to=None, cc=None, bcc=None):
+def reply(tid, text, body_html=None, to=None, cc=None, bcc=None, attachments=None):
     """Reply in-thread. to/cc/bcc: lists of addresses Karlie chose on the page; left out = reply_plan's default.
     Returns (message id, the To line)."""
     msgs = thread(tid)
@@ -278,11 +278,26 @@ def reply(tid, text, body_html=None, to=None, cc=None, bcc=None):
     msg.set_content(text)
     import richtext
     msg.add_alternative(richtext.email_html(body_html) if (body_html or "").strip() else _to_html(text), subtype="html")
+    _attach(msg, attachments)
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     _tcache.pop(tid, None)
     r = requests.post(f"{API}/messages/send", headers=_h(), json={"raw": raw, "threadId": tid}, timeout=30)
     r.raise_for_status()
     return r.json()["id"], ", ".join(to)
+
+
+def _attach(msg, files):
+    """Add Karlie's attachments (Airtable attachment objects: url, filename, type) to the email."""
+    for f in files or []:
+        url = f.get("url")
+        if not url:
+            continue
+        r = requests.get(url, timeout=60)
+        r.raise_for_status()
+        ctype = (f.get("type") or r.headers.get("content-type") or "application/octet-stream").split(";")[0]
+        main, _, sub = ctype.partition("/")
+        msg.add_attachment(r.content, maintype=main or "application", subtype=sub or "octet-stream",
+                           filename=f.get("filename") or "attachment")
 
 
 def mark_done(tid):
@@ -368,7 +383,7 @@ def _to_html(text):
     return '<div dir="ltr">' + "".join(out) + "</div>"
 
 
-def send(to, subject, body, thread_id=None, signature=True, to_name=None, body_html=None):
+def send(to, subject, body, thread_id=None, signature=True, to_name=None, body_html=None, attachments=None):
     """Send as Karlie, looking exactly like Gmail: plain + HTML parts, her real signature on first emails.
     With thread_id it replies in that thread. Returns (message id, thread id)."""
     msg = EmailMessage()
@@ -389,6 +404,7 @@ def send(to, subject, body, thread_id=None, signature=True, to_name=None, body_h
     import richtext
     rich = richtext.email_html(body_html) if (body_html or "").strip() else _to_html(body)
     msg.add_alternative(rich + (f'<br><div class="gmail_signature">{sig}</div>' if sig else ""), subtype="html")
+    _attach(msg, attachments)
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     payload = {"raw": raw}
     if thread_id:
