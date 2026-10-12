@@ -719,10 +719,10 @@ def apply_booking(log_id, b):
     name = at.partner_names([pid]).get(pid) or b.get("sponsor") or lg.get("Email")
     value = b.get("value")
     value = int(float(value)) if str(value or "").replace(".", "", 1).isdigit() else None
-    first = not bk.current_for(pid)
-    sale = booking_sale(pid, name, value, first) if (value or first) else None
-    if not sale:
-        sale = next((x["sale"] for x in bk.current_for(pid) if x.get("sale")), None)
+    cur = bk.current_for(pid)
+    first = not cur
+    linked = next((x["sale"] for x in cur if x.get("sale")), None)  # the deal's own Sales row, once it has one
+    sale = booking_sale(pid, name, value, first, existing=linked) if (value or first or not linked) else linked
     added, removed, clashes = bk.reconcile(name, pid, b.get("items"), sale_id=sale)
     if not (added or removed or clashes):
         return
@@ -740,17 +740,20 @@ def apply_booking(log_id, b):
     at.update("log", log_id, {"Summary": (f"{note}. " + (lg.get("Summary") or ""))[:250]})
 
 
-def booking_sale(pid, name, value, first=True):
-    """The Sales row a booking belongs to (their newest open one, or a new one), with the agreed value on it.
-    It's what Results adds up for "Converted", and where the invoice details will go."""
-    w = World()
-    open_rows = [s for s in w.partner_sales(pid) if s["fields"].get("Status") in (None, "Outreach", "Discussion", "Went Cold", "Maybe Later")]
-    open_rows.sort(key=lambda s: s["fields"].get("Created") or "", reverse=True)
-    if open_rows:
-        sid = open_rows[0]["id"]
+def booking_sale(pid, name, value, first=True, existing=None):
+    """The Sales row a booking belongs to (the one its dates already link to, else their newest open one, else a new
+    one), with the agreed value on it. It's what Results adds up, and where the invoice details will go."""
+    sid = existing
+    if not sid:  # read the partner fresh: a Sales row made a moment ago isn't in any saved copy yet
+        sales = at._fetch("GET", f"{at.API}/{at.TABLES['partners']}/{pid}", None)["fields"].get("Sales") or []
+        rows = [at._fetch("GET", f"{at.API}/{at.TABLES['sales']}/{x}", None) for x in sales]
+        rows = [r for r in rows if r["fields"].get("Status") in (None, "Outreach", "Discussion", "Went Cold", "Maybe Later")]
+        rows.sort(key=lambda r: r["fields"].get("Created") or "", reverse=True)
+        sid = rows[0]["id"] if rows else None
+    if sid:
         # the pencilled-in value is set once, when it's first pencilled in; a later change only moves the working value
-        upd = {"Status": "Discussion", **({"Value": value} if value else {}), **({"Pencilled Value": value} if value and first else {})}
-        at.update("sales", sid, upd)
+        at.update("sales", sid, {"Status": "Discussion", **({"Value": value} if value else {}),
+                                 **({"Pencilled Value": value} if value and first else {})})
         return sid
     return at.create("sales", {"Opportunity": f"Booking // {name}", "Status": "Discussion", "Partner": [pid], "Via": "Email",
                                **({"Value": value, "Pencilled Value": value} if value else {})}, typecast=True)["id"]
