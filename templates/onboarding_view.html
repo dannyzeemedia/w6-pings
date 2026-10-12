@@ -9,7 +9,7 @@
 {% set c = answers.get('contact') or {} %}
 {% if c %}
 <div class="card"><h2 style="margin-bottom:10px">Contact</h2>
-  <p>{{ c.get('name','') }} · {{ c.get('email','') }}{% if c.get('proofs') %}<br><span class="muted tiny">Proofs to: {{ c.proofs }}</span>{% endif %}</p></div>
+  <p>{{ c.get('name','') }} · {{ c.get('email','') }}{% if c.get('proofs') %}<br><span class="muted tiny">Proofs to: {{ c.proofs }}</span>{% endif %}{% if c.get('company') %}<br><span class="muted tiny">Company: {{ c.company }}</span>{% endif %}{% if c.get('invoices') %}<br><span class="muted tiny">Invoices to: {{ c.invoices }}</span>{% endif %}</p></div>
 {% endif %}
 {% for it in order['items'] %}{% set a = (answers.get('items') or {}).get(it.key) or {} %}
 <div class="card"><h2 style="margin-bottom:10px">{{ item_title(it) }}</h2>

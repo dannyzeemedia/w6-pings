@@ -786,6 +786,8 @@ def _api_payload(rec):
         c["email"] = rec["fields"]["Contact Email"]
     if not c.get("name") and rec["fields"].get("Contact Name"):
         c["name"] = rec["fields"]["Contact Name"]
+    if not c.get("company"):
+        c["company"] = _sponsor_name(rec)
     items = [dict(it, title=ob.item_title(it)) for it in order.get("items", [])]
     return {"sponsor": _sponsor_name(rec), "summary": ob.summary(order), "items": items,
             "kinds": [k for k in ob.KINDS if any(it["kind"] == k for it in items)], "labels": ob.LABEL,
@@ -849,6 +851,18 @@ def api_onboard_remove(token):
     d = request.get_json(silent=True) or {}
     ob.remove_file(rec, d.get("id", ""))
     return {"files": ob.files_of(ob.fresh(rec["id"])).get(d.get("key", ""), [])}
+
+
+@app.post("/api/onboard/<token>/details")
+def api_onboard_details(token):
+    """Page one's "Send to Workspace6" button: their details go to Karlie now, assets come after."""
+    if not _api_auth():
+        return {"error": "unauthorised"}, 401
+    rec, err = _onboard_rec(token)
+    if err:
+        return err
+    miss = ob.send_details(rec, _sponsor_name(rec), (request.get_json(silent=True) or {}).get("answers") or {})
+    return {"ok": not miss, "missing": miss}
 
 
 @app.post("/api/onboard/<token>/submit")

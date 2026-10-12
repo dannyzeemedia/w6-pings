@@ -28,8 +28,12 @@ LABEL = {"marquee": "Marquee", "shoutout": "Shout-Out", "takeover": "Takeover", 
 CONTACT = [
     {"key": "name", "type": "text", "label": "Your name", "req": True},
     {"key": "email", "type": "email", "label": "Your email", "req": True},
-    {"key": "proofs", "type": "text", "label": "Who should we send proofs to?",
-     "help": "Name and email. Leave it blank if it's you."},
+    {"key": "proofs", "type": "email", "label": "Which email should we send proofs to?",
+     "help": "Leave it blank if it's you."},
+    {"key": "invoices", "type": "text", "label": "Who should we send invoices to?", "req": True,
+     "help": "Name and email of whoever pays them."},
+    {"key": "company", "type": "text", "label": "Confirm your official company name", "req": True,
+     "help": "As it should appear on the invoice."},
 ]
 
 QUESTIONS = {
@@ -218,6 +222,8 @@ def save_answers(rec, incoming):
     order = order_of(rec)
     cur = answers_of(rec)
     out = {"contact": dict(cur.get("contact") or {}), "items": dict(cur.get("items") or {})}
+    if cur.get("details_sent"):
+        out["details_sent"] = cur["details_sent"]
     for q in CONTACT:
         v = (incoming.get("contact") or {}).get(q["key"])
         if v is not None:
@@ -333,6 +339,10 @@ def readable(rec):
     lines = [f"Contact: {c.get('name', '')} <{c.get('email', '')}>"]
     if c.get("proofs"):
         lines.append(f"Proofs to: {c['proofs']}")
+    if c.get("company"):
+        lines.append(f"Company (for the invoice): {c['company']}")
+    if c.get("invoices"):
+        lines.append(f"Invoices to: {c['invoices']}")
     for it in order.get("items", []):
         lines += ["", f"== {item_title(it)} =="]
         if _covered(order, answers, it):
@@ -377,6 +387,56 @@ def slack_complete(rec, sponsor):
         esc(dates),
         f"From {esc(c.get('name'))} · {esc(email)}",
         f"Everything they sent, files included: {PUBLIC_BASE}/onboarding/{rec['id']}",
+    ])
+    requests.post("https://slack.com/api/chat.postMessage", headers={"Authorization": f"Bearer {tok}"}, timeout=15,
+                  json={"channel": W6_TEAM_CHANNEL, "text": text, "unfurl_links": False})
+
+
+def missing_contact(answers):
+    c = answers.get("contact") or {}
+    return [{"item": "contact", "q": q["key"], "label": q["label"]} for q in CONTACT
+            if q.get("req") and not str(c.get(q["key"]) or "").strip()]
+
+
+def send_details(rec, sponsor, incoming):
+    """Page one's button: save their details and tell Karlie, so the invoice can go out while they do the assets."""
+    answers = save_answers(rec, incoming)
+    miss = missing_contact(answers)
+    if miss:
+        return miss
+    c = answers["contact"]
+    snap = {k: c.get(k) for k in ("name", "email", "proofs", "invoices", "company")}
+    prev = answers.get("details_sent") or {}
+    if prev.get("snap") != snap:  # only post when something's new
+        answers["details_sent"] = {"at": dt.datetime.now(dt.timezone.utc).isoformat(), "snap": snap}
+        at.update("onboard", rec["id"], {"Answers": json.dumps(answers)})
+        try:
+            slack_details(fresh(rec["id"]), sponsor, snap, updated=bool(prev))
+        except Exception:
+            pass
+    return []
+
+
+def slack_details(rec, sponsor, c, updated=False):
+    tok = os.environ.get("SLACK_BOT_TOKEN")
+    if not tok:
+        return
+    esc = lambda v: str(v or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    email = (c.get("email") or "").strip().lower()
+    test = email.endswith("@zee.media")
+    if test:
+        head = f"\U0001f9ea Test details from the team: *{esc(sponsor)}*"
+    elif updated:
+        head = f"✏️ *{esc(sponsor)}* changed their invoice details <@{KARLIE_SLACK_ID}>"
+    else:
+        head = f"\U0001f9fe *{esc(sponsor)}* confirmed their details. Time to send the invoice <@{KARLIE_SLACK_ID}>"
+    text = "\n".join([
+        head,
+        f"*{esc(summary(order_of(rec)))}*",
+        f"Company: {esc(c.get('company'))}",
+        f"Invoices to: {esc(c.get('invoices'))}",
+        f"Contact: {esc(c.get('name'))} · {esc(email)}" + (f" · proofs to {esc(c.get('proofs'))}" if c.get("proofs") else ""),
+        "They're filling in their assets now.",
     ])
     requests.post("https://slack.com/api/chat.postMessage", headers={"Authorization": f"Bearer {tok}"}, timeout=15,
                   json={"channel": W6_TEAM_CHANNEL, "text": text, "unfurl_links": False})
