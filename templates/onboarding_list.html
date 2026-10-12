@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Onboarding{% endblock %}
+{% block body %}
+<div class="card">
+  <h2 style="margin-bottom:6px">Sponsor onboarding</h2>
+  <p class="muted tiny" style="margin:0 0 16px">Every link sent to a sponsor, newest first. Make a new one from a booking on the Bookings tab.</p>
+  {% if not rows %}<p class="muted">None yet.</p>{% endif %}
+  {% for r in rows %}{% set f = r.fields %}
+  <a class="bk-row" href="{{ url_for('onboarding_view', rid=r.id) }}" style="display:flex;justify-content:space-between;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line);text-decoration:none;color:inherit">
+    <span>{{ f.get('Name','') }}</span>
+    <span class="muted tiny">{{ {'Sent':'⏳ Not started','Started':'✏️ In progress','Complete':'✅ Complete'}.get(f.get('Status'),'') }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -680,6 +680,150 @@ def _file_inquiry_now(d, email, company, msg_id):
         app.logger.warning("inquiry slack post failed: %s", ex)
 
 
+# ---------- sponsor onboarding (sponsors who bought placements send us their assets) ----------
+import onboarding as ob
+
+
+def _sponsor_name(rec):
+    pid = (rec["fields"].get("Partner") or [None])[0]
+    return (at.partner_names([pid]).get(pid) if pid else "") or rec["fields"].get("Name", "").split(" \u00b7 ")[0] or "your brand"
+
+
+@app.get("/onboard/<token>")
+def onboard_page(token):
+    rec = ob.by_token(token)
+    if not rec:
+        return render_template("onboard.html", gone=True), 404
+    rec = ob.fresh(rec["id"])  # never show a sponsor a saved-a-while-ago copy of their own answers
+    order = ob.order_of(rec)
+    answers = ob.answers_of(rec)
+    if not (answers.get("contact") or {}).get("email") and rec["fields"].get("Contact Email"):
+        answers.setdefault("contact", {})["email"] = rec["fields"]["Contact Email"]
+    if not (answers.get("contact") or {}).get("name") and rec["fields"].get("Contact Name"):
+        answers.setdefault("contact", {})["name"] = rec["fields"]["Contact Name"]
+    return render_template("onboard.html", gone=False, token=token, sponsor=_sponsor_name(rec), order=order,
+                           answers=answers, files=ob.files_of(rec), questions=ob.QUESTIONS, contact_qs=ob.CONTACT,
+                           kinds=[k for k in ob.KINDS if any(it["kind"] == k for it in order.get("items", []))],
+                           label=ob.LABEL, item_title=ob.item_title, summary=ob.summary(order),
+                           done=rec["fields"].get("Status") == "Complete")
+
+
+def _onboard_rec(token):
+    rec = ob.by_token(token)
+    if not rec:
+        return None, ({"error": "This link isn't valid any more. Ask Karlie for a fresh one."}, 404)
+    return ob.fresh(rec["id"]), None
+
+
+@app.post("/onboard/<token>/save")
+def onboard_save(token):
+    rec, err = _onboard_rec(token)
+    if err:
+        return err
+    ob.save_answers(rec, request.get_json(silent=True) or {})
+    return {"ok": True}
+
+
+@app.post("/onboard/<token>/upload")
+def onboard_upload(token):
+    rec, err = _onboard_rec(token)
+    if err:
+        return err
+    key = request.form.get("key", "")
+    valid = {f"{it['key']}/{q['key']}" for it in ob.order_of(rec).get("items", []) for q in ob.QUESTIONS[it["kind"]] if q["type"] == "file"}
+    if key not in valid:
+        return {"error": "Unknown upload"}, 400
+    errors = []
+    for up in request.files.getlist("files"):
+        data = up.read()
+        if data:
+            e = ob.upload(rec, key, up.filename, up.mimetype, data)
+            if e:
+                errors.append(e)
+    rec = ob.fresh(rec["id"])
+    if rec["fields"].get("Status") == "Sent":
+        at.update("onboard", rec["id"], {"Status": "Started", "Started At": iso(now_utc())})
+    return {"files": ob.files_of(rec).get(key, []), "errors": errors}
+
+
+@app.post("/onboard/<token>/remove")
+def onboard_remove(token):
+    rec, err = _onboard_rec(token)
+    if err:
+        return err
+    d = request.get_json(silent=True) or {}
+    ob.remove_file(rec, d.get("id", ""))
+    return {"files": ob.files_of(ob.fresh(rec["id"])).get(d.get("key", ""), [])}
+
+
+@app.post("/onboard/<token>/submit")
+def onboard_submit(token):
+    rec, err = _onboard_rec(token)
+    if err:
+        return err
+    if request.is_json and request.get_json(silent=True):
+        ob.save_answers(rec, request.get_json(silent=True))
+        rec = ob.fresh(rec["id"])
+    gaps = ob.missing(rec)
+    if gaps:
+        return {"ok": False, "missing": gaps}
+    if rec["fields"].get("Status") != "Complete":
+        ob.complete(rec, _sponsor_name(rec))
+    return {"ok": True}
+
+
+@app.get("/onboarding")
+@login_required
+def onboarding_list():
+    rows = sorted(ob.all_links(), key=lambda r: r.get("createdTime", ""), reverse=True)
+    return render_template("onboarding_list.html", rows=rows, url_for_token=ob.url_for_token)
+
+
+@app.get("/onboarding/new")
+@login_required
+def onboarding_new():
+    pid = request.args.get("partner")
+    if not pid and request.args.get("from"):
+        pid = (at.get("promo", request.args["from"])["fields"].get("Sponsor") or [None])[0]
+    if not pid:
+        flash("That booking isn't linked to a sponsor yet, so there's nothing to build a link from.")
+        return redirect(url_for("bookings_page"))
+    sponsor = at.partner_names([pid]).get(pid, "")
+    return render_template("onboarding_new.html", pid=pid, sponsor=sponsor, upcoming=ob.upcoming_for(pid),
+                           label=ob.LABEL, types=bk.TYPES)
+
+
+@app.post("/onboarding/create")
+@login_required
+def onboarding_create():
+    fm = request.form
+    pid = fm.get("partner", "")
+    chosen = set(fm.getlist("booking"))
+    picked = [b for b in ob.upcoming_for(pid) if b["id"] in chosen]
+    if not picked:
+        flash("Tick at least one placement for the link to ask about.")
+        return redirect(url_for("onboarding_new", partner=pid))
+    rec = ob.create_link(pid, at.partner_names([pid]).get(pid, "Sponsor"), picked,
+                         fm.get("contact_name", "").strip(), fm.get("contact_email", "").strip().lower(),
+                         session.get("user", ""))
+    flash("Link made. Copy it into your email.")
+    return redirect(url_for("onboarding_view", rid=rec["id"]))
+
+
+@app.get("/onboarding/<rid>")
+@login_required
+def onboarding_view(rid):
+    if not re.match(r"rec\w+$", rid):
+        return redirect(url_for("onboarding_list"))
+    rec = ob.fresh(rid)
+    order = ob.order_of(rec)
+    return render_template("onboarding_view.html", rec=rec, f=rec["fields"], sponsor=_sponsor_name(rec), order=order,
+                           answers=ob.answers_of(rec), files=ob.files_of(rec), questions=ob.QUESTIONS,
+                           item_title=ob.item_title, link=ob.url_for_token(rec["fields"].get("Token", "")),
+                           summary=ob.summary(order), covered=lambda it: ob._covered(order, ob.answers_of(rec), it),
+                           shown=ob._shown)
+
+
 # ---------- attachments (any email she sends) ----------
 ATTACH_FIELD = {"drafts": "Attachments", "log": "Reply Attachments"}
 ATTACH_MAX = 5 * 1024 * 1024  # Airtable's upload limit per file

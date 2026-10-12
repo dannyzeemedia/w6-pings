@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% block title %}{{ sponsor }} onboarding{% endblock %}
+{% block body %}
+<div class="card">
+  <h2 style="margin-bottom:4px">{{ sponsor }}</h2>
+  <p class="muted tiny" style="margin:0 0 14px">{{ summary }} · {{ {'Sent':'⏳ Not started yet','Started':'✏️ Started, not finished','Complete':'✅ Complete'}.get(f.get('Status'),'') }}</p>
+  <label class="field">Their link<div class="row"><input id="oblink" value="{{ link }}" readonly onclick="this.select()">
+    <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('oblink').value);this.textContent='Copied'">Copy</button></div></label>
+  <p class="muted tiny">Paste it into your email. It asks only about: {% for it in order['items'] %}{{ item_title(it) }}{% if not loop.last %}; {% endif %}{% endfor %}.</p>
+</div>
+{% set c = answers.get('contact') or {} %}
+{% if c %}
+<div class="card"><h2 style="margin-bottom:10px">Contact</h2>
+  <p>{{ c.get('name','') }} · {{ c.get('email','') }}{% if c.get('proofs') %}<br><span class="muted tiny">Proofs to: {{ c.proofs }}</span>{% endif %}</p></div>
+{% endif %}
+{% for it in order['items'] %}{% set a = (answers.get('items') or {}).get(it.key) or {} %}
+<div class="card"><h2 style="margin-bottom:10px">{{ item_title(it) }}</h2>
+  {% if covered(it) %}<p class="muted">{{ 'Same as the previous Marquee.' if it.kind=='marquee' else 'Same as Shout-Out 1.' }}</p>
+  {% else %}
+  {% for q in questions[it.kind] if shown(q, a) %}
+    <div style="margin:0 0 14px"><div class="muted tiny">{{ q.label }}</div>
+    {% if q.type == 'file' %}{% set fs = files.get(it.key ~ '/' ~ q.key, []) %}
+      {% if fs %}<div class="row" style="flex-wrap:wrap">{% for x in fs %}<a href="{{ x.url }}" target="_blank" rel="noopener" style="display:inline-flex;flex-direction:column;gap:4px;max-width:180px">{% if x.thumb %}<img src="{{ x.thumb }}" alt="" style="max-width:180px;max-height:120px;border-radius:10px;background:#16483d;object-fit:contain">{% endif %}<span class="tiny">{{ x.filename }}</span></a>{% endfor %}</div>
+      {% else %}<span class="muted">Nothing yet</span>{% endif %}
+    {% else %}<div style="white-space:pre-wrap">{{ a.get(q.key) or '—' }}</div>{% endif %}
+    </div>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endfor %}
+<p><a class="btn ghost" href="{{ url_for('onboarding_list') }}">All onboarding links</a></p>
+{% endblock %}

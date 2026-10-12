@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#265c51">
+<title>{% if gone %}Link expired{% else %}{{ sponsor }} × Workspace6{% endif %}</title>
+<link rel="icon" href="{{ url_for('static', filename='badge.svg') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
+<style>
+:root{--green:#265c51;--green-2:#1d4a41;--mint:#bee1de;--mint-2:#e6f3f1;--ink:#202020;--ink-2:#5b605e;--line:#dfe5e2;
+  --bg:#f5f7f6;--card:#fff;--red:#b3412f;--red-bg:#f8e7e3;--r:22px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:720px;margin:0 auto;padding:0 18px 80px}
+h1,h2,h3{font-family:Gambetta,Georgia,serif;font-weight:400;letter-spacing:-.01em;margin:0}
+.hero{background:#16483d url("{{ url_for('static', filename='plate.jpg') }}") center/cover;color:#fff;border-radius:0 0 var(--r) var(--r);
+  padding:34px 28px 30px;margin:0 -18px 22px;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,rgba(14,58,48,.88),rgba(16,66,55,.62) 60%,rgba(20,74,62,.25))}
+.hero>*{position:relative}
+.wm{width:132px;display:block;margin-bottom:18px}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--mint)}
+.hero h1{font-size:clamp(30px,6vw,42px);line-height:1.1;margin-top:8px}
+.hero p{margin:10px 0 0;color:rgba(255,255,255,.88);max-width:52ch}
+.order{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{background:rgba(190,225,222,.16);border:1px solid rgba(190,225,222,.4);border-radius:999px;padding:4px 12px;font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:24px 22px;margin:0 0 18px}
+.card h2{font-size:26px;margin-bottom:4px}
+.sub{color:var(--ink-2);font-size:14px;margin:0 0 16px}
+.q{margin:20px 0 0}
+.q>label,.q .ql{display:block;font-weight:600;font-size:15px}
+.help{color:var(--ink-2);font-size:13.5px;margin:3px 0 8px}
+.req{color:var(--green);font-weight:600}
+input[type=text],input[type=email],input[type=url],input[type=date],textarea{width:100%;font:inherit;color:inherit;background:#fff;
+  border:1px solid var(--line);border-radius:12px;padding:11px 13px;outline:none;transition:border-color .15s,box-shadow .15s}
+textarea{min-height:130px;resize:vertical}
+input:focus,textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(38,92,81,.14)}
+.bad input,.bad textarea,.bad .drop{border-color:var(--red)!important;background:var(--red-bg)}
+.choices label{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px 13px;margin:6px 0;cursor:pointer;font-weight:500}
+.choices input{accent-color:var(--green)}
+.toggle{display:flex;gap:10px;align-items:flex-start;background:var(--mint-2);border-radius:14px;padding:12px 14px;margin:14px 0 0;cursor:pointer}
+.toggle input{margin-top:4px;accent-color:var(--green)}
+.drop{border:1.5px dashed #b9c9c4;border-radius:14px;padding:16px;text-align:center;color:var(--ink-2);font-size:14px;cursor:pointer;position:relative;background:#fbfcfc}
+.drop:hover{border-color:var(--green);color:var(--green)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.files{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.file{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;padding:6px 8px 6px 6px;font-size:13px;background:#fff;max-width:100%}
+.file img{width:44px;height:44px;object-fit:contain;border-radius:8px;background:#16483d}
+.file button{border:0;background:none;color:var(--ink-2);cursor:pointer;font-size:16px;line-height:1}
+.uploading{font-size:13px;color:var(--green);margin-top:8px}
+details.ex{border:1px solid var(--line);border-radius:16px;padding:12px 16px;margin:14px 0 4px;background:#fbfcfc}
+details.ex summary{cursor:pointer;font-weight:600;color:var(--green)}
+.ex img,.ex video{max-width:100%;border-radius:12px;display:block;margin:12px 0 4px}
+.bd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+.bd ol{margin:12px 0 0;padding-left:20px;font-size:14px}
+.bd li{margin:0 0 8px}
+@media (max-width:620px){.bd{grid-template-columns:1fr}}
+.covered .body{display:none}
+.actions{padding:8px 0 18px;margin-top:4px}
+button.go{width:100%;border:0;border-radius:999px;background:var(--green);color:#fff;font:600 16px Inter,sans-serif;padding:15px;cursor:pointer}
+button.go:disabled{opacity:.6;cursor:wait}
+.saved{text-align:center;font-size:12.5px;color:var(--ink-2);margin-top:8px;min-height:18px}
+.gaps{background:var(--red-bg);border:1px solid #e2b8ae;color:#7a2a1d;border-radius:14px;padding:12px 16px;font-size:14px;margin:0 0 12px;display:none}
+.gaps ul{margin:6px 0 0;padding-left:18px}
+.thanks{text-align:center;padding:40px 22px}
+.thanks h2{font-size:34px}
+</style>
+</head><body>
+<div class="wrap">
+{% if gone %}
+  <div class="hero"><img class="wm" src="{{ url_for('static', filename='wordmark.svg') }}" alt="Workspace6" style="filter:brightness(0) invert(1)">
+    <h1>This link has wandered off.</h1><p>It may have been replaced with a newer one. Reply to Karlie and she'll send you a fresh link.</p></div>
+{% else %}
+  <div class="hero">
+    <img class="wm" src="{{ url_for('static', filename='wordmark.svg') }}" alt="Workspace6" style="filter:brightness(0) invert(1)">
+    <div class="eyebrow">Sponsor onboarding</div>
+    <h1>{{ sponsor }}, welcome aboard.</h1>
+    <p>This is everything we need to put your placements together, and nothing we don't. It saves as you type, so you can leave and come back to this same link.</p>
+    <div class="order">{% for it in order["items"] %}<span class="chip">{{ item_title(it) }}</span>{% endfor %}</div>
+  </div>
+
+  <div id="done" class="card thanks" {% if not done %}hidden{% endif %}>
+    <h2>That's everything.</h2>
+    <p class="sub">Karlie has it, and the team will be in touch if anything needs a second look. Proofs will come to you before anything goes out.</p>
+    <p class="sub">Need to change something? Reply to Karlie's email.</p>
+  </div>
+
+  <form id="ob" {% if done %}hidden{% endif %} onsubmit="return false">
+  <div class="card">
+    <h2>First, who we're talking to</h2>
+    <p class="sub">So the proofs and the questions reach the right person.</p>
+    {% for q in contact_qs %}
+    <div class="q" data-item="contact" data-q="{{ q.key }}">
+      <label for="c-{{ q.key }}">{{ q.label }}{% if q.req %} <span class="req">*</span>{% endif %}</label>
+      {% if q.help %}<div class="help">{{ q.help }}</div>{% endif %}
+      <input id="c-{{ q.key }}" type="{{ 'email' if q.type=='email' else 'text' }}" value="{{ (answers.get('contact') or {}).get(q.key, '') }}">
+    </div>
+    {% endfor %}
+  </div>
+
+  {% for kind in kinds %}
+    {% set mine = order["items"]|selectattr("kind", "equalto", kind)|list %}
+    {% for it in mine %}
+    {% set ans = (answers.get('items') or {}).get(it.key) or {} %}
+    <div class="card item" data-key="{{ it.key }}" data-kind="{{ kind }}" data-n="{{ it.n }}">
+      <h2>{{ item_title(it) }}</h2>
+      {% if it.n == 0 %}
+        {% if kind == "marquee" %}
+        <p class="sub">The Marquee is the issue's headline act: your logo top and bottom, and a mid-section with your image and words.</p>
+        <details class="ex"><summary>See how the logo slot looks</summary>
+          <video src="{{ url_for('static', filename='onboard/powered-by.mp4') }}" poster="{{ url_for('static', filename='onboard/powered-by.jpg') }}" autoplay loop muted playsinline></video>
+          <div class="help">Your logo goes where Wayflyer's is. Note the dark background.</div></details>
+        <details class="ex"><summary>See good mid-section images</summary>
+          <img src="{{ url_for('static', filename='onboard/hero-examples.gif') }}" alt="Two example mid-section images" loading="lazy">
+          <div class="help">Both read clearly on a phone. That's the whole test.</div></details>
+        <details class="ex"><summary>See why one Marquee did particularly well</summary>
+          <div class="bd"><img src="{{ url_for('static', filename='onboard/ad-breakdown.png') }}" alt="A Status Marquee that performed well" loading="lazy">
+          <ol>
+            <li><b>The headline is the outcome,</b> not the product name.</li>
+            <li><b>One hard number, inside the image.</b> +102% is legible from across a room.</li>
+            <li><b>Logos of brands already using it,</b> right under the image.</li>
+            <li><b>It opens with a question</b> the reader was already asking themselves.</li>
+            <li><b>It names customers people recognise.</b> Princess Polly does more work than any adjective.</li>
+            <li><b>The benefits are short bullets,</b> not a paragraph.</li>
+            <li><b>It removes the risk:</b> free trial, no contract, no development work.</li>
+            <li><b>It ends on proof:</b> three results, each one linked.</li>
+          </ol></div></details>
+        {% elif kind == "shoutout" %}
+        <p class="sub">A Shout-Out is a short, sharp paragraph in our list of recommended tools. Short is the point.</p>
+        <details class="ex"><summary>See four that worked</summary>
+          <img src="{{ url_for('static', filename='onboard/shoutout-examples.png') }}" alt="Four example Shout-Outs" loading="lazy">
+          <div class="help">Problem first, a specific reason to care, one link. Omnisend's leads with a price rise the reader has just been hit with.</div></details>
+        {% elif kind == "takeover" %}
+        <p class="sub">A Takeover is a whole issue about you, as long as it needs to be. It works best when we write it and you tell us what matters.</p>
+        {% elif kind == "groupbuy" %}
+        <p class="sub">A Group Buy goes to every member of the private W6 community as a direct message from Sam. It works when the offer is genuinely better than what anyone can get on their own.</p>
+        {% endif %}
+      {% endif %}
+
+      {% if kind == "marquee" and it.n > 0 %}
+      <label class="toggle"><input type="checkbox" data-flag="same_as_prev" {% if ans.get('same_as_prev') %}checked{% endif %}>
+        <span><b>Same as the previous Marquee</b><br><span class="help">Untick it if this one should be different.</span></span></label>
+      {% endif %}
+      {% if kind == "shoutout" and it.n == 0 and it.of > 1 %}
+      <label class="toggle"><input type="checkbox" data-flag="use_for_all" {% if ans.get('use_for_all') %}checked{% endif %}>
+        <span><b>Use this one for all {{ it.of }} Shout-Outs</b><br><span class="help">Or untick it and write each one. Variety tends to get more clicks.</span></span></label>
+      {% endif %}
+
+      <div class="body">
+      {% for q in questions[kind] %}
+        {% set fkey = it.key ~ '/' ~ q.key %}
+        <div class="q" data-item="{{ it.key }}" data-q="{{ q.key }}" data-type="{{ q.type }}"
+             {% if q.when %}data-when="{{ q.when[0] }}" data-when-val="{{ q.when[1] }}"{% endif %}>
+          <label class="ql" {% if q.type not in ('file','choice') %}for="f-{{ it.key }}-{{ q.key }}"{% endif %}>{{ q.label }}{% if q.req %} <span class="req">*</span>{% endif %}</label>
+          {% if q.help %}<div class="help">{{ q.help }}</div>{% endif %}
+          {% if q.type == 'textarea' %}
+            <textarea id="f-{{ it.key }}-{{ q.key }}">{{ ans.get(q.key, '') }}</textarea>
+          {% elif q.type == 'choice' %}
+            <div class="choices">{% for o in q.options %}
+              <label><input type="radio" name="r-{{ it.key }}-{{ q.key }}" value="{{ o }}" {% if ans.get(q.key) == o %}checked{% endif %}> {{ o }}</label>{% endfor %}</div>
+          {% elif q.type == 'file' %}
+            <div class="drop">{% if q.multiple %}Drop files here, or click to choose{% else %}Drop a file here, or click to choose{% endif %} <span class="help">(under 5 MB each)</span>
+              <input type="file" {% if q.accept %}accept="{{ q.accept }}"{% endif %} {% if q.multiple %}multiple{% endif %} data-key="{{ fkey }}"></div>
+            <div class="files" data-files="{{ fkey }}">{% for f in files.get(fkey, []) %}
+              <span class="file" data-id="{{ f.id }}">{% if f.thumb %}<img src="{{ f.thumb }}" alt="">{% endif %}<span>{{ f.filename }}</span><button type="button" aria-label="Remove">×</button></span>{% endfor %}</div>
+          {% else %}
+            <input id="f-{{ it.key }}-{{ q.key }}" type="{{ q.type }}" value="{{ ans.get(q.key, '') }}" {% if q.type=='url' %}placeholder="https://"{% endif %}>
+          {% endif %}
+        </div>
+      {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  {% endfor %}
+
+  <div class="actions">
+    <div class="gaps" id="gaps"></div>
+    <button class="go" id="send" type="button">Send it to Workspace6</button>
+    <div class="saved" id="saved"></div>
+  </div>
+  </form>
+{% endif %}
+</div>
+
+{% if not gone %}
+<script>
+(function(){
+  const base = "/onboard/{{ token }}";
+  const form = document.getElementById("ob");
+  const saved = document.getElementById("saved");
+
+  function collect(){
+    const out = {contact:{}, items:{}};
+    document.querySelectorAll('.q[data-item="contact"]').forEach(q => {
+      out.contact[q.dataset.q] = q.querySelector("input").value;
+    });
+    document.querySelectorAll(".item").forEach(card => {
+      const k = card.dataset.key, a = {};
+      card.querySelectorAll("[data-flag]").forEach(f => a[f.dataset.flag] = f.checked);
+      card.querySelectorAll(".q[data-item]").forEach(q => {
+        if (q.dataset.type === "file") return;
+        if (q.dataset.type === "choice") { const c = q.querySelector("input:checked"); a[q.dataset.q] = c ? c.value : ""; }
+        else a[q.dataset.q] = (q.querySelector("input,textarea") || {}).value || "";
+      });
+      out.items[k] = a;
+    });
+    return out;
+  }
+
+  function refresh(){
+    // conditional questions, "same as previous", "use for all"
+    document.querySelectorAll(".item").forEach(card => {
+      const a = collect().items[card.dataset.key] || {};
+      card.querySelectorAll(".q[data-when]").forEach(q => {
+        q.style.display = (a[q.dataset.when] || "") === q.dataset.whenVal ? "" : "none";
+      });
+      const same = card.querySelector('[data-flag="same_as_prev"]');
+      card.classList.toggle("covered", !!(same && same.checked));
+    });
+    const all = document.querySelector('[data-kind="shoutout"][data-n="0"] [data-flag="use_for_all"]');
+    document.querySelectorAll('.item[data-kind="shoutout"]').forEach(c => {
+      if (c.dataset.n !== "0") c.style.display = all && all.checked ? "none" : "";
+    });
+  }
+
+  let timer = null;
+  function save(){
+    clearTimeout(timer);
+    saved.textContent = "Saving…";
+    timer = setTimeout(() => {
+      fetch(base + "/save", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(collect())})
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(() => { saved.textContent = "Saved. You can close this and come back to the same link."; })
+        .catch(() => { saved.textContent = "Couldn't save just now. We'll try again when you type."; });
+    }, 700);
+  }
+  form.addEventListener("input", e => { if (e.target.type !== "file") { refresh(); save(); } });
+  form.addEventListener("change", e => { if (e.target.type !== "file") { refresh(); save(); } });
+
+  function drawFiles(key, files){
+    const box = document.querySelector('[data-files="' + key + '"]');
+    box.innerHTML = "";
+    files.forEach(f => {
+      const s = document.createElement("span"); s.className = "file"; s.dataset.id = f.id;
+      if (f.thumb) { const i = document.createElement("img"); i.src = f.thumb; i.alt = ""; s.appendChild(i); }
+      const n = document.createElement("span"); n.textContent = f.filename; s.appendChild(n);
+      const b = document.createElement("button"); b.type = "button"; b.textContent = "×"; b.setAttribute("aria-label", "Remove"); s.appendChild(b);
+      box.appendChild(s);
+    });
+  }
+  document.querySelectorAll('input[type=file]').forEach(inp => {
+    inp.addEventListener("change", () => {
+      if (!inp.files.length) return;
+      const key = inp.dataset.key, fd = new FormData();
+      fd.append("key", key);
+      [...inp.files].forEach(f => fd.append("files", f));
+      const note = document.createElement("div"); note.className = "uploading"; note.textContent = "Uploading…";
+      inp.closest(".q").appendChild(note);
+      fetch(base + "/upload", {method:"POST", body: fd}).then(r => r.json()).then(j => {
+        note.remove(); if (j.files) drawFiles(key, j.files);
+        if (j.errors && j.errors.length) alert(j.errors.join("\n"));
+        if (j.error) alert(j.error);
+        inp.value = ""; inp.closest(".q").classList.remove("bad");
+      }).catch(() => { note.textContent = "That didn't upload. Try again?"; });
+    });
+  });
+  document.addEventListener("click", e => {
+    const b = e.target.closest(".file button"); if (!b) return;
+    const chip = b.closest(".file"), box = chip.closest("[data-files]");
+    chip.style.opacity = .4;
+    fetch(base + "/remove", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({id: chip.dataset.id, key: box.dataset.files})}).then(r => r.json()).then(j => drawFiles(box.dataset.files, j.files || []));
+  });
+
+  document.getElementById("send").addEventListener("click", () => {
+    const btn = document.getElementById("send"), gaps = document.getElementById("gaps");
+    btn.disabled = true; btn.textContent = "Checking…";
+    document.querySelectorAll(".bad").forEach(x => x.classList.remove("bad"));
+    fetch(base + "/submit", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(collect())})
+      .then(r => r.json()).then(j => {
+        btn.disabled = false; btn.textContent = "Send it to Workspace6";
+        if (j.ok) { form.hidden = true; document.getElementById("done").hidden = false; window.scrollTo({top:0, behavior:"smooth"}); return; }
+        const miss = j.missing || [];
+        gaps.style.display = "block";
+        gaps.innerHTML = "<b>Nearly there. These still need filling in:</b><ul>" + miss.map(m => "<li></li>").join("") + "</ul>";
+        gaps.querySelectorAll("li").forEach((li, i) => li.textContent = miss[i].label);
+        let first = null;
+        miss.forEach(m => {
+          const q = document.querySelector('.q[data-item="' + m.item + '"][data-q="' + m.q + '"]');
+          if (q) { q.classList.add("bad"); first = first || q; }
+        });
+        if (first) first.scrollIntoView({behavior:"smooth", block:"center"});
+      }).catch(() => { btn.disabled = false; btn.textContent = "Send it to Workspace6"; alert("That didn't go through. Try again in a moment?"); });
+  });
+
+  refresh();
+})();
+</script>
+{% endif %}
+</body></html>

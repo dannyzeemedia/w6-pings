@@ -139,7 +139,8 @@
     <label class="check field" id="edit-scope-wrap"><input type="checkbox" name="scope" value="all" id="edit-scope" checked>
       <span>Apply to the whole booking <span class="muted tiny" id="edit-scope-n"></span><br><span class="muted tiny">Untick to change only this one date.</span></span></label>
     <div class="row" style="justify-content:space-between">
-      <button name="action" value="save">Save</button>
+      <div class="row"><button name="action" value="save">Save</button>
+      <a class="btn ghost" id="edit-onboard" href="#" title="Make a private link that asks this sponsor for exactly what we need for what they bought">📋 Onboarding link</a></div>
       <div class="row"><button type="button" class="ghost" onclick="document.getElementById('edit').close()">Close</button>
       <button name="action" value="delete_one" class="ghost danger" id="edit-del-one" onclick="return confirm('Remove just this date?')">Remove this date</button>
       <button name="action" value="delete" class="danger" id="edit-del-all" onclick="return confirm(this.dataset.confirm||'Remove this booking?')">Remove booking</button></div>
@@ -152,6 +153,7 @@
   window.openEdit=function(id,sponsor,label,date,state){
     const d=document.getElementById('edit');
     document.getElementById('edit-form').setAttribute('action','/bookings/'+id+'/edit');
+    document.getElementById('edit-onboard').href='/onboarding/new?from='+id;
     document.getElementById('edit-title').textContent=sponsor;
     document.getElementById('edit-sub').textContent=label+(date?' · '+new Date(date+'T12:00').toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}):'');
     document.getElementById('edit-state').value=state==='paid'?'paid':'pencilled';

@@ -12,6 +12,7 @@ TABLES = {
     "sales": "tblakxHy3Dke93A3b",
     "handsoff": "tblUuIEQoMGOAv8r0",
     "promo": "tblDgkaHQFHHPNAHA",  # W6 Promo Calendar: one row per placement per publish date
+    "onboard": "tbl3xkeiz9pGbCyTh",  # 🤖 Sponsor Onboarding: one row per onboarding link sent to a sponsor
 }
 API = f"https://api.airtable.com/v0/{BASE}"
 
