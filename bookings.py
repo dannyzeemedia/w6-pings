@@ -56,7 +56,7 @@ def load(start, end):
                    or "Unknown")
         out.append({"id": r["id"], "date": dt.date.fromisoformat(f["Publish Date"]), "kind": kind, "state": state,
                     "sponsor": sponsor.strip(), "name": f.get("Name", ""), "seq": f.get("# / #", ""),
-                    "partner": (f.get("Sponsor") or [None])[0]})
+                    "partner": (f.get("Sponsor") or [None])[0], "sale": (f.get("Sale") or [None])[0]})
     return out
 
 
@@ -381,7 +381,7 @@ def add_dates(sponsor_name, partner_id, kind, state, dates):
 EXCLUSIVE = {"marquee", "takeover", "groupbuy", "7fc"}  # one sponsor per date; Shout-Outs and Welcome Flow can share
 
 
-def pencil(sponsor_name, partner_id, items):
+def pencil(sponsor_name, partner_id, items, sale_id=None):
     """Pencil in what a sponsor agreed to. items = [{"kind", "dates": [ISO], "tbc": bool}].
     Skips a date already held for this sponsor, and an exclusive date someone else holds or that's blocked out.
     Returns (pencilled, clashes): lists of (kind, date, note)."""
@@ -406,7 +406,8 @@ def pencil(sponsor_name, partner_id, items):
         if keep:
             label = TYPES[kind]["label"] + (" · date to confirm" if it.get("tbc") else "")
             rows = [{"Name": f"{sponsor_name} · {label}", "Status": "✏️ " + TYPES[kind]["status"], "Publish Date": d,
-                     "# / #": f"{i + 1}/{len(keep)}", **({"Sponsor": [partner_id]} if partner_id else {})} for i, d in enumerate(keep)]
+                     "# / #": f"{i + 1}/{len(keep)}", **({"Sponsor": [partner_id]} if partner_id else {}),
+                     **({"Sale": [sale_id]} if sale_id else {})} for i, d in enumerate(keep)]
             at.create_many("promo", rows, typecast=True)
             pencilled += [(kind, dt.date.fromisoformat(d), "TBC" if it.get("tbc") else "") for d in keep]
     return pencilled, clashes

@@ -702,10 +702,13 @@ def apply_booking(log_id, b):
         return
     pid = (lg.get("Partner") or [None])[0]
     name = (at.partner_names([pid]).get(pid) if pid else None) or b.get("sponsor") or lg.get("Email")
-    done, clashes = bk.pencil(name, pid, b.get("items"))
+    value = b.get("value")
+    value = int(float(value)) if str(value or "").replace(".", "", 1).isdigit() else None
+    sale = booking_sale(pid, name, value) if pid else None
+    done, clashes = bk.pencil(name, pid, b.get("items"), sale_id=sale)
     if not done and not clashes:
         return
-    val = f" · ${int(b['value']):,}" if str(b.get("value") or "").replace(".", "").isdigit() else ""
+    val = f" · ${value:,}" if value else ""
     text = (f"Pencilled in {name}: {bk.describe(done)}{val}" if done else f"{name} said yes, but nothing could be pencilled in")
     if clashes:
         text += ". Taken: " + ", ".join(f"{bk.TYPES[k]['label']} {d.strftime('%a %-d %b')} ({why})" for k, d, why in clashes)
@@ -714,6 +717,21 @@ def apply_booking(log_id, b):
     note = "✏️ Pencilled in" + (f". ⚠️ {len(clashes)} date{'s' if len(clashes) > 1 else ''} already taken, pick others: "
                                 + ", ".join(d.strftime('%a %-d %b') for _, d, _ in clashes) if clashes else "")
     at.update("log", log_id, {"Summary": (f"{note}. " + (lg.get("Summary") or ""))[:250]})
+
+
+def booking_sale(pid, name, value):
+    """The Sales row a booking belongs to (their newest open one, or a new one), with the agreed value on it.
+    It's what Results adds up for "Converted", and where the invoice details will go."""
+    w = World()
+    open_rows = [s for s in w.partner_sales(pid) if s["fields"].get("Status") in (None, "Outreach", "Discussion", "Went Cold", "Maybe Later")]
+    open_rows.sort(key=lambda s: s["fields"].get("Created") or "", reverse=True)
+    if open_rows:
+        sid = open_rows[0]["id"]
+        upd = {"Status": "Discussion", **({"Value": value} if value else {})}
+        at.update("sales", sid, upd)
+        return sid
+    return at.create("sales", {"Opportunity": f"Booking // {name}", "Status": "Discussion", "Partner": [pid], "Via": "Email",
+                               **({"Value": value} if value else {})}, typecast=True)["id"]
 
 
 def remix_apply(item):

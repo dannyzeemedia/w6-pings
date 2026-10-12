@@ -1466,6 +1466,16 @@ def activity(days=7):
     return out
 
 
+def _converted_value(partners):
+    """Dollars converted: the value on the Sales rows behind these sponsors' confirmed bookings."""
+    if not partners:
+        return 0
+    today = dt.date.today()
+    sales = {b["sale"] for b in bk.load(today - dt.timedelta(days=120), today + dt.timedelta(days=365))
+             if b["state"] == "paid" and b["partner"] in partners and b.get("sale")}
+    return sum(int(at.get("sales", sid)["fields"].get("Value") or 0) for sid in sales)
+
+
 @app.route("/results")
 @login_required
 def results():
@@ -1489,6 +1499,12 @@ def results():
     totals = {"sent": c("Sent"), "replied": c("Replied"), "handed": c("Handed To Karlie"),
               "bounced": c("Bounced") + c("Left Company")}
     totals["rate"] = round(100 * totals["replied"] / totals["sent"]) if totals["sent"] else None
+    # the funnel by business: replied -> pencilled in -> converted (confirmed; invoices will count here once they're built)
+    biz = lambda k: {(e["fields"].get("Partner") or [None])[0] or (e["fields"].get("Email") or "").lower() for e in last30 if e["fields"].get("Event") == k} - {""}
+    rb, pb, cb = biz("Replied"), biz("Pencilled In"), biz("Confirmed")
+    totals.update(replied_biz=len(rb), pencilled=len(pb), converted=len(cb),
+                  pencil_rate=round(100 * len(pb) / len(rb)) if rb else None,
+                  convert_rate=round(100 * len(cb) / len(pb)) if pb else None, converted_usd=_converted_value(cb))
     dead = at.list_records("contacts", "AND({Status}!='Active', {Status}!='')", fields=["Status"])
     peak = max([w["sent"] for w in weeks] + [1])
     # latest activity: one line per thing that happened (a reply and its "your turn" hand-off are the same moment)
@@ -1537,7 +1553,7 @@ def results():
     story = {e["id"]: by_email.get((e["fields"].get("Email") or "").lower(), [])[-12:] for e in recent}
     names = at.partner_names([p for e in recent for p in e["fields"].get("Partner", [])])
     span = 1 if request.args.get("span", "today") == "today" else 7
-    return render_template("results.html", weeks=weeks, peak=peak, totals=totals, acts=activity(span), span=span,
+    return render_template("results.html", weeks=weeks, peak=peak, totals=totals,
                            n_dead=len(dead), recent=recent, names=names, brands=brands_for(recent, "Email"),
                            q=q, kind=kind, matches=matches, story=story, deals=_safe(bk.deals, []),
                            gmail_thread=lambda t: f"https://mail.google.com/mail/u/{gmail.ME}/#all/{t}")
