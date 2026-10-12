@@ -18,7 +18,7 @@
   <div class="card"><div class="label">Pings sent</div><div class="big">{{ totals.sent }}</div><div class="muted">Including your replies</div></div>
   <div class="card"><div class="label">Replied</div><div class="big">{{ totals.replied }}</div><div class="muted">{{ (totals.rate|string + '% of pings') if totals.rate is not none else 'No pings yet' }}</div></div>
   <div class="card"><div class="label">Pencilled in</div><div class="big">{{ totals.pencilled }}</div><div class="muted">{{ (totals.pencil_rate|string + '% of businesses that replied') if totals.pencil_rate is not none else 'Nobody yet' }}</div></div>
-  <div class="card"><div class="label">Converted</div><div class="big">{{ totals.converted }}</div><div class="muted">{{ '${:,}'.format(totals.converted_usd) }}{{ (' · ' ~ totals.convert_rate ~ '% of pencilled in') if totals.convert_rate is not none else '' }}</div></div>
+  <div class="card"><div class="label">Converted</div><div class="big">{{ totals.converted }}</div><div class="muted">{{ '${:,}'.format(totals.converted_usd) }}{{ (' · ' ~ totals.convert_rate ~ '% of pencilled') if totals.convert_rate is not none else '' }}</div></div>
 </div>
 <p class="muted tiny res-note">The last 30 days. Pencilled in and converted count businesses. Converted means confirmed for now; it'll mean invoice sent once invoicing is built.</p>
 {% if deals %}<div class="card" id="deals">

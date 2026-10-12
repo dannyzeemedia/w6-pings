@@ -1130,3 +1130,4 @@ body.catchup-mode .update-bar { background: #ffffff; color: #1b433b; }
 .rte.dropping { outline: 2px dashed var(--green); outline-offset: 3px; }
 .cu-att { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .res-note { margin: -6px 2px 18px; }
+@media (max-width: 640px) { .res-note { margin: -2px 14px 16px; } }
