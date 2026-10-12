@@ -375,3 +375,67 @@ def add_dates(sponsor_name, partner_id, kind, state, dates):
     rows = [{"Name": f"{sponsor_name} · {t['label']}", "Status": status, "Publish Date": d, "# / #": f"{i + 1}/{len(dates)}",
              **({"Sponsor": [partner_id]} if partner_id else {})} for i, d in enumerate(dates)]
     at.create_many("promo", rows, typecast=True)
+
+
+# ---------------------------------------------------------------- bookings a sponsor agreed to by email
+EXCLUSIVE = {"marquee", "takeover", "groupbuy", "7fc"}  # one sponsor per date; Shout-Outs and Welcome Flow can share
+
+
+def pencil(sponsor_name, partner_id, items):
+    """Pencil in what a sponsor agreed to. items = [{"kind", "dates": [ISO], "tbc": bool}].
+    Skips a date already held for this sponsor, and an exclusive date someone else holds or that's blocked out.
+    Returns (pencilled, clashes): lists of (kind, date, note)."""
+    pencilled, clashes = [], []
+    for it in items or []:
+        kind = it.get("kind")
+        ds = sorted({d for d in (it.get("dates") or []) if re.match(r"\d{4}-\d{2}-\d{2}$", str(d))})
+        if kind not in TYPES or not ds:
+            continue
+        have = load(dt.date.fromisoformat(ds[0]), dt.date.fromisoformat(ds[-1]))
+        keep = []
+        for d in ds:
+            day = dt.date.fromisoformat(d)
+            here = [b for b in have if b["date"] == day and b["kind"] == kind]
+            if any(b["partner"] == partner_id and b["state"] != "blockout" for b in here):
+                continue  # already in the calendar for them
+            other = next((b for b in here if b["state"] == "blockout" or (kind in EXCLUSIVE and b["partner"] != partner_id)), None)
+            if other:
+                clashes.append((kind, day, "blocked out" if other["state"] == "blockout" else f"{other['sponsor']} has it"))
+                continue
+            keep.append(d)
+        if keep:
+            label = TYPES[kind]["label"] + (" · date to confirm" if it.get("tbc") else "")
+            rows = [{"Name": f"{sponsor_name} · {label}", "Status": "✏️ " + TYPES[kind]["status"], "Publish Date": d,
+                     "# / #": f"{i + 1}/{len(keep)}", **({"Sponsor": [partner_id]} if partner_id else {})} for i, d in enumerate(keep)]
+            at.create_many("promo", rows, typecast=True)
+            pencilled += [(kind, dt.date.fromisoformat(d), "date to confirm" if it.get("tbc") else "") for d in keep]
+    return pencilled, clashes
+
+
+def describe(rows):
+    """'3 DTC News Marquees (Tue 20 Oct, Tue 27 Oct, Tue 3 Nov)' style summary of (kind, date, note) rows."""
+    by = {}
+    for kind, d, note in rows:
+        by.setdefault(kind, []).append(d.strftime("%a %-d %b") + (f" {note}" if note else ""))
+    return "; ".join(f"{len(v)} {TYPES[k]['label']}{'s' if len(v) > 1 else ''} ({', '.join(v)})" for k, v in by.items())
+
+
+def deals(days_back=30, days_ahead=180):
+    """Bookings grouped per sponsor for the Results page: pencilled in until every date is paid, then confirmed."""
+    today = dt.date.today()
+    rows = [b for b in load(today - dt.timedelta(days=days_back), today + dt.timedelta(days=days_ahead)) if b["state"] in ("pencilled", "paid", "swap")]
+    out = {}
+    for b in rows:
+        key = b["partner"] or b["sponsor"]
+        g = out.setdefault(key, {"sponsor": b["sponsor"], "partner": b["partner"], "rows": [], "ids": []})
+        g["rows"].append(b)
+        g["ids"].append(b["id"])
+    res = []
+    for g in out.values():
+        g["confirmed"] = all(b["state"] == "paid" for b in g["rows"])
+        g["upcoming"] = [b for b in g["rows"] if b["date"] >= today]
+        g["summary"] = describe([(b["kind"], b["date"], "TBC" if "date to confirm" in b["name"] else "") for b in g["rows"]])
+        g["next"] = min((b["date"] for b in g["upcoming"]), default=None)
+        if g["upcoming"]:
+            res.append(g)
+    return sorted(res, key=lambda g: (g["confirmed"], g["next"] or today))

@@ -22,6 +22,17 @@
   <p class="muted" style="margin:0">Nothing actioned {{ 'today' if span == 1 else 'this week' }} yet.</p>
   {% endfor %}
 </div>
+{% if deals %}<div class="card" id="deals">
+  <h2>Bookings</h2>
+  <p class="muted tiny" style="margin:0 0 10px">When a sponsor says yes, their dates are pencilled in automatically so nobody else gets offered them. Confirm once it's locked in (paid, or terms agreed).</p>
+  {% for g in deals %}<div class="deal">
+    <div class="deal-main"><strong>{{ g.sponsor }}</strong> <span class="tag {{ 'green' if g.confirmed else 'amber' }}">{{ '🤑 Confirmed' if g.confirmed else '✏️ Pencilled in' }}</span>
+      <div class="muted tiny">{{ g.summary }}</div></div>
+    {% if not g.confirmed %}<form method="post" action="{{ url_for('deal_confirm') }}" onsubmit="return confirm('Mark every date for {{ g.sponsor|e }} as confirmed?')">
+      <input type="hidden" name="ids" value="{{ g.ids|join(',') }}"><button class="small">Mark confirmed</button></form>{% endif %}
+  </div>{% endfor %}
+  <a class="tiny" href="{{ url_for('bookings_page') }}">Open the calendar ↗</a>
+</div>{% endif %}
 <div class="grid res-stats">
   <div class="card"><div class="label">Pings sent</div><div class="big">{{ totals.sent }}</div></div>
   <div class="card"><div class="label">Replied</div><div class="big">{{ totals.replied }}</div><div class="muted">{{ (totals.rate|string + '% of pings') if totals.rate is not none else 'No pings yet' }}</div></div>

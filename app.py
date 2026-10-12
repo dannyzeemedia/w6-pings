@@ -1480,8 +1480,35 @@ def results():
     span = 1 if request.args.get("span", "today") == "today" else 7
     return render_template("results.html", weeks=weeks, peak=peak, totals=totals, acts=activity(span), span=span,
                            n_dead=len(dead), recent=recent, names=names, brands=brands_for(recent, "Email"),
-                           q=q, kind=kind, matches=matches, story=story,
+                           q=q, kind=kind, matches=matches, story=story, deals=_safe(bk.deals, []),
                            gmail_thread=lambda t: f"https://mail.google.com/mail/u/{gmail.ME}/#all/{t}")
+
+
+def _safe(fn, default):
+    try:
+        return fn()
+    except Exception:
+        return default
+
+
+@app.post("/deals/confirm")
+@login_required
+def deal_confirm():
+    """Karlie marks a pencilled-in deal as confirmed: every one of its dates turns 🤑 Paid in the calendar."""
+    ids = [x for x in request.form.get("ids", "").split(",") if re.match(r"rec\w+$", x)]
+    name = ""
+    for rid in ids:
+        r = at.get("promo", rid)["fields"]
+        kind, state = bk.parse_status(r.get("Status"))
+        name = name or (r.get("Name") or "").split(" · ")[0]
+        if kind and state != "paid":
+            at.update("promo", rid, {"Status": "🤑 " + bk.TYPES[kind]["status"]})
+    if ids:
+        pid = (at.get("promo", ids[0])["fields"].get("Sponsor") or [None])[0]
+        at.create("log", {"Event": "Confirmed", "Direction": "Out", "By": "Karlie", "At": iso(now_utc()), "Handled": True,
+                          "Summary": f"Confirmed {name}: {len(ids)} date{'s' if len(ids) > 1 else ''}", **({"Partner": [pid]} if pid else {})}, typecast=True)
+        celebrate("Confirmed! 🤑", f"{name} · all {len(ids)} dates are now confirmed in the calendar.", "💸", big=True)
+    return redirect(url_for("results") + "#deals")
 
 
 # ---------- engine endpoints (cron + the Claude routine) ----------

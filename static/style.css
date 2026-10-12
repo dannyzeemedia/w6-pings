@@ -1107,3 +1107,10 @@ body.catchup-mode .update-bar { background: #ffffff; color: #1b433b; }
 
 /* Your turn: a reply's subject is shown but fixed (changing it would split the thread in their inbox) */
 .subj-ro { padding: 10px 12px; border: 1px dashed var(--line); border-radius: var(--r-sm); color: var(--muted); font-size: 14px; background: transparent; overflow-wrap: anywhere; }
+
+/* Results: bookings, pencilled in or confirmed */
+.deal { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.deal:first-of-type { border-top: 0; }
+.deal-main { min-width: 0; }
+.deal-main .tiny { margin-top: 3px; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .deal { flex-direction: column; align-items: stretch; } .deal form button { width: 100%; } }

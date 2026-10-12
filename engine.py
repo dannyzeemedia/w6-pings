@@ -693,6 +693,29 @@ def split_subject(text, subject=None):
     return subject, text
 
 
+def apply_booking(log_id, b):
+    """A sponsor said yes: pencil what they agreed to into the bookings calendar, note it in the activity log, and tell
+    Karlie on her Your turn card if any date was already taken. Runs once per card."""
+    import bookings as bk
+    lg = at.get("log", log_id)["fields"]
+    if "✏️ Pencilled in" in (lg.get("Summary") or ""):
+        return
+    pid = (lg.get("Partner") or [None])[0]
+    name = (at.partner_names([pid]).get(pid) if pid else None) or b.get("sponsor") or lg.get("Email")
+    done, clashes = bk.pencil(name, pid, b.get("items"))
+    if not done and not clashes:
+        return
+    val = f" · ${int(b['value']):,}" if str(b.get("value") or "").replace(".", "").isdigit() else ""
+    text = (f"Pencilled in {name}: {bk.describe(done)}{val}" if done else f"{name} said yes, but nothing could be pencilled in")
+    if clashes:
+        text += ". Taken: " + ", ".join(f"{bk.TYPES[k]['label']} {d.strftime('%a %-d %b')} ({why})" for k, d, why in clashes)
+    at.create("log", {"Event": "Pencilled In", "Direction": "Out", "By": "System", "Email": lg.get("Email"), "Summary": text[:250],
+                      "Snippet": text, "At": iso(now()), "Handled": True, **({"Partner": [pid]} if pid else {})}, typecast=True)
+    note = "✏️ Pencilled in" + (f". ⚠️ {len(clashes)} date{'s' if len(clashes) > 1 else ''} already taken, pick others: "
+                                + ", ".join(d.strftime('%a %-d %b') for _, d, _ in clashes) if clashes else "")
+    at.update("log", log_id, {"Summary": ((lg.get("Summary") or "").rstrip(". ") + f". {note}")[:250]})
+
+
 def remix_apply(item):
     if item.get("log_id"):
         lg = at.get("log", item["log_id"])["fields"]
@@ -1383,6 +1406,11 @@ def apply(payload):
             if e.get("ai_tell_check"):
                 hf["Suggestion Check"] = _txt(e["ai_tell_check"], False)[:3000]
             at.update("log", e["handoff_log_id"], hf)
+        if e.get("handoff_log_id") and e.get("booking"):
+            try:
+                apply_booking(e["handoff_log_id"], e["booking"])
+            except Exception as ex:
+                print("booking failed", ex)
         if e.get("contact_id") and (e.get("call_back_on") or e.get("loose_end")):
             loose = bool(e.get("loose_end")) and not e.get("call_back_on")
             when = str(e.get("call_back_on") or (dt.date.today() + dt.timedelta(days=14)).isoformat())[:10]
