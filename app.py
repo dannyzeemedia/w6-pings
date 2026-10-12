@@ -919,7 +919,7 @@ def onboarding_view(rid):
                            answers=ob.answers_of(rec), files=ob.files_of(rec), questions=ob.QUESTIONS,
                            item_title=ob.item_title, link=ob.url_for_token(rec["fields"].get("Token", "")),
                            summary=ob.summary(order), covered=lambda it: ob._covered(order, ob.answers_of(rec), it),
-                           shown=ob._shown)
+                           shown=ob._shown, clean=richtext.sanitize)
 
 
 # ---------- attachments (any email she sends) ----------

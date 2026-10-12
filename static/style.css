@@ -1172,3 +1172,5 @@ nav .navdrop-menu a + a { margin-top: -4px; }
 nav .navdrop-menu a:hover { background: color-mix(in srgb, var(--mint) 45%, transparent); color: var(--green); }
 nav .navdrop-menu a.cur { color: var(--green); font-weight: 600; background: color-mix(in srgb, var(--mint) 35%, transparent); }
 nav .navdrop-menu a::after { display: none; }
+/* onboarding answers written in the rich editor */
+.rich-answer p,.rich-answer div{margin:0 0 6px}.rich-answer a{color:var(--green,#265c51);text-decoration:underline}

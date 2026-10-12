@@ -3,6 +3,7 @@ what we need for the things they bought (Marquee / Shout-Out / Takeover / Group 
 row in 🤖 Sponsor Onboarding; when they're done, Clara tells #w6-team and tags Karlie."""
 import base64
 import datetime as dt
+import html
 import json
 import os
 import re
@@ -12,6 +13,7 @@ import requests
 
 import airtable as at
 import bookings as bk
+import richtext as rt
 
 KARLIE_SLACK_ID, W6_TEAM_CHANNEL = "U09JHPUV6N8", "C09J30RP80K"
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE_URL", "https://pings.workspace6.io")  # Pings itself (Karlie's links in Slack)
@@ -38,50 +40,49 @@ QUESTIONS = {
         {"key": "hero", "type": "file", "label": "Your mid-section hero image", "req": True, "accept": "image/*",
          "help": "Landscape or square, anywhere from 4:3 to 1:1. Not portrait. Around 650px wide and a modest file size, "
                  "so it loads before the reader moves on. Most people read this on a phone, so check it there."},
-        {"key": "blurb", "type": "textarea", "label": "Your mid-section blurb, about 150 words", "req": True,
-         "help": "Type it here, or paste a link to a doc if you'd like formatting. Send it as close to publishable as you "
-                 "can: spelling, grammar, links. We'll very likely copy and paste it."},
+        {"key": "blurb", "type": "rich", "label": "Your mid-section blurb, about 150 words", "req": True,
+         "help": "Write it exactly as you'd like it to read, bold, italics and links included. Send it as close to "
+                 "publishable as you can: we'll very likely use it as is."},
         {"key": "url_top", "type": "url", "label": "Link for the top and bottom “Powered by” slots", "req": True,
          "help": "The final URL, UTMs included."},
         {"key": "url_mid", "type": "url", "label": "Link for the mid-section", "req": True,
          "help": "Also final, also with UTMs. It may well be the same as the one above. That's fine."},
     ],
     "shoutout": [
-        {"key": "copy", "type": "textarea", "label": "Your Shout-Out, one to three sentences", "req": True,
-         "help": "Roughly 40 to 60 words. Lead with the problem you solve, not the company history. There are examples above."},
-        {"key": "link_words", "type": "text", "label": "Which words should be the link?",
-         "help": "Usually your brand name, or a short call to action like “Get a free audit”."},
-        {"key": "url", "type": "url", "label": "The link, with UTMs", "req": True},
+        {"key": "copy", "type": "rich", "label": "Your Shout-Out, one to three sentences", "req": True,
+         "needs_link": True,
+         "help": "Roughly 40 to 60 words. Lead with the problem you solve, not the company history. Link the words you "
+                 "want clicked (usually your brand name or a short call to action) to your final URL, UTMs included."},
         {"key": "offer", "type": "text", "label": "A member offer or code, if there is one"},
     ],
     "takeover": [
         {"key": "writer", "type": "choice", "label": "Who's writing it?", "req": True,
          "options": ["We'll write it (recommended)", "We'll send our own copy"],
          "help": "We know what this audience reads to the end. Give us the points and we'll do the rest."},
-        {"key": "points", "type": "textarea", "label": "The points you want us to hit", "req": True,
+        {"key": "points", "type": "rich", "label": "The points you want us to hit", "req": True,
          "when": ("writer", "We'll write it (recommended)")},
-        {"key": "stats", "type": "textarea", "label": "Stats, results or customer wins we can use",
+        {"key": "stats", "type": "rich", "label": "Stats, results or customer wins we can use",
          "when": ("writer", "We'll write it (recommended)")},
-        {"key": "avoid", "type": "textarea", "label": "Anything we shouldn't say",
+        {"key": "avoid", "type": "rich", "label": "Anything we shouldn't say",
          "when": ("writer", "We'll write it (recommended)")},
-        {"key": "own_copy", "type": "textarea", "label": "Your copy, or a link to the doc", "req": True,
+        {"key": "own_copy", "type": "rich", "label": "Your copy", "req": True,
          "when": ("writer", "We'll send our own copy")},
         {"key": "cta", "type": "text", "label": "The offer or call to action", "req": True},
         {"key": "logo", "type": "file", "label": "Your logo, dark-background edition", "req": True, "accept": "image/*,.svg"},
         {"key": "images", "type": "file", "label": "Images or screenshots to use", "multiple": True, "accept": "image/*"},
-        {"key": "urls", "type": "textarea", "label": "Final link or links, with UTMs", "req": True},
-        {"key": "tone", "type": "textarea", "label": "Brand guidelines or tone notes"},
+        {"key": "urls", "type": "rich", "label": "Final link or links, with UTMs", "req": True},
+        {"key": "tone", "type": "rich", "label": "Brand guidelines or tone notes"},
     ],
     "groupbuy": [
-        {"key": "offer", "type": "textarea", "label": "What W6 members get", "req": True,
+        {"key": "offer", "type": "rich", "label": "What W6 members get", "req": True,
          "help": "Plainly. e.g. “We'll waive the implementation fee for one workflow.”"},
         {"key": "qualify", "type": "text", "label": "Who qualifies", "help": "Leave it blank if everyone does."},
         {"key": "deadline", "type": "date", "label": "When the offer closes", "req": True},
         {"key": "claim", "type": "text", "label": "How members claim it", "req": True,
          "help": "A link, or a named person's email. A real person gets more replies than a form."},
-        {"key": "examples", "type": "textarea", "label": "What it's good for",
+        {"key": "examples", "type": "rich", "label": "What it's good for",
          "help": "A few concrete examples. e.g. inventory reporting, returns, PO reconciliation."},
-        {"key": "must", "type": "textarea", "label": "Anything we must say, or mustn't"},
+        {"key": "must", "type": "rich", "label": "Anything we must say, or mustn't"},
     ],
 }
 
@@ -142,6 +143,15 @@ def url_for_token(token):
 LINK_RE = re.compile(r"https?://(?:www\.)?(?:workspace6\.io/onboarding|pings\.workspace6\.io/onboard|"
                      r"workspace6-sponsors\.lovable\.app/onboarding)/[A-Za-z0-9_-]+")
 PLACEHOLDER_RE = re.compile(r"[\[{]\s*(?:their\s+|the\s+)?onboarding\s+link\s*[\]}]", re.I)
+
+
+def plain(v):
+    """A rich answer as plain words, links written out as "words (url)", for Airtable and Slack."""
+    v = v or ""
+    if "<" not in v:
+        return v.strip()
+    v = re.sub(r'<a\s[^>]*href="([^"]+)"[^>]*>(.*?)</a>', lambda m: f"{m.group(2)} ({html.unescape(m.group(1))})", v, flags=re.I | re.S)
+    return rt.html_to_text(v).strip()
 
 
 def mask(text):
@@ -219,7 +229,8 @@ def save_answers(rec, incoming):
         mine = dict(out["items"].get(it["key"]) or {})
         for q in QUESTIONS[it["kind"]]:
             if q["type"] != "file" and q["key"] in got:
-                mine[q["key"]] = str(got[q["key"]])[:20000]
+                v = str(got[q["key"]])[:20000]
+                mine[q["key"]] = rt.sanitize(v) if q["type"] == "rich" else v
         for flag in ("same_as_prev", "use_for_all"):
             if flag in got:
                 mine[flag] = bool(got[flag])
@@ -296,9 +307,12 @@ def missing(rec):
         for q in QUESTIONS[it["kind"]]:
             if not q.get("req") or not _shown(q, ans):
                 continue
-            ok = bool(files.get(f"{it['key']}/{q['key']}")) if q["type"] == "file" else bool((ans.get(q["key"]) or "").strip())
+            ok = bool(files.get(f"{it['key']}/{q['key']}")) if q["type"] == "file" else bool(plain(ans.get(q["key"])))
             if not ok:
                 out.append({"item": it["key"], "q": q["key"], "label": f"{item_title(it)}: {q['label']}"})
+            elif q.get("needs_link") and not re.search(r"<a\s[^>]*href=", ans.get(q["key"]) or "", re.I):
+                out.append({"item": it["key"], "q": q["key"],
+                            "label": f"{item_title(it)}: add your link (select the words, then the link button)"})
     return out
 
 
@@ -332,7 +346,7 @@ def readable(rec):
                 fs = files.get(f"{it['key']}/{q['key']}") or []
                 val = ", ".join(f["filename"] for f in fs) or "-"
             else:
-                val = (ans.get(q["key"]) or "-").strip()
+                val = (plain(ans.get(q["key"])) if q["type"] == "rich" else (ans.get(q["key"]) or "").strip()) or "-"
             lines.append(f"{q['label']}: {val}")
     return "\n".join(lines)
 

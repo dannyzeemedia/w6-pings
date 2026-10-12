@@ -20,6 +20,7 @@
     {% if q.type == 'file' %}{% set fs = files.get(it.key ~ '/' ~ q.key, []) %}
       {% if fs %}<div class="row" style="flex-wrap:wrap">{% for x in fs %}<a href="{{ x.url }}" target="_blank" rel="noopener" style="display:inline-flex;flex-direction:column;gap:4px;max-width:180px">{% if x.thumb %}<img src="{{ x.thumb }}" alt="" style="max-width:180px;max-height:120px;border-radius:10px;background:#16483d;object-fit:contain">{% endif %}<span class="tiny">{{ x.filename }}</span></a>{% endfor %}</div>
       {% else %}<span class="muted">Nothing yet</span>{% endif %}
+    {% elif q.type == 'rich' and '<' in (a.get(q.key) or '') %}<div class="rich-answer">{{ clean(a.get(q.key))|safe }}</div>
     {% else %}<div style="white-space:pre-wrap">{{ a.get(q.key) or '—' }}</div>{% endif %}
     </div>
   {% endfor %}

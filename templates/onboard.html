@@ -154,7 +154,7 @@ button.go:disabled{opacity:.6;cursor:wait}
              {% if q.when %}data-when="{{ q.when[0] }}" data-when-val="{{ q.when[1] }}"{% endif %}>
           <label class="ql" {% if q.type not in ('file','choice') %}for="f-{{ it.key }}-{{ q.key }}"{% endif %}>{{ q.label }}{% if q.req %} <span class="req">*</span>{% endif %}</label>
           {% if q.help %}<div class="help">{{ q.help }}</div>{% endif %}
-          {% if q.type == 'textarea' %}
+          {% if q.type in ('textarea', 'rich') %}
             <textarea id="f-{{ it.key }}-{{ q.key }}">{{ ans.get(q.key, '') }}</textarea>
           {% elif q.type == 'choice' %}
             <div class="choices">{% for o in q.options %}
