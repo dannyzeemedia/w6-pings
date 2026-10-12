@@ -13,6 +13,7 @@ import requests
 import airtable as at
 import apollo
 import gmail
+import onboarding as ob
 
 ME = gmail.ME
 JESSE = "usrhUhvPEfKVofPL8"  # Karlie's Airtable login (Jesse Zee)
@@ -512,7 +513,14 @@ def _send(w, d, contact):
     to = f["To Email"]
     tid = f.get("Gmail Thread ID")
     first = not tid
-    mid, tid = gmail.send(to, f.get("Subject") or "", f.get("Body") or "", thread_id=tid, signature=first, body_html=f.get("Body HTML"),
+    pid = (f.get("Partner") or [None])[0]
+    body, err = ob.fill_placeholder(f.get("Body") or "", pid)
+    html_, err2 = ob.fill_placeholder(f.get("Body HTML"), pid, html=True)
+    if err or err2:
+        raise ValueError(err or err2)
+    if body != (f.get("Body") or "") or html_ != f.get("Body HTML"):
+        at.update("drafts", d["id"], {"Body": body, **({"Body HTML": html_} if html_ else {})})
+    mid, tid = gmail.send(to, f.get("Subject") or "", body, thread_id=tid, signature=first, body_html=html_,
                           to_name=f.get("To Name"), attachments=f.get("Attachments"))
     t = now()
     at.update("drafts", d["id"], {"Status": "Sent", "Sent At": iso(t), "Gmail Thread ID": tid,
@@ -591,8 +599,8 @@ def _reader(x, n=8000):
     """One email as the AI reads it; ones from before Karlie was copied in say so."""
     if x.get("extracted"):
         return {"from": f"{x.get('from')} <{x.get('email')}> (from before Karlie was copied in; she only saw it quoted)",
-                "date": x["when"].strftime("%Y-%m-%d") if x.get("when") else None, "text": x["body"][:n]}
-    return {"from": "Karlie" if x["is_me"] else x["from"], "text": x["body"][:n]}
+                "date": x["when"].strftime("%Y-%m-%d") if x.get("when") else None, "text": ob.mask(x["body"][:n])}
+    return {"from": "Karlie" if x["is_me"] else x["from"], "text": ob.mask(x["body"][:n])}
 
 
 def summaries_queue():
@@ -1203,7 +1211,7 @@ def company_history(w, pid, max_threads=8):
             msgs = gmail.thread(m["thread_id"])
             threads.append({"thread_id": m["thread_id"], "subject": msgs[0]["subject"], "messages": [
                 {"from": "Karlie" if x["is_me"] else x["from"], "date": dt.datetime.fromtimestamp(x["ts"] / 1000, dt.timezone.utc).strftime("%Y-%m-%d"),
-                 "text": x["body"][:5000]} for x in msgs[-6:]], "earlier_messages": max(0, len(msgs) - 6)})
+                 "text": ob.mask(x["body"][:5000])} for x in msgs[-6:]], "earlier_messages": max(0, len(msgs) - 6)})
     sales = [{"id": s["id"], "opportunity": s["fields"].get("Opportunity"), "status": s["fields"].get("Status"), "value": s["fields"].get("Value"),
               "created": s["fields"].get("Created"), "pings": s["fields"].get("Ping")} for s in w.partner_sales(pid)]
     pings = [{"at": r["fields"].get("At"), "event": r["fields"].get("Event"), "by": r["fields"].get("By"), "summary": r["fields"].get("Summary")}
@@ -1212,7 +1220,15 @@ def company_history(w, pid, max_threads=8):
                "status": c["fields"].get("Status"), "time_zone": c["fields"].get("Time Zone")}
               for c in w.contacts.values() if pid in c["fields"].get("Partner", [])]
     return {"partner_id": pid, "name": p.get("Name"), "website": p.get("Website"), "type": p.get("Type"), "stage": p.get("Stage"),
-            "notes": (p.get("Notes") or "")[:2000], "sales": sales, "people": people, "ping_log": pings, "email_threads": threads}
+            "notes": (p.get("Notes") or "")[:2000], "sales": sales, "people": people, "ping_log": pings, "email_threads": threads,
+            "onboarding_links": _onboarding_links(pid)}
+
+
+def _onboarding_links(pid):
+    try:
+        return ob.links_for(pid)
+    except Exception:
+        return []
 
 
 def sweep_missed(w, days=14):
@@ -1282,9 +1298,9 @@ def context(max_new=None, more=0, requests_only=False, learn_only=False):
                              max_records=30):
         f = d["fields"]
         decided.append({"draft_id": d["id"], "kind": f.get("Kind"), "status": f.get("Status"), "written_by_karlie": bool(f.get("Written By Karlie")),
-                        "ai_subject": f.get("AI Original Subject"), "ai_body": f.get("AI Original Body"),
-                        "final_subject": f.get("Subject"), "final_body": f.get("Body"), "her_note": f.get("Karlie Feedback"),
-                        "her_rewrite_requests": (f.get("Remix History") or "")[:6000] or None})
+                        "ai_subject": f.get("AI Original Subject"), "ai_body": ob.mask(f.get("AI Original Body")),
+                        "final_subject": f.get("Subject"), "final_body": ob.mask(f.get("Body")), "her_note": f.get("Karlie Feedback"),
+                        "her_rewrite_requests": ob.mask((f.get("Remix History") or "")[:6000]) or None})
     # capacity
     # only what's waiting on Karlie counts: approved emails are done from her side, even if they haven't gone out yet
     queued = len(at.list_records("drafts", "AND({Status}='Pending Approval', OR({Scheduled For}='', IS_BEFORE({Scheduled For}, DATEADD(NOW(), 2, 'days'))))", fields=["Status"]))

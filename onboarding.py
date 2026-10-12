@@ -137,6 +137,38 @@ def url_for_token(token):
     return f"{SPONSOR_SITE}/onboarding/{token}"
 
 
+# Every onboarding link is one-off, so Pings never learns from the link itself:
+# the AI sees "[their onboarding link]" wherever one was pasted, and gets the sponsor's live link separately.
+LINK_RE = re.compile(r"https?://(?:www\.)?(?:workspace6\.io/onboarding|pings\.workspace6\.io/onboard|"
+                     r"workspace6-sponsors\.lovable\.app/onboarding)/[A-Za-z0-9_-]+")
+PLACEHOLDER_RE = re.compile(r"[\[{]\s*(?:their\s+|the\s+)?onboarding\s+link\s*[\]}]", re.I)
+
+
+def mask(text):
+    return LINK_RE.sub("[their onboarding link]", text) if isinstance(text, str) else text
+
+
+def links_for(partner_id):
+    """This sponsor's onboarding links, newest first: what the AI should hand them."""
+    if not partner_id:
+        return []
+    rows = sorted((r for r in at.list_records("onboard") if partner_id in (r["fields"].get("Partner") or [])),
+                  key=lambda r: r.get("createdTime") or "", reverse=True)
+    return [{"link": url_for_token(r["fields"]["Token"]), "status": r["fields"].get("Status"), "placements": r["fields"].get("Name")}
+            for r in rows if r["fields"].get("Token")]
+
+
+def fill_placeholder(text, partner_id, html=False):
+    """Swap a typed "[onboarding link]" for the sponsor's newest link. Returns (text, error)."""
+    if not isinstance(text, str) or not PLACEHOLDER_RE.search(text):
+        return text, None
+    live = [l for l in links_for(partner_id) if l["status"] != "Complete"] or links_for(partner_id)
+    if not live:
+        return text, "there's no onboarding link for this sponsor yet. Make one from Bookings, then send again"
+    url = live[0]["link"]
+    return PLACEHOLDER_RE.sub(f'<a href="{url}">{url}</a>' if html else url, text), None
+
+
 def by_token(token):
     if not re.fullmatch(r"[A-Za-z0-9_-]{8,40}", token or ""):
         return None

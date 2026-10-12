@@ -1348,6 +1348,13 @@ def yours_reply(rid):
     e = at.get("log", rid)["fields"]
     text, text_html = _body_from_form()
     tid = e.get("Gmail Thread ID")
+    pid = (e.get("Partner") or [None])[0]
+    text, err = ob.fill_placeholder(text, pid)
+    text_html, err2 = ob.fill_placeholder(text_html, pid, html=True)
+    if err or err2:
+        flash(f"Couldn't send that one: {err or err2}. Nothing went out; your text is below.")
+        session["unsent_" + rid] = text
+        return redirect(url_for("yours"))
     if text and not tid and (e.get("Gmail Message ID") or "").startswith(INQUIRY_PREFIX):
         # a sponsor-form inquiry: no thread yet, so this starts one (with her real signature)
         to_list = [x for x in (request.form.get("to_list") or "").split(",") if x.strip()] or [e.get("Email")]
