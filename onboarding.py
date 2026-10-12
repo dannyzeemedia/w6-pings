@@ -92,6 +92,18 @@ def upcoming_for(partner_id):
     return [b for b in rows if b.get("partner") == partner_id and b["kind"] in KINDS and b["state"] in ("paid", "pencilled", "swap")]
 
 
+def contacts_for(partner_id):
+    """The sponsor's live contacts, the one we talk to most first (most pings back and forth)."""
+    p = at.get("partners", partner_id)["fields"]
+    out = []
+    for cid in p.get("🤖 Outbound Contacts") or []:
+        f = at.get("contacts", cid)["fields"]
+        if f.get("Status") == "Dead" or not f.get("Email"):
+            continue
+        out.append({"name": f.get("Name") or "", "email": f["Email"], "pings": len(f.get("🤖 Outbound Ping Log") or [])})
+    return sorted(out, key=lambda c: (-c["pings"], not c["name"]))
+
+
 def make_order(bookings):
     items = []
     for kind in KINDS:

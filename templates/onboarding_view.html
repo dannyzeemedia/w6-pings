@@ -1,10 +1,9 @@
 {% extends "base.html" %}{% block title %}{{ sponsor }} onboarding{% endblock %}
 {% block body %}
+<div class="head"><h1>{{ sponsor }}</h1><p>{{ summary }} · {{ {'Sent':'⏳ Not started yet','Started':'✏️ Started, not finished','Complete':'✅ Complete'}.get(f.get('Status'),'') }}</p></div>
 <div class="card">
-  <h2 style="margin-bottom:4px">{{ sponsor }}</h2>
-  <p class="muted tiny" style="margin:0 0 14px">{{ summary }} · {{ {'Sent':'⏳ Not started yet','Started':'✏️ Started, not finished','Complete':'✅ Complete'}.get(f.get('Status'),'') }}</p>
-  <label class="field">Their link<div class="row"><input id="oblink" value="{{ link }}" readonly onclick="this.select()">
-    <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('oblink').value);this.textContent='Copied'">Copy</button></div></label>
+  <div class="field"><label>Their link</label><div class="row"><input type="text" id="oblink" value="{{ link }}" readonly onclick="this.select()" style="flex:1">
+    <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('oblink').value);this.textContent='Copied'">Copy</button></div></div>
   <p class="muted tiny">Paste it into your email. It asks only about: {% for it in order['items'] %}{{ item_title(it) }}{% if not loop.last %}; {% endif %}{% endfor %}.</p>
 </div>
 {% set c = answers.get('contact') or {} %}

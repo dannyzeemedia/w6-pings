@@ -1,24 +1,43 @@
 {% extends "base.html" %}{% block title %}Onboarding link{% endblock %}
 {% block body %}
+<div class="head"><h1>Onboarding link for {{ sponsor }}</h1><p>A private link that asks them for exactly what we need, and nothing else.</p></div>
+{% if not upcoming %}
 <div class="card">
-  <h2 style="margin-bottom:6px">Onboarding link for {{ sponsor }}</h2>
-  <p class="muted tiny" style="margin:0 0 16px">They'll only be asked about the placements you tick. Pencilled-in ones are included so you can send it before they pay, if you like.</p>
-  {% if not upcoming %}
-    <p>{{ sponsor }} has no upcoming Marquees, Shout-Outs, Takeovers or Group Buys on the calendar. Add the booking first, then come back.</p>
-    <a class="btn ghost" href="{{ url_for('bookings_page') }}">Back to Bookings</a>
-  {% else %}
-  <form method="post" action="{{ url_for('onboarding_create') }}">
-    <input type="hidden" name="partner" value="{{ pid }}">
-    {% for b in upcoming %}
-    <label class="check field"><input type="checkbox" name="booking" value="{{ b.id }}" checked>
-      <span>{{ types[b.kind].label }} · {{ b.date.strftime('%a %-d %b') }} <span class="muted tiny">{{ '🤑 Paid' if b.state=='paid' else '✏️ Pencilled in' }}</span></span></label>
-    {% endfor %}
-    <div class="inline" style="margin-top:14px">
-      <label class="field">Their name <span class="muted tiny">(optional, fills the form in for them)</span><input name="contact_name"></label>
-      <label class="field">Their email <span class="muted tiny">(optional)</span><input name="contact_email" type="email"></label>
-    </div>
-    <div class="row" style="margin-top:12px"><button>Make the link</button><a class="btn ghost" href="{{ url_for('bookings_page') }}">Cancel</a></div>
-  </form>
-  {% endif %}
+  <p>{{ sponsor }} has no upcoming Marquees, Shout-Outs, Takeovers or Group Buys on the calendar. Add the booking first, then come back.</p>
+  <a class="btn ghost" href="{{ url_for('bookings_page') }}">Back to Bookings</a>
 </div>
+{% else %}
+<form method="post" action="{{ url_for('onboarding_create') }}">
+<input type="hidden" name="partner" value="{{ pid }}">
+<div class="card">
+  <h2 style="margin-bottom:6px">What it asks about</h2>
+  <p class="muted tiny" style="margin:0 0 14px">Untick anything they shouldn't be asked about. Pencilled-in ones are included, so you can send it before they pay.</p>
+  {% for b in upcoming %}
+  <label class="check field"><input type="checkbox" name="booking" value="{{ b.id }}" checked>
+    <span>{{ types[b.kind].label }} · {{ b.date.strftime('%a %-d %b') }} <span class="muted tiny">{{ '🤑 Paid' if b.state=='paid' else '✏️ Pencilled in' }}</span></span></label>
+  {% endfor %}
+</div>
+<div class="card">
+  <h2 style="margin-bottom:6px">Who it's for</h2>
+  <p class="muted tiny" style="margin:0 0 14px">Filled in on the form for them, so they only have to check it. They can change it.</p>
+  {% if contacts|length > 1 %}
+  <div class="field"><label>Pick a contact</label>
+    <select id="ob-pick">{% for c in contacts %}<option value="{{ loop.index0 }}">{{ c.name or c.email }}{% if c.name %} · {{ c.email }}{% endif %}</option>{% endfor %}</select></div>
+  {% endif %}
+  {% set first = contacts[0] if contacts else {} %}
+  <div class="inline">
+    <div class="field"><label>Their name</label><input type="text" name="contact_name" id="ob-name" value="{{ first.get('name','') }}"></div>
+    <div class="field"><label>Their email</label><input type="text" inputmode="email" autocomplete="off" name="contact_email" id="ob-email" value="{{ first.get('email','') }}"></div>
+  </div>
+</div>
+<div class="row"><button>Make the link</button><a class="btn ghost" href="{{ url_for('bookings_page') }}">Cancel</a></div>
+</form>
+<script>
+(function(){
+  const pick=document.getElementById('ob-pick'); if(!pick) return;
+  const cs={{ contacts|tojson }};
+  pick.addEventListener('change',()=>{const c=cs[+pick.value]||{};document.getElementById('ob-name').value=c.name||'';document.getElementById('ob-email').value=c.email||'';});
+})();
+</script>
+{% endif %}
 {% endblock %}

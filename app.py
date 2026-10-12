@@ -790,7 +790,7 @@ def onboarding_new():
         return redirect(url_for("bookings_page"))
     sponsor = at.partner_names([pid]).get(pid, "")
     return render_template("onboarding_new.html", pid=pid, sponsor=sponsor, upcoming=ob.upcoming_for(pid),
-                           label=ob.LABEL, types=bk.TYPES)
+                           label=ob.LABEL, types=bk.TYPES, contacts=ob.contacts_for(pid))
 
 
 @app.post("/onboarding/create")
