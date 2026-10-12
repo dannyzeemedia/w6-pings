@@ -713,7 +713,7 @@ def apply_booking(log_id, b):
                       "Snippet": text, "At": iso(now()), "Handled": True, **({"Partner": [pid]} if pid else {})}, typecast=True)
     note = "✏️ Pencilled in" + (f". ⚠️ {len(clashes)} date{'s' if len(clashes) > 1 else ''} already taken, pick others: "
                                 + ", ".join(d.strftime('%a %-d %b') for _, d, _ in clashes) if clashes else "")
-    at.update("log", log_id, {"Summary": ((lg.get("Summary") or "").rstrip(". ") + f". {note}")[:250]})
+    at.update("log", log_id, {"Summary": (f"{note}. " + (lg.get("Summary") or ""))[:250]})
 
 
 def remix_apply(item):

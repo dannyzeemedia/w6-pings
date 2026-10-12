@@ -408,7 +408,7 @@ def pencil(sponsor_name, partner_id, items):
             rows = [{"Name": f"{sponsor_name} · {label}", "Status": "✏️ " + TYPES[kind]["status"], "Publish Date": d,
                      "# / #": f"{i + 1}/{len(keep)}", **({"Sponsor": [partner_id]} if partner_id else {})} for i, d in enumerate(keep)]
             at.create_many("promo", rows, typecast=True)
-            pencilled += [(kind, dt.date.fromisoformat(d), "date to confirm" if it.get("tbc") else "") for d in keep]
+            pencilled += [(kind, dt.date.fromisoformat(d), "TBC" if it.get("tbc") else "") for d in keep]
     return pencilled, clashes
 
 
