@@ -1131,3 +1131,8 @@ body.catchup-mode .update-bar { background: #ffffff; color: #1b433b; }
 .cu-att { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .res-note { margin: -6px 2px 18px; }
 @media (max-width: 640px) { .res-note { margin: -2px 14px 16px; } }
+.deal-confirm { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.deal-val { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin: 0; }
+.deal-usd { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 999px; padding: 0 10px; background: var(--card); color: var(--ink, #202020); }
+.deal-usd input { all: unset; width: 70px; padding: 7px 0; font-size: 14px; }
+@media (max-width: 640px) { .deal-confirm { flex-direction: column; align-items: stretch; } .deal-val { justify-content: space-between; } .deal-usd input { width: 100px; } }

@@ -727,11 +727,11 @@ def booking_sale(pid, name, value):
     open_rows.sort(key=lambda s: s["fields"].get("Created") or "", reverse=True)
     if open_rows:
         sid = open_rows[0]["id"]
-        upd = {"Status": "Discussion", **({"Value": value} if value else {})}
+        upd = {"Status": "Discussion", **({"Value": value, "Pencilled Value": value} if value else {})}
         at.update("sales", sid, upd)
         return sid
     return at.create("sales", {"Opportunity": f"Booking // {name}", "Status": "Discussion", "Partner": [pid], "Via": "Email",
-                               **({"Value": value} if value else {})}, typecast=True)["id"]
+                               **({"Value": value, "Pencilled Value": value} if value else {})}, typecast=True)["id"]
 
 
 def remix_apply(item):

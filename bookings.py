@@ -428,7 +428,8 @@ def deals(days_back=30, days_ahead=180):
     out = {}
     for b in rows:
         key = b["partner"] or b["sponsor"]
-        g = out.setdefault(key, {"sponsor": b["sponsor"], "partner": b["partner"], "rows": [], "ids": []})
+        g = out.setdefault(key, {"sponsor": b["sponsor"], "partner": b["partner"], "rows": [], "ids": [], "sale": None})
+        g["sale"] = g["sale"] or b.get("sale")
         g["rows"].append(b)
         g["ids"].append(b["id"])
     res = []
@@ -437,6 +438,9 @@ def deals(days_back=30, days_ahead=180):
         g["upcoming"] = [b for b in g["rows"] if b["date"] >= today]
         g["summary"] = describe([(b["kind"], b["date"], "TBC" if "date to confirm" in b["name"] else "") for b in g["rows"]])
         g["next"] = min((b["date"] for b in g["upcoming"]), default=None)
+        sf = at.get("sales", g["sale"])["fields"] if g["sale"] else {}
+        g["pencilled_value"] = int(sf.get("Pencilled Value") or sf.get("Value") or 0) or None
+        g["value"] = int(sf.get("Value") or 0) or None
         if g["upcoming"]:
             res.append(g)
     return sorted(res, key=lambda g: (g["confirmed"], g["next"] or today))

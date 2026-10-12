@@ -1466,14 +1466,19 @@ def activity(days=7):
     return out
 
 
-def _converted_value(partners):
-    """Dollars converted: the value on the Sales rows behind these sponsors' confirmed bookings."""
+def _deal_value(partners, field, paid_only):
+    """Dollars on the Sales rows behind these sponsors' bookings: "Pencilled Value" (what it was pencilled in at) or
+    "Value" (what it finally booked for)."""
     if not partners:
         return 0
     today = dt.date.today()
     sales = {b["sale"] for b in bk.load(today - dt.timedelta(days=120), today + dt.timedelta(days=365))
-             if b["state"] == "paid" and b["partner"] in partners and b.get("sale")}
-    return sum(int(at.get("sales", sid)["fields"].get("Value") or 0) for sid in sales)
+             if b["partner"] in partners and b.get("sale") and (b["state"] == "paid" or not paid_only)}
+    tot = 0
+    for sid in sales:
+        f = at.get("sales", sid)["fields"]
+        tot += int(f.get(field) or (f.get("Value") if field == "Pencilled Value" else 0) or 0)
+    return tot
 
 
 @app.route("/results")
@@ -1504,7 +1509,8 @@ def results():
     rb, pb, cb = biz("Replied"), biz("Pencilled In"), biz("Confirmed")
     totals.update(replied_biz=len(rb), pencilled=len(pb), converted=len(cb),
                   pencil_rate=round(100 * len(pb) / len(rb)) if rb else None,
-                  convert_rate=round(100 * len(cb) / len(pb)) if pb else None, converted_usd=_converted_value(cb))
+                  pencilled_usd=_deal_value(pb, "Pencilled Value", False), converted_usd=_deal_value(cb, "Value", True))
+    totals["value_rate"] = round(100 * totals["converted_usd"] / totals["pencilled_usd"]) if totals["pencilled_usd"] else None
     dead = at.list_records("contacts", "AND({Status}!='Active', {Status}!='')", fields=["Status"])
     peak = max([w["sent"] for w in weeks] + [1])
     # latest activity: one line per thing that happened (a reply and its "your turn" hand-off are the same moment)
@@ -1571,6 +1577,10 @@ def _safe(fn, default):
 def deal_confirm():
     """Karlie marks a pencilled-in deal as confirmed: every one of its dates turns 🤑 Paid in the calendar."""
     ids = [x for x in request.form.get("ids", "").split(",") if re.match(r"rec\w+$", x)]
+    final = re.sub(r"[^\d.]", "", request.form.get("value") or "")
+    sale = request.form.get("sale") or ""
+    if final and re.match(r"rec\w+$", sale):  # what it finally booked for (the pencilled-in value stays as it was)
+        at.update("sales", sale, {"Value": int(float(final))})
     name = ""
     for rid in ids:
         r = at.get("promo", rid)["fields"]

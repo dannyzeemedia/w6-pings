@@ -17,18 +17,21 @@
 <div class="grid res-stats">
   <div class="card"><div class="label">Pings sent</div><div class="big">{{ totals.sent }}</div><div class="muted">Including your replies</div></div>
   <div class="card"><div class="label">Replied</div><div class="big">{{ totals.replied }}</div><div class="muted">{{ (totals.rate|string + '% of pings') if totals.rate is not none else 'No pings yet' }}</div></div>
-  <div class="card"><div class="label">Pencilled in</div><div class="big">{{ totals.pencilled }}</div><div class="muted">{{ (totals.pencil_rate|string + '% of businesses that replied') if totals.pencil_rate is not none else 'Nobody yet' }}</div></div>
-  <div class="card"><div class="label">Converted</div><div class="big">{{ totals.converted }}</div><div class="muted">{{ '${:,}'.format(totals.converted_usd) }}{{ (' · ' ~ totals.convert_rate ~ '% of pencilled') if totals.convert_rate is not none else '' }}</div></div>
+  <div class="card"><div class="label">Pencilled in</div><div class="big">{{ totals.pencilled }}</div><div class="muted">{{ '${:,}'.format(totals.pencilled_usd) }}{{ (' · ' ~ totals.pencil_rate ~ '% of businesses that replied') if totals.pencil_rate is not none else '' }}</div></div>
+  <div class="card"><div class="label">Converted</div><div class="big">{{ totals.converted }}</div><div class="muted">{{ '${:,}'.format(totals.converted_usd) }}{{ (' · ' ~ totals.value_rate ~ '% of the pencilled-in value') if totals.value_rate is not none else '' }}</div></div>
 </div>
-<p class="muted tiny res-note">The last 30 days. Pencilled in and converted count businesses. Converted means confirmed for now; it'll mean invoice sent once invoicing is built.</p>
+<p class="muted tiny res-note">The last 30 days. Pencilled in and converted count businesses. Converted % is the value it finally booked for against the value it was pencilled in at, so it can go over 100%. Converted means confirmed for now; it'll mean invoice sent once invoicing is built.</p>
 {% if deals %}<div class="card" id="deals">
   <h2>Bookings</h2>
   <p class="muted tiny" style="margin:0 0 10px">When a sponsor says yes, their dates are pencilled in automatically so nobody else gets offered them. Confirm once it's locked in (paid, or terms agreed).</p>
   {% for g in deals %}<div class="deal">
     <div class="deal-main"><strong>{{ g.sponsor }}</strong> <span class="tag {{ 'green' if g.confirmed else 'amber' }}">{{ '🤑 Confirmed' if g.confirmed else '✏️ Pencilled in' }}</span>
-      <div class="muted tiny">{{ g.summary }}</div></div>
-    {% if not g.confirmed %}<form method="post" action="{{ url_for('deal_confirm') }}" onsubmit="return confirm('Mark every date for {{ g.sponsor|e }} as confirmed?')">
-      <input type="hidden" name="ids" value="{{ g.ids|join(',') }}"><button class="small">Mark confirmed</button></form>{% endif %}
+      <div class="muted tiny">{{ g.summary }}</div>
+      {% if g.pencilled_value %}<div class="muted tiny">Pencilled in at ${{ '{:,}'.format(g.pencilled_value) }}{% if g.confirmed and g.value and g.value != g.pencilled_value %} · booked for ${{ '{:,}'.format(g.value) }}{% endif %}</div>{% endif %}</div>
+    {% if not g.confirmed %}<form method="post" action="{{ url_for('deal_confirm') }}" class="deal-confirm">
+      <input type="hidden" name="ids" value="{{ g.ids|join(',') }}"><input type="hidden" name="sale" value="{{ g.sale or '' }}">
+      {% if g.sale %}<label class="deal-val"><span>Final value</span><span class="deal-usd">$<input type="text" inputmode="numeric" name="value" value="{{ g.value or g.pencilled_value or '' }}" aria-label="What it finally booked for"></span></label>{% endif %}
+      <button class="small">Mark confirmed</button></form>{% endif %}
   </div>{% endfor %}
   <a class="tiny" href="{{ url_for('bookings_page') }}">Open the calendar ↗</a>
 </div>{% endif %}
