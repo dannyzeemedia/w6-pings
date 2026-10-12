@@ -14,7 +14,10 @@ import airtable as at
 import bookings as bk
 
 KARLIE_SLACK_ID, W6_TEAM_CHANNEL = "U09JHPUV6N8", "C09J30RP80K"
-PUBLIC_BASE = os.environ.get("PUBLIC_BASE_URL", "https://pings.workspace6.io")
+PUBLIC_BASE = os.environ.get("PUBLIC_BASE_URL", "https://pings.workspace6.io")  # Pings itself (Karlie's links in Slack)
+# Where sponsors fill it in: the Lovable sponsor site. Swap to https://sponsors.workspace6.io once its DNS is connected,
+# and to https://workspace6.io once the main site moves to Lovable.
+SPONSOR_SITE = os.environ.get("ONBOARD_SITE", "https://workspace6-sponsors.lovable.app")
 UPLOAD_MAX = 5 * 1024 * 1024  # Airtable's per-file upload limit
 
 KINDS = ["marquee", "shoutout", "takeover", "groupbuy"]  # the placements this form knows how to ask about
@@ -132,7 +135,7 @@ def create_link(partner_id, sponsor, bookings, contact_name="", contact_email=""
 
 
 def url_for_token(token):
-    return f"{PUBLIC_BASE}/onboard/{token}"
+    return f"{SPONSOR_SITE}/onboarding/{token}"
 
 
 def by_token(token):

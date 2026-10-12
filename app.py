@@ -691,6 +691,8 @@ def _sponsor_name(rec):
 
 @app.get("/onboard/<token>")
 def onboard_page(token):
+    if os.environ.get("ONBOARD_ON_PINGS") != "1":  # sponsors use the Lovable page; this one only stays as a fallback
+        return redirect(ob.url_for_token(token), 302)
     rec = ob.by_token(token)
     if not rec:
         return render_template("onboard.html", gone=True), 404
@@ -763,6 +765,102 @@ def onboard_submit(token):
         return err
     if request.is_json and request.get_json(silent=True):
         ob.save_answers(rec, request.get_json(silent=True))
+        rec = ob.fresh(rec["id"])
+    gaps = ob.missing(rec)
+    if gaps:
+        return {"ok": False, "missing": gaps}
+    if rec["fields"].get("Status") != "Complete":
+        ob.complete(rec, _sponsor_name(rec))
+    return {"ok": True}
+
+
+# --- the same, as a JSON API for the Lovable page (sponsors.workspace6.io/onboarding/<token>) ---
+def _api_auth():
+    return hmac.compare_digest(request.headers.get("X-Inbound-Token", ""), os.environ.get("INBOUND_TOKEN", "") or "\0")
+
+
+def _api_payload(rec):
+    order, answers = ob.order_of(rec), ob.answers_of(rec)
+    c = answers.setdefault("contact", {})
+    if not c.get("email") and rec["fields"].get("Contact Email"):
+        c["email"] = rec["fields"]["Contact Email"]
+    if not c.get("name") and rec["fields"].get("Contact Name"):
+        c["name"] = rec["fields"]["Contact Name"]
+    items = [dict(it, title=ob.item_title(it)) for it in order.get("items", [])]
+    return {"sponsor": _sponsor_name(rec), "summary": ob.summary(order), "items": items,
+            "kinds": [k for k in ob.KINDS if any(it["kind"] == k for it in items)], "labels": ob.LABEL,
+            "questions": ob.QUESTIONS, "contact_questions": ob.CONTACT, "answers": answers,
+            "files": ob.files_of(rec), "done": rec["fields"].get("Status") == "Complete"}
+
+
+@app.route("/api/onboard/<token>", methods=["GET", "POST"])
+def api_onboard(token):
+    if not _api_auth():
+        return {"error": "unauthorised"}, 401
+    rec, err = _onboard_rec(token)
+    if err:
+        return err
+    return _api_payload(rec)
+
+
+@app.post("/api/onboard/<token>/save")
+def api_onboard_save(token):
+    if not _api_auth():
+        return {"error": "unauthorised"}, 401
+    rec, err = _onboard_rec(token)
+    if err:
+        return err
+    ob.save_answers(rec, (request.get_json(silent=True) or {}).get("answers") or {})
+    return {"ok": True}
+
+
+@app.post("/api/onboard/<token>/upload")
+def api_onboard_upload(token):
+    """One file, base64 in JSON (the Lovable server passes it through)."""
+    if not _api_auth():
+        return {"error": "unauthorised"}, 401
+    rec, err = _onboard_rec(token)
+    if err:
+        return err
+    import base64 as _b64
+    d = request.get_json(silent=True) or {}
+    key = d.get("key", "")
+    valid = {f"{it['key']}/{q['key']}" for it in ob.order_of(rec).get("items", []) for q in ob.QUESTIONS[it["kind"]] if q["type"] == "file"}
+    if key not in valid:
+        return {"error": "Unknown upload"}, 400
+    try:
+        data = _b64.b64decode(d.get("data") or "")
+    except Exception:
+        return {"error": "That file didn't come through. Try again?"}, 400
+    e = ob.upload(rec, key, d.get("filename") or "file", d.get("contentType") or "", data) if data else "Empty file"
+    rec = ob.fresh(rec["id"])
+    if rec["fields"].get("Status") == "Sent":
+        at.update("onboard", rec["id"], {"Status": "Started", "Started At": iso(now_utc())})
+    return {"files": ob.files_of(rec).get(key, []), "error": e}
+
+
+@app.post("/api/onboard/<token>/remove")
+def api_onboard_remove(token):
+    if not _api_auth():
+        return {"error": "unauthorised"}, 401
+    rec, err = _onboard_rec(token)
+    if err:
+        return err
+    d = request.get_json(silent=True) or {}
+    ob.remove_file(rec, d.get("id", ""))
+    return {"files": ob.files_of(ob.fresh(rec["id"])).get(d.get("key", ""), [])}
+
+
+@app.post("/api/onboard/<token>/submit")
+def api_onboard_submit(token):
+    if not _api_auth():
+        return {"error": "unauthorised"}, 401
+    rec, err = _onboard_rec(token)
+    if err:
+        return err
+    a = (request.get_json(silent=True) or {}).get("answers")
+    if a:
+        ob.save_answers(rec, a)
         rec = ob.fresh(rec["id"])
     gaps = ob.missing(rec)
     if gaps:
