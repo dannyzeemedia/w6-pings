@@ -444,3 +444,41 @@ def deals(days_back=30, days_ahead=180):
         if g["upcoming"]:
             res.append(g)
     return sorted(res, key=lambda g: (g["confirmed"], g["next"] or today))
+
+
+def current_for(partner_id, days_back=1, days_ahead=365):
+    """This sponsor's booking as it stands in the calendar (including any dates Karlie moved by hand)."""
+    today = dt.date.today()
+    return [b for b in load(today - dt.timedelta(days=days_back), today + dt.timedelta(days=days_ahead))
+            if b["partner"] == partner_id and b["state"] in ("pencilled", "paid", "swap")]
+
+
+def reconcile(sponsor_name, partner_id, items, sale_id=None):
+    """Make this sponsor's PENCILLED dates match the plan in `items` (the whole booking as the emails now stand):
+    dates no longer in it come out, new ones go in, unchanged ones stay. Confirmed (paid) dates are never touched.
+    Returns (added, removed, clashes)."""
+    want = {}
+    for it in items or []:
+        if it.get("kind") in TYPES:
+            for d in it.get("dates") or []:
+                if re.match(r"\d{4}-\d{2}-\d{2}$", str(d)):
+                    want[(it["kind"], d)] = bool(it.get("tbc"))
+    cur = current_for(partner_id)
+    have = {(b["kind"], b["date"].isoformat()): b for b in cur}
+    removed = []
+    for key, b in have.items():
+        if key not in want and b["state"] == "pencilled":
+            at.delete("promo", b["id"])
+            removed.append((b["kind"], b["date"], ""))
+    new = {}
+    for (kind, d), tbc in want.items():
+        if (kind, d) not in have:
+            new.setdefault((kind, tbc), []).append(d)
+    added, clashes = pencil(sponsor_name, partner_id, [{"kind": k, "dates": ds, "tbc": tbc} for (k, tbc), ds in new.items()], sale_id=sale_id)
+    # a date that stays but is now firm (or not): keep the TBC note in step
+    for (kind, d), tbc in want.items():
+        b = have.get((kind, d))
+        if b and b["state"] == "pencilled" and ("date to confirm" in b["name"]) != tbc:
+            base = f"{sponsor_name} · {TYPES[kind]['label']}"
+            at.update("promo", b["id"], {"Name": base + (" · date to confirm" if tbc else "")})
+    return added, removed, clashes

@@ -632,7 +632,8 @@ def summaries_queue():
             rep = [] if inquiry else at.list_records("log", f"AND({{Gmail Thread ID}}='{f['Gmail Thread ID']}', {{Event}}='Replied', NOT({{Reviewed}}))", fields=["Event"], max_records=1)
             out.append({"handoff_log_id": h["id"], "log_id": rep[0]["id"] if rep else h["id"], "email": f.get("Email"),
                         "needs_summary": needs_summary, "needs_reply": needs_reply, "thread": thread,
-                        "messages_to_summarise": missing, "company": company_history(w, pid, max_threads=3) if pid else None})
+                        "messages_to_summarise": missing, "company": company_history(w, pid, max_threads=3) if pid else None,
+                        "current_booking": _current_booking(pid)})
         else:  # only the one-line summaries of individual emails are missing: keep this light
             out.append({"handoff_log_id": h["id"], "log_id": h["id"], "email": f.get("Email"), "needs_summary": False,
                         "needs_reply": False, "messages_to_summarise": missing})
@@ -693,33 +694,53 @@ def split_subject(text, subject=None):
     return subject, text
 
 
+def _current_booking(pid):
+    """What's in the calendar for this sponsor right now, so a re-read changes it rather than starting again."""
+    if not pid:
+        return None
+    try:
+        import bookings as bk
+        rows = bk.current_for(pid)
+    except Exception:
+        return None
+    return [{"kind": b["kind"], "date": b["date"].isoformat(), "confirmed": b["state"] == "paid",
+             "tbc": "date to confirm" in b["name"]} for b in sorted(rows, key=lambda b: (b["kind"], b["date"]))] or None
+
+
 def apply_booking(log_id, b):
-    """A sponsor said yes: pencil what they agreed to into the bookings calendar, note it in the activity log, and tell
-    Karlie on her Your turn card if any date was already taken. Runs once per card."""
+    """The emails say what the sponsor has agreed to. Make the calendar match: the first time, pencil it in; after
+    that, every re-read CHANGES the pencilled dates (moves, adds, drops) rather than adding to them. Confirmed dates
+    are never touched. Clashes go on Karlie's Your turn card."""
     import bookings as bk
     lg = at.get("log", log_id)["fields"]
-    if "✏️ Pencilled in" in (lg.get("Summary") or ""):
-        return
     pid = (lg.get("Partner") or [None])[0]
-    name = (at.partner_names([pid]).get(pid) if pid else None) or b.get("sponsor") or lg.get("Email")
+    if not pid:
+        return
+    name = at.partner_names([pid]).get(pid) or b.get("sponsor") or lg.get("Email")
     value = b.get("value")
     value = int(float(value)) if str(value or "").replace(".", "", 1).isdigit() else None
-    sale = booking_sale(pid, name, value) if pid else None
-    done, clashes = bk.pencil(name, pid, b.get("items"), sale_id=sale)
-    if not done and not clashes:
+    first = not bk.current_for(pid)
+    sale = booking_sale(pid, name, value, first) if (value or first) else None
+    if not sale:
+        sale = next((x["sale"] for x in bk.current_for(pid) if x.get("sale")), None)
+    added, removed, clashes = bk.reconcile(name, pid, b.get("items"), sale_id=sale)
+    if not (added or removed or clashes):
         return
     val = f" · ${value:,}" if value else ""
-    text = (f"Pencilled in {name}: {bk.describe(done)}{val}" if done else f"{name} said yes, but nothing could be pencilled in")
+    if first:
+        text = f"Pencilled in {name}: {bk.describe(added)}{val}" if added else f"{name} said yes, but nothing could be pencilled in"
+    else:
+        text = f"Booking changed for {name}" + (f". Added: {bk.describe(added)}" if added else "") + (f". Removed: {bk.describe(removed)}" if removed else "") + val
     if clashes:
         text += ". Taken: " + ", ".join(f"{bk.TYPES[k]['label']} {d.strftime('%a %-d %b')} ({why})" for k, d, why in clashes)
-    at.create("log", {"Event": "Pencilled In", "Direction": "Out", "By": "System", "Email": lg.get("Email"), "Summary": text[:250],
-                      "Snippet": text, "At": iso(now()), "Handled": True, **({"Partner": [pid]} if pid else {})}, typecast=True)
-    note = "✏️ Pencilled in" + (f". ⚠️ {len(clashes)} date{'s' if len(clashes) > 1 else ''} already taken, pick others: "
+    at.create("log", {"Event": "Pencilled In" if first else "Booking Changed", "Direction": "Out", "By": "System", "Email": lg.get("Email"),
+                      "Summary": text[:250], "Snippet": text, "At": iso(now()), "Handled": True, "Partner": [pid]}, typecast=True)
+    note = ("✏️ Pencilled in" if first else "✏️ Booking updated") + (f". ⚠️ {len(clashes)} date{'s' if len(clashes) > 1 else ''} already taken, pick others: "
                                 + ", ".join(d.strftime('%a %-d %b') for _, d, _ in clashes) if clashes else "")
     at.update("log", log_id, {"Summary": (f"{note}. " + (lg.get("Summary") or ""))[:250]})
 
 
-def booking_sale(pid, name, value):
+def booking_sale(pid, name, value, first=True):
     """The Sales row a booking belongs to (their newest open one, or a new one), with the agreed value on it.
     It's what Results adds up for "Converted", and where the invoice details will go."""
     w = World()
@@ -727,7 +748,8 @@ def booking_sale(pid, name, value):
     open_rows.sort(key=lambda s: s["fields"].get("Created") or "", reverse=True)
     if open_rows:
         sid = open_rows[0]["id"]
-        upd = {"Status": "Discussion", **({"Value": value, "Pencilled Value": value} if value else {})}
+        # the pencilled-in value is set once, when it's first pencilled in; a later change only moves the working value
+        upd = {"Status": "Discussion", **({"Value": value} if value else {}), **({"Pencilled Value": value} if value and first else {})}
         at.update("sales", sid, upd)
         return sid
     return at.create("sales", {"Opportunity": f"Booking // {name}", "Status": "Discussion", "Partner": [pid], "Via": "Email",
