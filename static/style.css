@@ -1216,3 +1216,9 @@ nav .navdrop-menu a::after { display: none; }
 .inv-change { position: relative; }
 .inv-send { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 4px 0 24px; }
 @media (max-width: 640px) { .inv-paper { padding: 20px 18px; } .inv-top { flex-direction: column; } .inv-top > div:last-child { text-align: left !important; } }
+.inv-lines { table-layout: fixed; }
+.inv-lines td:first-child { overflow-wrap: anywhere; }
+.inv-lines td.amt { width: 7.5em; }
+.inv-paper, .inv-top > div { min-width: 0; }
+@media (min-width: 900px) { .grid.res-stats { grid-template-columns: repeat(5, 1fr) !important; } }
+@media (max-width: 640px) { .res-stats .card:last-child:nth-child(odd) { grid-column: 1 / -1; } }
