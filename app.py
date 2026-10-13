@@ -1063,9 +1063,17 @@ def invoice_page(sid):
             checks = invoicing.preflight(sid, v)
         except Exception as ex:
             checks = [(False, f"The final check couldn't run: {ex}")]
+    heads_up = None
+    if v and v["status"] != "draft":  # the "invoice is on its way" email Pings wrote when it was sent
+        opp = (f.get("Opportunity") or "").replace("'", "\\'")
+        for d in at.list_records("drafts", f"AND({{Kind}}='Follow-up', FIND('{opp}', ARRAYJOIN({{Sale}})))",
+                                 fields=["Status", "Sale", "Sent At", "Expected Send"], sort=[("Status", "asc")]):
+            if sid in (d["fields"].get("Sale") or []):
+                heads_up = {"id": d["id"], **d["fields"]}
     fmt_long = lambda d: dt.date.fromisoformat(d).strftime("%B %-d, %Y") if d else ""
     return render_template("invoice.html", sid=sid, f=f, name=name or f.get("Opportunity"), email=email, company=company or name,
-                           v=v, err=err, brand=brand, pending=bool((f.get("Invoice Request") or "").strip()), checks=checks, fmt_long=fmt_long)
+                           v=v, err=err, brand=brand, pending=bool((f.get("Invoice Request") or "").strip()), checks=checks, fmt_long=fmt_long,
+                           heads_up=heads_up)
 
 
 @app.post("/invoice/<sid>/prepare")
