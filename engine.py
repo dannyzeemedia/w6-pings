@@ -165,9 +165,11 @@ def log(event, direction, by, email="", partner=None, sale=None, contact=None, d
 
 def _keep_promise(contact_id, email):
     """An email just went to this person: if we'd promised to get back to them around now, that promise is kept."""
-    c = at.get("contacts", contact_id) if contact_id else None
+    # always the latest copy: a promise added a moment ago must not be missed
+    c = at._fetch("GET", f"{at.API}/{at.TABLES['contacts']}/{contact_id}", None) if contact_id else None
     if not c and email:
-        hits = at.list_records("contacts", f"LOWER({{Email}})='{(email or '').lower()}'", max_records=1)
+        hits = at._fetch("GET", f"{at.API}/{at.TABLES['contacts']}", None,
+                         params={"filterByFormula": f"LOWER({{Email}})='{(email or '').lower()}'", "maxRecords": 1})["records"]
         c = hits[0] if hits else None
     if not c:
         return
