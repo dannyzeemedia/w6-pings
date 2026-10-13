@@ -327,7 +327,7 @@ def today():
         _today_parties(f, sent_today, yours, tz)
     proms = engine.promises()
     pnames = at.partner_names([p for x in proms for p in x["contact"]["fields"].get("Partner", [])])
-    return render_template("today.html", s=f, sent_today=sent_today, n_yours=len(yours),
+    return render_template("today.html", backup_stale=_backup_stale(f), s=f, sent_today=sent_today, n_yours=len(yours),
                            upcoming=upcoming, names=names, brands=brands_for(upcoming, "To Email"), handsoff=handsoff, partners=at.all_partners(),
                            promises=proms, pnames=pnames)
 
@@ -1796,6 +1796,16 @@ def _deal_value(partners, field, paid_only):
         f = at.get("sales", sid)["fields"]
         tot += int(f.get(field) or (f.get("Value") if field == "Pencilled Value" else 0) or 0)
     return tot
+
+
+def _backup_stale(sf):
+    """For Danny only: how long since the nightly backup last worked, if it's over 36 hours (else None)."""
+    if session.get("user") != "danny":
+        return None
+    last = parse_ts(sf.get("Last Backup"))
+    if last and now_utc() - last < dt.timedelta(hours=36):
+        return None
+    return when(sf.get("Last Backup")) if last else "never"
 
 
 @app.route("/results")

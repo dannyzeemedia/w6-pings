@@ -1,6 +1,8 @@
 {% extends "base.html" %}{% block title %}Today{% endblock %}
 {% from "_brand.html" import chip %}
 {% block body %}
+{% if backup_stale %}<div class="card" style="border-color:#e0b04a;background:color-mix(in srgb,#eda100 10%,var(--card))"><strong>⚠️ The nightly Pings backup hasn't worked since {{ backup_stale }}.</strong>
+  <div class="muted tiny">Only you see this. Ask Claude to check github.com/dannyzeemedia/w6-pings-backup.</div></div>{% endif %}
 <div class="head"><h1>Hey Karlie <span id="hi-emoji" class="hi-emoji">✨</span></h1><p><span id="hi-compliment"></span> Here's where your pings are at today.</p></div>
 
 <div class="status {{ 'off' if s.get('Paused') else 'on' }}">
