@@ -6,7 +6,7 @@
   {% for r in rows %}{% set f = r.fields %}
   <a class="bk-row" href="{{ url_for('onboarding_view', rid=r.id) }}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line);text-decoration:none;color:inherit">
     <span class="ob-name">{{ chip(brands.get(r.id), f.get('Name',''), 32) }}<span>{{ f.get('Name','') }}</span></span>
-    <span class="muted tiny">{{ {'Sent':'⏳ Not started','Started':'✏️ In progress','Complete':'✅ Complete'}.get(f.get('Status'),'') }}</span>
+    <span class="muted tiny" style="white-space:nowrap">{{ {'Sent':'⏳ Not started','Started':'✏️ In progress','Complete':'✅ Complete'}.get(f.get('Status'),'') }}</span>
   </a>
   {% endfor %}
 </div>
