@@ -1057,8 +1057,15 @@ def invoice_page(sid):
     else:
         err = None
     brand = brands_for([{"id": sid, "fields": {"Partner": f.get("Partner") or []}}], "x").get(sid)
+    checks = None
+    if v and v["status"] == "draft":
+        try:
+            checks = invoicing.preflight(sid, v)
+        except Exception as ex:
+            checks = [(False, f"The final check couldn't run: {ex}")]
+    fmt_long = lambda d: dt.date.fromisoformat(d).strftime("%B %-d, %Y") if d else ""
     return render_template("invoice.html", sid=sid, f=f, name=name or f.get("Opportunity"), email=email, company=company or name,
-                           v=v, err=err, brand=brand, pending=bool((f.get("Invoice Request") or "").strip()))
+                           v=v, err=err, brand=brand, pending=bool((f.get("Invoice Request") or "").strip()), checks=checks, fmt_long=fmt_long)
 
 
 @app.post("/invoice/<sid>/prepare")

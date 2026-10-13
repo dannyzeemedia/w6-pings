@@ -24,19 +24,36 @@
   {% if v.pdf %}<a class="btn ghost small" href="{{ v.pdf }}" target="_blank" rel="noopener">PDF ↗</a>{% endif %}
   <span class="muted tiny">{{ 'The draft in W6\'s Stripe. The sponsor\'s view and PDF appear once it\'s sent.' if v.status == 'draft' else 'The real invoice in W6\'s Stripe.' }}</span>
 </div>
-<div class="inv-paper">
-  <div class="inv-top"><div><div class="label">Bill to</div><strong>{{ v.customer_name }}</strong><div class="muted tiny">{{ v.email }}</div></div>
-    <div style="text-align:right"><div class="label">{{ 'Invoice ' ~ v.number if v.number else 'Draft invoice' }}</div>
-      <div class="muted tiny">{% if v.due_date %}Due {{ v.due_date }}{% elif v.days_until_due %}Due {{ v.days_until_due }} days after it's sent{% else %}Due on receipt{% endif %}</div></div></div>
-  <table class="inv-lines">
-    {% for l in v.lines %}<tr><td>{{ l.description }}</td><td class="amt">${{ '{:,.2f}'.format(l.amount) }}</td></tr>{% endfor %}
-    {% if v.discounts %}<tr class="sub"><td>Subtotal</td><td class="amt">${{ '{:,.2f}'.format(v.subtotal) }}</td></tr>
-      {% for d in v.discounts %}<tr class="sub"><td>{{ d.name }}{% if d.percent %} ({{ d.percent|round|int }}% off){% endif %}</td><td class="amt">−${{ '{:,.2f}'.format(v.discount_total) if loop.first else '' }}</td></tr>{% endfor %}{% endif %}
-    <tr class="tot"><td>Total</td><td class="amt">${{ '{:,.2f}'.format(v.total) }}</td></tr>
+<div class="inv-paper stripe">
+  <div class="sp-top"><h2 class="sp-title">Invoice</h2><img class="sp-logo" src="{{ url_for('static', filename='w6-invoice-logo.png') }}" alt="Workspace6"></div>
+  <table class="sp-meta">
+    <tr><td>Invoice number</td><td>{{ v.number or 'Given when it’s sent' }}</td></tr>
+    <tr><td>Date of issue</td><td>{{ fmt_long(v.issued) if v.issued else 'The day it’s sent' }}</td></tr>
+    <tr><td>Date due</td><td>{{ fmt_long(v.due_date or v.due_if_sent_today) }}{% if not v.due_date and v.days_until_due is not none %} <span class="sp-hint">({{ v.days_until_due }} days after it’s sent)</span>{% endif %}</td></tr>
   </table>
-  {% if v.memo %}<p class="inv-memo">{{ v.memo }}</p>{% endif %}
-  {% if v.footer %}<p class="muted tiny inv-foot">{{ v.footer }}</p>{% endif %}
+  <div class="sp-parties">
+    <div><strong>Workspace6 Overwatch, Inc.</strong><br>1106 2nd Street<br>#130<br>Encinitas, California 92024<br>United States<br>sam@workspace6.io</div>
+    <div><strong>Bill to</strong><br>{{ v.customer_name }}<br>{{ v.email }}</div>
+  </div>
+  <h3 class="sp-due">${{ '{:,.2f}'.format(v.amount_due if v.status != 'draft' else v.total) }} {{ v.currency }} due {{ fmt_long(v.due_date or v.due_if_sent_today) }}</h3>
+  <div class="sp-pay">Pay online</div>
+  {% if v.memo %}<div class="sp-memo">{{ v.memo }}</div>{% endif %}
+  <table class="sp-lines">
+    <thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Unit price</th><th class="r">Amount</th></tr></thead>
+    <tbody>{% for l in v.line_items %}<tr><td>{{ l.description }}</td><td class="r">{{ l.qty }}</td><td class="r">${{ '{:,.2f}'.format(l.unit) }}</td><td class="r">${{ '{:,.2f}'.format(l.amount) }}</td></tr>{% endfor %}</tbody>
+  </table>
+  <table class="sp-totals">
+    <tr><td>Subtotal</td><td class="r">${{ '{:,.2f}'.format(v.subtotal) }}</td></tr>
+    {% for d in v.discounts %}<tr><td>{{ d.name }}{% if d.percent %} ({{ d.percent|round|int }}% off){% endif %}</td><td class="r">−${{ '{:,.2f}'.format(v.discount_total) if loop.first else '' }}</td></tr>{% endfor %}
+    <tr><td>Total</td><td class="r">${{ '{:,.2f}'.format(v.total) }}</td></tr>
+    <tr class="sp-strong"><td>Amount due</td><td class="r">${{ '{:,.2f}'.format(v.amount_due if v.status != 'draft' else v.total) }} {{ v.currency }}</td></tr>
+  </table>
+  {% if v.footer %}<div class="sp-foot">{{ v.footer }}</div>{% endif %}
+  <div class="sp-bank">Pay by bank transfer: W6's bank details are added to the invoice by Stripe when it's sent.</div>
 </div>
+{% if checks %}<div class="card inv-check"><h2 style="margin-bottom:8px">Final check</h2>
+  {% for ok, t in checks %}<div class="chk {{ 'ok' if ok else 'warn' }}"><span>{{ '✅' if ok else '⚠️' }}</span><span>{{ t }}</span></div>{% endfor %}
+</div>{% endif %}
 
 {% if v.status == 'draft' %}
 <div class="card inv-change" id="change">
