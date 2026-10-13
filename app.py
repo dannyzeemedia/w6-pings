@@ -936,6 +936,34 @@ def onboarding_view(rid):
                            shown=ob._shown, clean=richtext.sanitize)
 
 
+# ---------- notices: pop-ups for things that arrive while she works (onboarding details, finished assets) ----------
+NOTICE_EVENTS = ("Details Received", "Assets Received")
+
+
+@app.get("/api/notices")
+@login_required
+def notices():
+    me = session.get("user") or ""
+    since = (now_utc() - dt.timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    rows = at.list_records("log", f"AND(OR({','.join(f'{{Event}}={chr(39)}{e}{chr(39)}' for e in NOTICE_EVENTS)}), IS_AFTER({{At}}, '{since}'))",
+                           sort=[("At", "desc")], fields=["Event", "Summary", "Link", "At", "Seen By"], max_records=20)
+    out = [{"id": r["id"], "event": r["fields"].get("Event"), "text": r["fields"].get("Summary"), "link": r["fields"].get("Link"),
+            "when": when(r["fields"].get("At"))} for r in rows if me not in (r["fields"].get("Seen By") or "").split("\n")]
+    return {"notices": out}
+
+
+@app.post("/api/notices/<rid>/seen")
+@login_required
+def notice_seen(rid):
+    if not re.match(r"rec\w+$", rid):
+        return {"ok": False}, 400
+    me = session.get("user") or ""
+    seen = (at.get("log", rid)["fields"].get("Seen By") or "").split("\n")
+    if me not in seen:
+        at.update("log", rid, {"Seen By": "\n".join([x for x in seen if x] + [me])})
+    return {"ok": True}
+
+
 # ---------- attachments (any email she sends) ----------
 ATTACH_FIELD = {"drafts": "Attachments", "log": "Reply Attachments"}
 ATTACH_MAX = 5 * 1024 * 1024  # Airtable's upload limit per file

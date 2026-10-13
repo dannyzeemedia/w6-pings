@@ -85,7 +85,7 @@
   {% elif kind %}<div class="muted tiny act-count">Showing {{ recent|length }} · <a href="#" class="act-clear" onclick="event.preventDefault();const f=document.querySelector('.act-search');f.querySelector('[name=kind]').value='';f.querySelectorAll('.act-kinds a').forEach(a=>a.classList.toggle('on',!a.dataset.kind));window.dxSegs&&dxSegs();actSearch()">show everything</a></div>{% endif %}
   {% set EV = {'Sent': ('Sent', 'ev-sent'), 'Replied': ('Replied', 'ev-reply'), 'Handed To Karlie': ('Your turn', 'ev-yours'),
                 'Bounced': ('Bounced', 'ev-bad'), 'Left Company': ('Left the company', 'ev-bad'), 'Auto-Reply': ('Auto-reply', 'ev-quiet'),
-                'Unsubscribed': ('Unsubscribed', 'ev-bad'), 'Pencilled In': ('Pencilled in', 'ev-yours'), 'Confirmed': ('Confirmed', 'ev-reply'), 'Booking Changed': ('Booking changed', 'ev-yours')} %}
+                'Unsubscribed': ('Unsubscribed', 'ev-bad'), 'Pencilled In': ('Pencilled in', 'ev-yours'), 'Confirmed': ('Confirmed', 'ev-reply'), 'Booking Changed': ('Booking changed', 'ev-yours'), 'Details Received': ('Invoice details in', 'ev-reply'), 'Assets Received': ('Onboarding done', 'ev-reply')} %}
   {% if recent %}<div class="act-list">{% for e in recent %}{% set f = e.fields %}{% set ev = EV.get(f.get('Event'), (f.get('Event'), 'ev-quiet')) %}
     {% set company = (f.get('Partner') or [''])[0] %}{% set cname = names.get(company) %}
     <details class="act-item">

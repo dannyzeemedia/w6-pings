@@ -368,6 +368,19 @@ def complete(rec, sponsor):
         slack_complete(fresh(rec["id"]), sponsor)
     except Exception:
         pass
+    notice(rec, sponsor, "Assets Received", f"{sponsor} finished their onboarding: everything's in, files included.")
+
+
+def notice(rec, sponsor, event, text):
+    """A pop-up for Karlie in Pings (and a line in Results) that links straight to this sponsor's onboarding page."""
+    f = rec["fields"]
+    try:
+        at.create("log", {"Event": event, "Direction": "In", "By": "Them", "Summary": text[:250],
+                          "Email": (f.get("Contact Email") or None), "At": dt.datetime.now(dt.timezone.utc).isoformat(),
+                          "Link": f"/onboarding/{rec['id']}", "Handled": True, **({"Partner": f["Partner"]} if f.get("Partner") else {})},
+                  typecast=True)
+    except Exception:
+        pass
 
 
 def slack_complete(rec, sponsor):
@@ -414,6 +427,8 @@ def send_details(rec, sponsor, incoming):
             slack_details(fresh(rec["id"]), sponsor, snap, updated=bool(prev))
         except Exception:
             pass
+        notice(rec, sponsor, "Details Received", f"{sponsor} {'changed their' if prev else 'sent their'} invoice details"
+               + ("" if prev else ". Time to send the invoice") + f": {snap.get('company') or sponsor}, invoices to {snap.get('invoices')}.")
     return []
 
 
@@ -437,6 +452,7 @@ def slack_details(rec, sponsor, c, updated=False):
         f"Invoices to: {esc(c.get('invoices'))}",
         f"Contact: {esc(c.get('name'))} · {esc(email)}" + (f" · proofs to {esc(c.get('proofs'))}" if c.get("proofs") else ""),
         "They're filling in their assets now.",
+        f"Open in Pings: {PUBLIC_BASE}/onboarding/{rec['id']}",
     ])
     requests.post("https://slack.com/api/chat.postMessage", headers={"Authorization": f"Bearer {tok}"}, timeout=15,
                   json={"channel": W6_TEAM_CHANNEL, "text": text, "unfurl_links": False})

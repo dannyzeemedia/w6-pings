@@ -459,6 +459,31 @@ window.flipTheme=function(){
   window.dxSegs=segs; if(document.fonts&&document.fonts.ready) document.fonts.ready.then(segs); segs();
 })();
 
+// Notices: a pop-up when something arrives for her (a sponsor's invoice details, finished onboarding), linking straight to it.
+(function(){
+  if(window.__notices) return; window.__notices=true;
+  const ICON={'Details Received':'🧾','Assets Received':'✅'}, TITLE={'Details Received':'Invoice details are in','Assets Received':'Onboarding finished'};
+  const shown=new Set();
+  const seen=id=>fetch('/api/notices/'+id+'/seen',{method:'POST',headers:{'X-Fetch':'1'}}).catch(()=>{});
+  function show(n){
+    if(shown.has(n.id)) return; shown.add(n.id);
+    let wrap=document.getElementById('notices'); if(!wrap){ wrap=document.createElement('div'); wrap.id='notices'; document.body.appendChild(wrap); }
+    const el=document.createElement('div'); el.className='notice'; el.setAttribute('role','alert');
+    el.innerHTML='<div class="n-ico"></div><div class="n-body"><strong></strong><div class="n-text"></div><div class="n-when muted tiny"></div>'+
+      '<div class="n-actions"><a class="btn small n-open">Open</a><button type="button" class="ghost small n-x">Dismiss</button></div></div>';
+    el.querySelector('.n-ico').textContent=ICON[n.event]||'🔔'; el.querySelector('strong').textContent=TITLE[n.event]||n.event;
+    el.querySelector('.n-text').textContent=n.text||''; el.querySelector('.n-when').textContent=n.when||'';
+    const open=el.querySelector('.n-open'); open.href=n.link||'#';
+    open.addEventListener('click',()=>{ seen(n.id); });
+    el.querySelector('.n-x').addEventListener('click',()=>{ seen(n.id); el.classList.add('out'); setTimeout(()=>el.remove(),250); });
+    wrap.appendChild(el); requestAnimationFrame(()=>el.classList.add('in'));
+  }
+  function check(){ if(document.hidden) return;
+    fetch('/api/notices',{headers:{'X-Fetch':'1'}}).then(r=>r.ok?r.json():null).then(j=>{ (j&&j.notices||[]).slice(0,3).reverse().forEach(show); }).catch(()=>{}); }
+  check(); setInterval(check,45000); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) check(); });
+  document.addEventListener('turbo:load',check);
+})();
+
 // Pinned ping bar: climbs as she approves and replies, and celebrates when she hits her goal.
 window.toast=window.toast||function(emoji,title,msg){
   const el=document.createElement('div'); el.className='toast'; el.setAttribute('role','status');
