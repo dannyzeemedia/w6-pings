@@ -1224,3 +1224,4 @@ nav .navdrop-menu a::after { display: none; }
 @media (max-width: 640px) { .res-stats .card:last-child:nth-child(odd) { grid-column: 1 / -1; } }
 .inv-lines td:first-child { white-space: normal !important; word-break: break-word; }
 .inv-paper { max-width: 100%; box-sizing: border-box; overflow: hidden; }
+.inv-real { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; }

@@ -18,6 +18,12 @@
   </form>
 </div>
 {% else %}
+<div class="inv-real">
+  <a class="btn small" href="https://dashboard.stripe.com/invoices/{{ v.id }}" target="_blank" rel="noopener">Open in Stripe ↗</a>
+  {% if v.hosted_url %}<a class="btn ghost small" href="{{ v.hosted_url }}" target="_blank" rel="noopener">What they see ↗</a>{% endif %}
+  {% if v.pdf %}<a class="btn ghost small" href="{{ v.pdf }}" target="_blank" rel="noopener">PDF ↗</a>{% endif %}
+  <span class="muted tiny">{{ 'The draft in W6\'s Stripe. The sponsor\'s view and PDF appear once it\'s sent.' if v.status == 'draft' else 'The real invoice in W6\'s Stripe.' }}</span>
+</div>
 <div class="inv-paper">
   <div class="inv-top"><div><div class="label">Bill to</div><strong>{{ v.customer_name }}</strong><div class="muted tiny">{{ v.email }}</div></div>
     <div style="text-align:right"><div class="label">{{ 'Invoice ' ~ v.number if v.number else 'Draft invoice' }}</div>
