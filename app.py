@@ -1100,7 +1100,7 @@ def invoice_send(sid):
     try:
         inv = invoicing.send(sid)
         celebrate("Invoice sent! 🧾", f"${inv['total'] / 100:,.0f} is on its way to {invoicing.sale(sid)['fields'].get('Invoice Email')}. "
-                                      "It'll flip to Paid on its own when they pay.", "💸", big=True)
+                                      "A heads-up email with the link is waiting in To approve. It turns Paid by itself when they pay.", "💸", big=True)
     except Exception as ex:
         flash(f"That didn't send: {ex}. Nothing went out.")
     return redirect(url_for("invoice_page", sid=sid))

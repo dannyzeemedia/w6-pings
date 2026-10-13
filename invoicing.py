@@ -243,6 +243,10 @@ def send(sid):
                              **({"Due Date": due} if due else {}), "Invoiced At": now, "Value": int(inv["total"] / 100)})
     pid = (f.get("Partner") or [None])[0]
     name = at.partner_names([pid]).get(pid) if pid else f.get("Opportunity")
+    try:
+        heads_up_draft(sid, inv)
+    except Exception:
+        pass
     at.create("log", {"Event": "Invoiced", "Direction": "Out", "By": "Karlie", "At": now, "Handled": True,
                       "Email": f.get("Invoice Email"), "Summary": f"Invoiced {name}: ${inv['total'] / 100:,.0f}, due {due or 'on receipt'}"[:250],
                       "Link": f"/invoice/{sid}", **({"Partner": [pid]} if pid else {})}, typecast=True)
@@ -319,3 +323,46 @@ def preflight(sid, v=None):
     if (f.get("Invoice Request") or "").strip():
         out.append((False, "A change is still being made. Wait for it before sending."))
     return out
+
+
+def _plural(n, label):
+    return f"{n} {label}{'s' if n != 1 else ''}"
+
+
+def heads_up_draft(sid, inv):
+    """After Send: an email for Karlie to approve, in her thread with the sponsor, saying the invoice is on its way,
+    with the link in case Stripe's email gets missed. Goes into To approve like any other draft."""
+    f = sale(sid)["fields"]
+    pid = (f.get("Partner") or [None])[0]
+    if not pid or not inv.get("hosted_invoice_url"):
+        return None
+    # the person she's been talking to: the latest email in or out with this sponsor that's in a Gmail thread
+    pname = (at.partner_names([pid]).get(pid) or "").replace("'", "\\'")
+    rows = [r for r in at.list_records("log", f"AND(FIND('{pname}', ARRAYJOIN({{Partner}})), {{Gmail Thread ID}}!='', OR({{Event}}='Sent', {{Event}}='Replied', {{Event}}='Handed To Karlie'))",
+                                       sort=[("At", "desc")], fields=["Email", "Gmail Thread ID", "Contact", "Partner"], max_records=20)
+            if pid in (r["fields"].get("Partner") or [])][:1]
+    if not rows:
+        return None
+    to = (rows[0]["fields"].get("Email") or "").split(",")[0].strip().lower()
+    tid = rows[0]["fields"].get("Gmail Thread ID")
+    cids = rows[0]["fields"].get("Contact") or []
+    c = at.get("contacts", cids[0])["fields"] if cids else {}
+    first = (c.get("Name") or "").split()[0] if c.get("Name") else "there"
+    items = [_plural(len(dates), bk.TYPES[k]["label"].replace("DTC News ", "")) for k, dates, _ in booked(pid, sid)]
+    what = (" and ".join([", ".join(items[:-1]), items[-1]]) if len(items) > 1 else (items[0] if items else "sponsorship"))
+    due = dt.datetime.fromtimestamp(inv["due_date"], ET).strftime("%A %-d %B") if inv.get("due_date") else None
+    billed = (inv.get("customer_email") or "").lower()
+    sent_to = "" if billed == to else f" to {billed}"
+    body = "\n".join([
+        f"Hi {first},", "",
+        f"The invoice for your {what} just went out from Stripe{sent_to}. Here's the link in case it ends up in spam: {inv['hosted_invoice_url']}", "",
+        (f"It's due {due}, and you can pay by card or bank transfer from that page." if due else "You can pay by card or bank transfer from that page."), "",
+        "Shout if anything needs changing.", "",
+        "Karlie"])
+    rec = at.create("drafts", {"Subject": "", "AI Original Subject": "", "Body": body, "AI Original Body": body,
+                               "Status": "Pending Approval", "Kind": "Follow-up", "To Email": to, "To Name": c.get("Name"),
+                               "Gmail Thread ID": tid, "Partner": [pid], **({"Contact": [cids[0]]} if cids else {}),
+                               "Sale": [sid],
+                               "Why This Email": (f"The invoice just went out from Stripe{sent_to}. This makes sure {first} knows, "
+                                                  "with the link in case Stripe's email lands in spam.")})
+    return rec["id"]
