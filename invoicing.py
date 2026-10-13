@@ -113,11 +113,30 @@ def terms(f):
     return (t[0], int(t[1])) if t[0] == "days" else ("date", t[1])
 
 
-def _due_on_send(f):
+def pay_by(pid, sid=None):
+    """The latest W6 can be paid: the Friday before the week of their first upcoming placement (so it's paid before
+    anything runs). None if nothing's booked."""
+    today = dt.datetime.now(ET).date()
+    firsts = [d for _, dates, _ in booked(pid, sid) for d in dates if d >= today]
+    if not firsts:
+        return None
+    first = min(firsts)
+    return first - dt.timedelta(days=first.weekday() + 3)  # Monday of that week, back to the Friday before
+
+
+def _due_on_send(f, sid=None):
+    """Due date if it's sent today: Karlie's date if she set one; else N days out, but never later than the Friday
+    before their first placement (due on receipt if that's already passed)."""
     kind, val = terms(f)
     if kind == "date":
         return val
-    return (dt.datetime.now(ET).date() + dt.timedelta(days=val)).isoformat()
+    today = dt.datetime.now(ET).date()
+    due = today + dt.timedelta(days=val)
+    pid = (f.get("Partner") or [None])[0]
+    cap = pay_by(pid, sid) if pid else None
+    if cap and cap < due:
+        due = max(cap, today)
+    return due.isoformat()
 
 
 def _due_ts(date_str):
@@ -162,7 +181,8 @@ def view(sid):
     # a draft on "N days" terms shows a provisional date from today; the real one is set when it's sent
     kind, val = terms(f)
     if inv["status"] == "draft":  # the real date is set when it's sent
-        due, days = (val, None) if kind == "date" else (None, val)
+        capped = _due_on_send(f, sid)
+        due, days = (val, None) if kind == "date" else ((capped, None) if capped != (dt.datetime.now(ET).date() + dt.timedelta(days=val)).isoformat() else (None, val))
     else:
         due, days = (dt.datetime.fromtimestamp(inv["due_date"], ET).date().isoformat() if inv.get("due_date") else None), None
     return {"id": inv["id"], "status": inv["status"], "number": inv.get("number"), "customer_name": cust.get("name"),
@@ -180,7 +200,7 @@ def view(sid):
             "currency": (inv.get("currency") or "usd").upper(), "livemode": inv.get("livemode"),
             "issued": (dt.datetime.fromtimestamp(inv["status_transitions"]["finalized_at"], ET).date().isoformat()
                        if (inv.get("status_transitions") or {}).get("finalized_at") else None),
-            "due_if_sent_today": _due_on_send(f) if inv["status"] == "draft" else None,
+            "due_if_sent_today": _due_on_send(f, sid) if inv["status"] == "draft" else None,
             "line_items": [{"description": l.get("description"), "qty": l.get("quantity") or 1,
                             "unit": (l["amount"] / 100) / (l.get("quantity") or 1), "amount": l["amount"] / 100}
                            for l in inv["lines"]["data"]]}
@@ -233,7 +253,7 @@ def send(sid):
     inv_id = f["Stripe Invoice ID"]
     inv = _get(f"invoices/{inv_id}")
     if inv["status"] == "draft":
-        _post(f"invoices/{inv_id}", {"due_date": _due_ts(_due_on_send(f))})  # the terms, counted from today
+        _post(f"invoices/{inv_id}", {"due_date": _due_ts(_due_on_send(f, sid))})  # the terms, counted from today
         inv = _post(f"invoices/{inv_id}/finalize", {"auto_advance": "false"})
     if inv["status"] == "open":
         inv = _post(f"invoices/{inv_id}/send", {})
@@ -317,8 +337,11 @@ def preflight(sid, v=None):
     if due:
         d = dt.date.fromisoformat(due)
         today = dt.datetime.now(ET).date()
-        good = d >= today and d.weekday() < 5
-        out.append((good, f"Due {d.strftime('%A %-d %B')} if sent today" + ("." if good else (", which is a weekend." if d.weekday() >= 5 else ", which has already passed."))))
+        cap = pay_by(pid, sid)
+        good = d >= today and d.weekday() < 5 and (not cap or d <= cap)
+        why = ("." if good else (", which is a weekend." if d.weekday() >= 5 else (", which has already passed." if d < today
+               else f", after the Friday before their first placement ({cap.strftime('%a %-d %b')}).")))
+        out.append((good, f"Due {d.strftime('%A %-d %B')} if sent today" + why + (f" Paid before their first placement." if good and cap else "")))
     out.append((bool(v.get("livemode")), "A real invoice in W6's live Stripe." if v.get("livemode") else "This is in Stripe TEST mode."))
     if (f.get("Invoice Request") or "").strip():
         out.append((False, "A change is still being made. Wait for it before sending."))
@@ -359,7 +382,15 @@ def heads_up_draft(sid, inv):
         (f"It's due {due}, and you can pay by card or bank transfer from that page." if due else "You can pay by card or bank transfer from that page."), "",
         "Shout if anything needs changing.", "",
         "Karlie"])
-    rec = at.create("drafts", {"Subject": "", "AI Original Subject": "", "Body": body, "AI Original Body": body,
+    subj = ""
+    try:
+        import gmail
+        msgs = gmail.thread(tid)
+        base = (msgs[0].get("subject") if msgs else "") or ""
+        subj = base if base.lower().startswith("re:") else (f"Re: {base}" if base else "")
+    except Exception:
+        pass
+    rec = at.create("drafts", {"Subject": subj, "AI Original Subject": subj, "Body": body, "AI Original Body": body,
                                "Status": "Pending Approval", "Kind": "Follow-up", "To Email": to, "To Name": c.get("Name"),
                                "Gmail Thread ID": tid, "Partner": [pid], **({"Contact": [cids[0]]} if cids else {}),
                                "Sale": [sid],
