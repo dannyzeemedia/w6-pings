@@ -1222,3 +1222,5 @@ nav .navdrop-menu a::after { display: none; }
 .inv-paper, .inv-top > div { min-width: 0; }
 @media (min-width: 900px) { .grid.res-stats { grid-template-columns: repeat(5, 1fr) !important; } }
 @media (max-width: 640px) { .res-stats .card:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+.inv-lines td:first-child { white-space: normal !important; word-break: break-word; }
+.inv-paper { max-width: 100%; box-sizing: border-box; overflow: hidden; }
