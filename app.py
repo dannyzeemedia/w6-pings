@@ -888,7 +888,9 @@ def api_onboard_submit(token):
 @login_required
 def onboarding_list():
     rows = sorted(ob.all_links(), key=lambda r: r.get("createdTime", ""), reverse=True)
-    return render_template("onboarding_list.html", rows=rows, url_for_token=ob.url_for_token)
+    # logos without their website link: each row is already a link to the sponsor's page
+    brands = {k: (dict(v, website=None) if v else v) for k, v in brands_for(rows, "Contact Email").items()}
+    return render_template("onboarding_list.html", rows=rows, url_for_token=ob.url_for_token, brands=brands)
 
 
 @app.get("/onboarding/new")
@@ -933,7 +935,7 @@ def onboarding_view(rid):
                            answers=ob.answers_of(rec), files=ob.files_of(rec), questions=ob.QUESTIONS,
                            item_title=ob.item_title, link=ob.url_for_token(rec["fields"].get("Token", "")),
                            summary=ob.summary(order), covered=lambda it: ob._covered(order, ob.answers_of(rec), it),
-                           shown=ob._shown, clean=richtext.sanitize)
+                           shown=ob._shown, clean=richtext.sanitize, brand=brands_for([rec], "Contact Email").get(rec["id"]))
 
 
 # ---------- notices: pop-ups for things that arrive while she works (onboarding details, finished assets) ----------

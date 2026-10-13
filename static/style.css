@@ -1186,3 +1186,7 @@ nav .navdrop-menu a::after { display: none; }
 .notice .n-actions { display: flex; gap: 8px; margin-top: 10px; }
 @media (max-width: 640px) { #notices { left: 50%; right: auto; top: 50%; bottom: auto; transform: translate(-50%, -50%); width: calc(100% - 32px); } }
 @media (prefers-reduced-motion: reduce) { .notice { transition: none; } }
+/* Onboarding: the sponsor's logo beside their name */
+.ob-head { display: flex; align-items: center; gap: 16px; }
+.ob-head h1 { margin: 0; }
+.ob-name { display: inline-flex; align-items: center; gap: 12px; min-width: 0; }

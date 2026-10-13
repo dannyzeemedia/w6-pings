@@ -1,11 +1,11 @@
 {% extends "base.html" %}{% block title %}Onboarding{% endblock %}
-{% block body %}
+{% from "_brand.html" import chip %}{% block body %}
 <div class="head"><h1>Sponsor onboarding</h1><p>Every link sent to a sponsor, newest first. Make a new one from a booking on the Bookings tab.</p></div>
 <div class="card">
   {% if not rows %}<p class="muted">None yet.</p>{% endif %}
   {% for r in rows %}{% set f = r.fields %}
-  <a class="bk-row" href="{{ url_for('onboarding_view', rid=r.id) }}" style="display:flex;justify-content:space-between;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line);text-decoration:none;color:inherit">
-    <span>{{ f.get('Name','') }}</span>
+  <a class="bk-row" href="{{ url_for('onboarding_view', rid=r.id) }}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line);text-decoration:none;color:inherit">
+    <span class="ob-name">{{ chip(brands.get(r.id), f.get('Name',''), 32) }}<span>{{ f.get('Name','') }}</span></span>
     <span class="muted tiny">{{ {'Sent':'⏳ Not started','Started':'✏️ In progress','Complete':'✅ Complete'}.get(f.get('Status'),'') }}</span>
   </a>
   {% endfor %}
