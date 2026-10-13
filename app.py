@@ -17,6 +17,15 @@ from ops_log import OpsLog
 app = Flask(__name__)
 
 
+@app.before_request
+def _partner_pages_only():
+    """partners.workspace6.io serves partner pages and nothing else from Pings. Registered first, so it answers
+    before any login check, page or API can."""
+    import partner_pages
+    if partner_pages.is_partner_host(request.host):
+        return partner_pages.respond(request.path)
+
+
 def redirect(location, code=303):
     return _redirect(location, code)
 

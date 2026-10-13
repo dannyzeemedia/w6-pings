@@ -3,6 +3,7 @@ import os, time, requests
 
 BASE = "appdyjBrdeFXlffLu"
 TABLES = {
+    "pages": "tblWvEzuyMWogWVQR",
     "settings": "tblYHD5AbjmyxYOsE",
     "contacts": "tblS5yU6mINsHeVX0",
     "drafts": "tblPOhostHQMYHYJ6",
