@@ -1201,3 +1201,18 @@ nav .navdrop-menu a::after { display: none; }
 .ob-row form { margin: 0; }
 .ob-del { all: unset; cursor: pointer; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--muted); font-size: 18px; }
 .ob-del:hover { background: color-mix(in srgb, #c0392b 12%, transparent); color: #b0322a; }
+
+/* Invoice preview: a sheet of paper */
+.inv-paper { background: #fff; color: #202020; border: 1px solid var(--line); border-radius: 16px; padding: 28px 30px; margin-bottom: 18px; box-shadow: 0 10px 30px -18px rgba(0,0,0,.25); }
+.inv-paper .label { color: #6b6b6b; }
+.inv-paper .muted { color: #6b6b6b; }
+.inv-top { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.inv-lines { width: 100%; border-collapse: collapse; font-size: 15px; }
+.inv-lines td { padding: 12px 0; border-top: 1px solid #e8e8e8; vertical-align: top; }
+.inv-lines td.amt { text-align: right; white-space: nowrap; padding-left: 16px; }
+.inv-lines tr.sub td { color: #555; font-size: 14px; padding: 8px 0; }
+.inv-lines tr.tot td { font-weight: 600; font-size: 17px; border-top: 2px solid #202020; }
+.inv-memo { margin: 18px 0 4px; } .inv-foot { margin: 0; overflow-wrap: anywhere; }
+.inv-change { position: relative; }
+.inv-send { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 4px 0 24px; }
+@media (max-width: 640px) { .inv-paper { padding: 20px 18px; } .inv-top { flex-direction: column; } .inv-top > div:last-child { text-align: left !important; } }

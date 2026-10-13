@@ -1,0 +1,68 @@
+{% extends "base.html" %}{% block title %}Invoice · {{ name }}{% endblock %}
+{% from "_brand.html" import chip %}{% block body %}
+{% set st = f.get('Status') %}
+<div class="head ob-head">{{ chip(brand, name, 52) }}<div><h1>{{ name }}</h1>
+  <p>{% if st == 'Paid' %}🤑 Paid{% elif st == 'Invoiced' %}🧾 Invoiced, waiting for payment{% elif v %}✏️ Draft invoice, not sent{% else %}No invoice yet{% endif %}
+  {% if f.get('Value') %} · ${{ '{:,}'.format(f['Value']) }}{% endif %}</p></div></div>
+{% if err %}<div class="card"><p>⚠️ {{ err }}</p></div>{% endif %}
+
+{% if not v %}
+<div class="card">
+  <h2 style="margin-bottom:6px">Prepare the invoice</h2>
+  <p class="muted tiny" style="margin:0 0 14px">This makes a draft in W6's Stripe from what they booked, at the deal's value. Nothing is sent until you press Send.</p>
+  <form method="post" action="{{ url_for('invoice_prepare', sid=sid) }}">
+    <div class="field"><label>Company name on the invoice</label><input type="text" name="company" value="{{ company or '' }}" required></div>
+    <div class="field"><label>Send it to</label><input type="email" name="email" value="{{ email or '' }}" placeholder="accounts@theircompany.com" required>
+      <div class="hint">From what they told us on their onboarding page.</div></div>
+    <button>Prepare draft invoice</button>
+  </form>
+</div>
+{% else %}
+<div class="inv-paper">
+  <div class="inv-top"><div><div class="label">Bill to</div><strong>{{ v.customer_name }}</strong><div class="muted tiny">{{ v.email }}</div></div>
+    <div style="text-align:right"><div class="label">{{ 'Invoice ' ~ v.number if v.number else 'Draft invoice' }}</div>
+      <div class="muted tiny">{% if v.due_date %}Due {{ v.due_date }}{% elif v.days_until_due %}Due {{ v.days_until_due }} days after it's sent{% else %}Due on receipt{% endif %}</div></div></div>
+  <table class="inv-lines">
+    {% for l in v.lines %}<tr><td>{{ l.description }}</td><td class="amt">${{ '{:,.2f}'.format(l.amount) }}</td></tr>{% endfor %}
+    {% if v.discounts %}<tr class="sub"><td>Subtotal</td><td class="amt">${{ '{:,.2f}'.format(v.subtotal) }}</td></tr>
+      {% for d in v.discounts %}<tr class="sub"><td>{{ d.name }}{% if d.percent %} ({{ d.percent|round|int }}% off){% endif %}</td><td class="amt">−${{ '{:,.2f}'.format(v.discount_total) if loop.first else '' }}</td></tr>{% endfor %}{% endif %}
+    <tr class="tot"><td>Total</td><td class="amt">${{ '{:,.2f}'.format(v.total) }}</td></tr>
+  </table>
+  {% if v.memo %}<p class="inv-memo">{{ v.memo }}</p>{% endif %}
+  {% if v.footer %}<p class="muted tiny inv-foot">{{ v.footer }}</p>{% endif %}
+</div>
+
+{% if v.status == 'draft' %}
+<div class="card inv-change" id="change">
+  <h2 style="margin-bottom:6px">Change anything</h2>
+  <form method="post" action="{{ url_for('invoice_change', sid=sid) }}">
+    <div class="field"><textarea name="request" style="min-height:80px" placeholder='e.g. "add a 10% discount", "turn this into a custom sponsorship package for $10,000", "they need to pay before Monday", "send it to sara@levanta.io instead"'></textarea>
+      <div class="hint">Say it the way you'd tell a person. It updates this draft in Stripe, usually within a minute.</div></div>
+    <button class="ghost">Make the change</button>
+  </form>
+  {% if f.get('Invoice Note') %}<p class="muted tiny" style="margin:10px 0 0">Last change: {{ f['Invoice Note'] }}</p>{% endif %}
+  {% if pending %}<div class="remix-overlay inv-busy"><div class="remix-card"><div class="quill">🧾</div><div class="remix-step">Updating the invoice…</div>
+    <div class="muted tiny remix-ask">"{{ f['Invoice Request'] }}"</div></div></div>{% endif %}
+</div>
+<form method="post" action="{{ url_for('invoice_send', sid=sid) }}" class="inv-send" onsubmit="return confirm('Send this ${{ '{:,.2f}'.format(v.total) }} invoice to {{ v.email }}? Stripe emails it with a link to pay.')">
+  <button {{ 'disabled' if pending }}>Send invoice to {{ v.email }}</button>
+  <span class="muted tiny">Due date is set when it's sent{% if v.days_until_due %}: {{ v.days_until_due }} days{% endif %}.</span>
+</form>
+{% elif v.status in ('open', 'uncollectible') %}
+<div class="card">
+  <p>🧾 Sent{% if f.get('Invoiced At') %} {{ f['Invoiced At']|when }}{% endif %} to {{ v.email }}. {% if v.due_date %}Due {{ v.due_date }}.{% endif %}
+    {% if v.hosted_url %}<a href="{{ v.hosted_url }}" target="_blank" rel="noopener">View invoice ↗</a>{% endif %}</p>
+  <p class="muted tiny">It flips to Paid by itself when they pay through Stripe. Paid some other way (bank transfer, PayPal)? Mark it here:</p>
+  <form method="post" action="{{ url_for('invoice_paid', sid=sid) }}" class="row" onsubmit="return confirm('Mark this as paid?')">
+    <span class="deal-usd">$<input type="text" inputmode="numeric" name="amount" value="{{ v.total|int }}" aria-label="Amount paid"></span>
+    <button class="ghost small">Mark as paid</button></form>
+</div>
+{% elif v.status == 'paid' or st == 'Paid' %}
+<div class="card"><p>🤑 Paid ${{ '{:,.2f}'.format(v.amount_paid or v.total) }}{% if f.get('Paid At') %} {{ f['Paid At']|when }}{% endif %}.
+  {% if v.hosted_url %}<a href="{{ v.hosted_url }}" target="_blank" rel="noopener">View invoice ↗</a>{% endif %}</p></div>
+{% endif %}
+{% endif %}
+{% if pending %}<script>
+(function(){ const t=setInterval(()=>fetch('{{ url_for("invoice_status", sid=sid) }}',{headers:{'X-Fetch':'1'}}).then(r=>r.json()).then(j=>{ if(!j.pending){ clearInterval(t); location.reload(); } }).catch(()=>{}),3000); })();
+</script>{% endif %}
+{% endblock %}

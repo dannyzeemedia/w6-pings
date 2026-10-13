@@ -1002,6 +1002,162 @@ def pages_connector(token):
     return (out, 200) if out is not None else ("", 202)
 
 
+# ---------- invoices (W6 Stripe): draft from the booking, preview, plain-English changes, send, paid = converted ----------
+import invoicing
+
+
+def _invoice_context(sid):
+    """The deal, its sponsor, and the details they gave on their onboarding page (for the first draft)."""
+    f = invoicing.sale(sid)["fields"]
+    pid = (f.get("Partner") or [None])[0]
+    name = at.partner_names([pid]).get(pid) if pid else None
+    email, company = f.get("Invoice Email"), None
+    for r in at.list_records("onboard", fields=["Partner", "Answers"]):  # what they told us on page one
+        if pid and pid in (r["fields"].get("Partner") or []):
+            c = (json.loads(r["fields"].get("Answers") or "{}").get("contact") or {})
+            email = email or invoicing.email_from(c.get("invoices")) or (c.get("email") or "").lower() or None
+            company = c.get("company") or company
+    return f, pid, name, email, company
+
+
+def _sale_for_partner(pid, name):
+    """The deal's Sales row: the one their booked dates link to, else their open one, else a new one."""
+    linked = next((b["sale"] for b in bk.current_for(pid) if b.get("sale")), None) if pid else None
+    if linked:
+        return linked
+    sid = engine.booking_sale(pid, name, None)
+    for b in bk.current_for(pid):  # link their dates to it, so the invoice knows what was booked
+        at.update("promo", b["id"], {"Sale": [sid]})
+    return sid
+
+
+@app.get("/invoice/for/<pid>")
+@login_required
+def invoice_for(pid):
+    """From the onboarding page or Results: open (or start) this sponsor's invoice."""
+    if not re.match(r"rec\w+$", pid):
+        return redirect(url_for("results"))
+    return redirect(url_for("invoice_page", sid=_sale_for_partner(pid, at.partner_names([pid]).get(pid) or "Sponsor")))
+
+
+@app.get("/invoice/<sid>")
+@login_required
+def invoice_page(sid):
+    if not re.match(r"rec\w+$", sid):
+        return redirect(url_for("results"))
+    try:  # in case Stripe's paid message didn't arrive
+        invoicing.check_payments()
+    except Exception:
+        pass
+    f, pid, name, email, company = _invoice_context(sid)
+    try:
+        v = invoicing.view(sid)
+    except Exception as ex:
+        v, err = None, str(ex)
+    else:
+        err = None
+    brand = brands_for([{"id": sid, "fields": {"Partner": f.get("Partner") or []}}], "x").get(sid)
+    return render_template("invoice.html", sid=sid, f=f, name=name or f.get("Opportunity"), email=email, company=company or name,
+                           v=v, err=err, brand=brand, pending=bool((f.get("Invoice Request") or "").strip()))
+
+
+@app.post("/invoice/<sid>/prepare")
+@login_required
+def invoice_prepare(sid):
+    try:
+        invoicing.prepare(sid, email=request.form.get("email"), company=request.form.get("company"))
+    except Exception as ex:
+        flash(f"Couldn't make the draft: {ex}")
+    return redirect(url_for("invoice_page", sid=sid))
+
+
+@app.post("/invoice/<sid>/change")
+@login_required
+def invoice_change(sid):
+    ask = (request.form.get("request") or "").strip()
+    if ask:
+        at.update("sales", sid, {"Invoice Request": ask, "Invoice Note": ""})
+    return redirect(url_for("invoice_page", sid=sid))
+
+
+@app.get("/invoice/<sid>/status")
+@login_required
+def invoice_status(sid):
+    f = invoicing.sale(sid)["fields"]
+    return {"pending": bool((f.get("Invoice Request") or "").strip()), "note": f.get("Invoice Note")}
+
+
+@app.post("/invoice/<sid>/send")
+@login_required
+def invoice_send(sid):
+    try:
+        inv = invoicing.send(sid)
+        celebrate("Invoice sent! 🧾", f"${inv['total'] / 100:,.0f} is on its way to {invoicing.sale(sid)['fields'].get('Invoice Email')}. "
+                                      "It'll flip to Paid on its own when they pay.", "💸", big=True)
+    except Exception as ex:
+        flash(f"That didn't send: {ex}. Nothing went out.")
+    return redirect(url_for("invoice_page", sid=sid))
+
+
+@app.post("/invoice/<sid>/paid")
+@login_required
+def invoice_paid(sid):
+    """For a payment that came in outside Stripe (bank transfer, PayPal): mark it paid by hand."""
+    amt = re.sub(r"[^\d.]", "", request.form.get("amount") or "")
+    if invoicing.mark_paid(sid, float(amt) if amt else None, how="hand"):
+        celebrate("Paid! 🤑", "Marked as paid. It now counts as converted.", "💸", big=True)
+    return redirect(url_for("invoice_page", sid=sid))
+
+
+@app.post("/api/stripe/webhook")
+def stripe_webhook():
+    """Stripe tells us an invoice was paid: flip the deal to Paid straight away."""
+    import hmac as _h, hashlib as _hl, time as _t
+    secret, sig, body = os.environ.get("W6_STRIPE_WEBHOOK_SECRET", ""), request.headers.get("Stripe-Signature", ""), request.get_data()
+    parts = dict(x.split("=", 1) for x in sig.split(",") if "=" in x)
+    good = secret and "t" in parts and any(
+        _h.compare_digest(v, _h.new(secret.encode(), f"{parts['t']}.".encode() + body, _hl.sha256).hexdigest())
+        for k, v in (x.split("=", 1) for x in sig.split(",") if x.startswith("v1=")))
+    if not good or abs(_t.time() - int(parts.get("t", 0))) > 600:
+        return {"error": "bad signature"}, 400
+    ev = request.get_json(silent=True) or {}
+    obj = (ev.get("data") or {}).get("object") or {}
+    if ev.get("type") in ("invoice.paid", "invoice.payment_succeeded") and (obj.get("metadata") or {}).get("pings_sale"):
+        invoicing.mark_paid(obj["metadata"]["pings_sale"], obj.get("amount_paid", 0) / 100)
+    return {"ok": True}
+
+
+@app.get("/api/engine/invoices")
+def engine_invoices():
+    """Change requests waiting for the AI (the laptop job), with the draft as it stands."""
+    if not engine_auth():
+        return {"error": "unauthorised"}, 401
+    out = []
+    for r in at.list_records("sales", "AND({Invoice Request}!='', {Stripe Invoice ID}!='')", fields=["Invoice Request", "Partner"]):
+        try:
+            out.append({"sale_id": r["id"], "request": r["fields"]["Invoice Request"], "invoice": invoicing.view(r["id"])})
+        except Exception as ex:
+            out.append({"sale_id": r["id"], "request": r["fields"]["Invoice Request"], "error": str(ex)})
+    today = dt.datetime.now(ZoneInfo("America/New_York")).date()
+    return {"items": out, "today_us_eastern": today.isoformat(), "weekday": today.strftime("%A"),
+            "offer_rules": at.settings()["fields"].get("Offer Rules")}
+
+
+@app.post("/api/engine/invoices")
+def engine_invoices_apply():
+    if not engine_auth():
+        return {"error": "unauthorised"}, 401
+    results = []
+    for it in (request.get_json(force=True) or {}).get("items", []):
+        try:
+            invoicing.apply(it["sale_id"], it.get("ops") or {}, it.get("note") or "")
+            results.append({"sale_id": it["sale_id"], "ok": True})
+        except Exception as ex:
+            at.update("sales", it["sale_id"], {"Invoice Request": "", "Invoice Note": f"Couldn't do that: {ex}"[:2000]})
+            results.append({"sale_id": it["sale_id"], "ok": False, "error": str(ex)})
+    return {"results": results}
+
+
 # ---------- attachments (any email she sends) ----------
 ATTACH_FIELD = {"drafts": "Attachments", "log": "Reply Attachments"}
 ATTACH_MAX = 5 * 1024 * 1024  # Airtable's upload limit per file
@@ -1841,7 +1997,7 @@ def results():
         inw = [e for e in ev if start <= at_of(e).astimezone(et) < end]
         bw = lambda k: {(e["fields"].get("Partner") or [None])[0] or (e["fields"].get("Email") or "").lower()
                         for e in inw if e["fields"].get("Event") == k} - {""}
-        pw, cw = bw("Pencilled In"), bw("Confirmed")
+        pw, cw = bw("Pencilled In"), bw("Paid") | bw("Confirmed")
         weeks.append({"label": start.strftime("%-d %b"),
                       "sent": sum(e["fields"].get("Event") == "Sent" for e in inw),
                       "replied": sum(e["fields"].get("Event") == "Replied" for e in inw),
@@ -1855,10 +2011,15 @@ def results():
     totals["rate"] = round(100 * totals["replied"] / totals["sent"]) if totals["sent"] else None
     # the funnel by business: replied -> pencilled in -> converted (confirmed; invoices will count here once they're built)
     biz = lambda k: {(e["fields"].get("Partner") or [None])[0] or (e["fields"].get("Email") or "").lower() for e in last30 if e["fields"].get("Event") == k} - {""}
-    rb, pb, cb = biz("Replied"), biz("Pencilled In"), biz("Confirmed")
+    rb, pb, ib, cb = biz("Replied"), biz("Pencilled In"), biz("Invoiced"), biz("Paid") | biz("Confirmed")
     totals.update(replied_biz=len(rb), pencilled=len(pb), converted=len(cb),
                   pencil_rate=round(100 * len(pb) / len(rb)) if rb else None,
-                  pencilled_usd=_deal_value(pb, "Pencilled Value", False), converted_usd=_deal_value(cb, "Value", True))
+                  pencilled_usd=_deal_value(pb, "Pencilled Value", False), converted_usd=_deal_value(cb, "Value", True),
+                  invoiced=len(ib), invoiced_usd=_deal_value(ib, "Value", False))
+    try:  # in case Stripe's paid message didn't arrive
+        invoicing.check_payments()
+    except Exception:
+        pass
     totals["value_rate"] = round(100 * totals["converted_usd"] / totals["pencilled_usd"]) if totals["pencilled_usd"] else None
     dead = at.list_records("contacts", "AND({Status}!='Active', {Status}!='')", fields=["Status"])
     peak = max([w["sent"] for w in weeks] + [1])

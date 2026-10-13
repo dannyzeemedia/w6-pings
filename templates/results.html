@@ -30,20 +30,18 @@
   <div class="card"><div class="label">Pings sent</div><div class="big">{{ totals.sent }}</div><div class="muted">Including your replies</div></div>
   <div class="card"><div class="label">Replied</div><div class="big">{{ totals.replied }}</div><div class="muted">{{ (totals.rate|string + '% of pings') if totals.rate is not none else 'No pings yet' }}</div></div>
   <div class="card"><div class="label">Pencilled in</div><div class="big">{{ totals.pencilled }}</div><div class="muted">{{ '${:,}'.format(totals.pencilled_usd) }}{{ (' · ' ~ totals.pencil_rate ~ '% of businesses that replied') if totals.pencil_rate is not none else '' }}</div></div>
+  <div class="card"><div class="label">Invoiced</div><div class="big">{{ totals.invoiced }}</div><div class="muted">{{ '${:,}'.format(totals.invoiced_usd) }}</div></div>
   <div class="card"><div class="label">Converted</div><div class="big">{{ totals.converted }}</div><div class="muted">{{ '${:,}'.format(totals.converted_usd) }}{{ (' · ' ~ totals.value_rate ~ '% of the pencilled-in value') if totals.value_rate is not none else '' }}</div></div>
 </div>
-<p class="muted tiny res-note">The last 30 days. Pencilled in and converted count businesses. Converted % is the value it finally booked for against the value it was pencilled in at, so it can go over 100%. Converted means confirmed for now; it'll mean invoice sent once invoicing is built.</p>
+<p class="muted tiny res-note">The last 30 days. Pencilled in and converted count businesses. Converted % is the value it finally booked for against the value it was pencilled in at, so it can go over 100%. Converted means paid.</p>
 {% if deals %}<div class="card" id="deals">
   <h2>Bookings</h2>
-  <p class="muted tiny" style="margin:0 0 10px">When a sponsor says yes, their dates are pencilled in automatically so nobody else gets offered them. Confirm once it's locked in (paid, or terms agreed).</p>
+  <p class="muted tiny" style="margin:0 0 10px">When a sponsor says yes, their dates are pencilled in automatically so nobody else gets offered them. Then: invoice them, and it turns Paid by itself when they pay.</p>
   {% for g in deals %}<div class="deal">
-    <div class="deal-main"><strong>{{ g.sponsor }}</strong> <span class="tag {{ 'green' if g.confirmed else 'amber' }}">{{ '🤑 Confirmed' if g.confirmed else '✏️ Pencilled in' }}</span>
+    <div class="deal-main"><strong>{{ g.sponsor }}</strong> <span class="tag {{ {'paid':'green','invoiced':'','pencilled':'amber'}[g.stage] }}">{{ {'paid':'🤑 Paid','invoiced':'🧾 Invoiced','pencilled':'✏️ Pencilled in'}[g.stage] }}</span>
       <div class="muted tiny">{{ g.summary }}</div>
-      {% if g.pencilled_value %}<div class="muted tiny">Pencilled in at ${{ '{:,}'.format(g.pencilled_value) }}{% if g.confirmed and g.value and g.value != g.pencilled_value %} · booked for ${{ '{:,}'.format(g.value) }}{% endif %}</div>{% endif %}</div>
-    {% if not g.confirmed %}<form method="post" action="{{ url_for('deal_confirm') }}" class="deal-confirm">
-      <input type="hidden" name="ids" value="{{ g.ids|join(',') }}"><input type="hidden" name="sale" value="{{ g.sale or '' }}">
-      {% if g.sale %}<label class="deal-val"><span>Final value</span><span class="deal-usd">$<input type="text" inputmode="numeric" name="value" value="{{ g.value or g.pencilled_value or '' }}" aria-label="What it finally booked for"></span></label>{% endif %}
-      <button class="small">Mark confirmed</button></form>{% endif %}
+      {% if g.pencilled_value %}<div class="muted tiny">Pencilled in at ${{ '{:,}'.format(g.pencilled_value) }}{% if g.value and g.value != g.pencilled_value %} · now ${{ '{:,}'.format(g.value) }}{% endif %}</div>{% endif %}</div>
+    {% if g.partner %}<a class="btn small {{ 'ghost' if g.stage != 'pencilled' }}" href="{{ url_for('invoice_for', pid=g.partner) }}">{{ 'Invoice' if g.stage == 'pencilled' else 'View invoice' }}</a>{% endif %}
   </div>{% endfor %}
   <a class="tiny" href="{{ url_for('bookings_page') }}">Open the calendar ↗</a>
 </div>{% endif %}
@@ -85,7 +83,7 @@
   {% elif kind %}<div class="muted tiny act-count">Showing {{ recent|length }} · <a href="#" class="act-clear" onclick="event.preventDefault();const f=document.querySelector('.act-search');f.querySelector('[name=kind]').value='';f.querySelectorAll('.act-kinds a').forEach(a=>a.classList.toggle('on',!a.dataset.kind));window.dxSegs&&dxSegs();actSearch()">show everything</a></div>{% endif %}
   {% set EV = {'Sent': ('Sent', 'ev-sent'), 'Replied': ('Replied', 'ev-reply'), 'Handed To Karlie': ('Your turn', 'ev-yours'),
                 'Bounced': ('Bounced', 'ev-bad'), 'Left Company': ('Left the company', 'ev-bad'), 'Auto-Reply': ('Auto-reply', 'ev-quiet'),
-                'Unsubscribed': ('Unsubscribed', 'ev-bad'), 'Pencilled In': ('Pencilled in', 'ev-yours'), 'Confirmed': ('Confirmed', 'ev-reply'), 'Booking Changed': ('Booking changed', 'ev-yours'), 'Details Received': ('Invoice details in', 'ev-reply'), 'Assets Received': ('Onboarding done', 'ev-reply')} %}
+                'Unsubscribed': ('Unsubscribed', 'ev-bad'), 'Pencilled In': ('Pencilled in', 'ev-yours'), 'Confirmed': ('Confirmed', 'ev-reply'), 'Booking Changed': ('Booking changed', 'ev-yours'), 'Details Received': ('Invoice details in', 'ev-reply'), 'Assets Received': ('Onboarding done', 'ev-reply'), 'Invoiced': ('Invoiced', 'ev-yours'), 'Paid': ('Paid', 'ev-reply')} %}
   {% if recent %}<div class="act-list">{% for e in recent %}{% set f = e.fields %}{% set ev = EV.get(f.get('Event'), (f.get('Event'), 'ev-quiet')) %}
     {% set company = (f.get('Partner') or [''])[0] %}{% set cname = names.get(company) %}
     <details class="act-item">
