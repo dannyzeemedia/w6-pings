@@ -46,7 +46,7 @@
 </div>
 <form method="post" action="{{ url_for('invoice_send', sid=sid) }}" class="inv-send" onsubmit="return confirm('Send this ${{ '{:,.2f}'.format(v.total) }} invoice to {{ v.email }}? Stripe emails it with a link to pay.')">
   <button {{ 'disabled' if pending }}>Send invoice to {{ v.email }}</button>
-  <span class="muted tiny">Due date is set when it's sent{% if v.days_until_due %}: {{ v.days_until_due }} days{% endif %}.</span>
+  <span class="muted tiny">{% if v.due_date %}Due {{ v.due_date }}.{% elif v.days_until_due %}Due {{ v.days_until_due }} days from the day it's sent.{% else %}Due on receipt.{% endif %}</span>
 </form>
 {% elif v.status in ('open', 'uncollectible') %}
 <div class="card">

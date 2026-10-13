@@ -92,6 +92,19 @@ def _set_lines(inv_id, customer, lines):
         _post("invoiceitems", data)
 
 
+def terms(f):
+    """("days", 7) or ("date", "YYYY-MM-DD"): the payment terms Pings keeps for this deal."""
+    t = (f.get("Invoice Terms") or f"days:{DEFAULT_DAYS}").split(":", 1)
+    return (t[0], int(t[1])) if t[0] == "days" else ("date", t[1])
+
+
+def _due_on_send(f):
+    kind, val = terms(f)
+    if kind == "date":
+        return val
+    return (dt.datetime.now(ET).date() + dt.timedelta(days=val)).isoformat()
+
+
 def _due_ts(date_str):
     d = dt.date.fromisoformat(date_str)
     return int(dt.datetime(d.year, d.month, d.day, 23, 59, tzinfo=ET).timestamp())
@@ -119,7 +132,8 @@ def prepare(sid, email=None, company=None):
                              "metadata[pings_sale]": sid, "pending_invoice_items_behavior": "exclude"})
     value = f.get("Value") or f.get("Pencilled Value") or 0
     _set_lines(inv["id"], cust, lines_for(pid, value))
-    at.update("sales", sid, {"Stripe Customer ID": cust, "Stripe Invoice ID": inv["id"], "Invoice Email": email})
+    at.update("sales", sid, {"Stripe Customer ID": cust, "Stripe Invoice ID": inv["id"], "Invoice Email": email,
+                             "Invoice Terms": f"days:{DEFAULT_DAYS}"})
     return inv["id"]
 
 
@@ -131,8 +145,11 @@ def view(sid):
     inv = _get(f"invoices/{f['Stripe Invoice ID']}", **{"expand[]": ["discounts", "customer"]})
     cust = inv.get("customer") if isinstance(inv.get("customer"), dict) else {}
     # a draft on "N days" terms shows a provisional date from today; the real one is set when it's sent
-    fixed = inv.get("due_date") and not (inv["status"] == "draft" and inv.get("days_until_due") is not None)
-    due = dt.datetime.fromtimestamp(inv["due_date"], ET).date().isoformat() if fixed else None
+    kind, val = terms(f)
+    if inv["status"] == "draft":  # the real date is set when it's sent
+        due, days = (val, None) if kind == "date" else (None, val)
+    else:
+        due, days = (dt.datetime.fromtimestamp(inv["due_date"], ET).date().isoformat() if inv.get("due_date") else None), None
     return {"id": inv["id"], "status": inv["status"], "number": inv.get("number"), "customer_name": cust.get("name"),
             "email": cust.get("email"), "lines": [{"description": l.get("description"), "amount": l["amount"] / 100}
                                                   for l in inv["lines"]["data"]],
@@ -142,7 +159,7 @@ def view(sid):
                            "amount": ((d.get("coupon") or {}).get("amount_off") or 0) / 100}
                           for d in (inv.get("discounts") or []) if isinstance(d, dict)],
             "discount_total": sum(x["amount"] for x in inv.get("total_discount_amounts") or []) / 100,
-            "due_date": due, "days_until_due": inv.get("days_until_due"), "memo": inv.get("description"),
+            "due_date": due, "days_until_due": days, "memo": inv.get("description"),
             "footer": inv.get("footer"), "hosted_url": inv.get("hosted_invoice_url"), "pdf": inv.get("invoice_pdf"),
             "amount_paid": inv.get("amount_paid", 0) / 100}
 
@@ -172,9 +189,10 @@ def apply(sid, ops, note=""):
             upd["discounts[0][coupon]"] = _post("coupons", c)["id"]
     due = ops.get("due") or {}
     if due.get("date"):
-        upd.update({"due_date": _due_ts(due["date"]), "days_until_due": ""})
-    elif due.get("days"):
-        upd.update({"days_until_due": int(due["days"]), "due_date": ""})
+        dt.date.fromisoformat(due["date"])
+        at.update("sales", sid, {"Invoice Terms": f"date:{due['date']}"})
+    elif due.get("days") is not None:
+        at.update("sales", sid, {"Invoice Terms": f"days:{int(due['days'])}"})
     if ops.get("memo") is not None:
         upd["description"] = ops["memo"]
     if upd:
@@ -193,6 +211,7 @@ def send(sid):
     inv_id = f["Stripe Invoice ID"]
     inv = _get(f"invoices/{inv_id}")
     if inv["status"] == "draft":
+        _post(f"invoices/{inv_id}", {"due_date": _due_ts(_due_on_send(f))})  # the terms, counted from today
         inv = _post(f"invoices/{inv_id}/finalize", {"auto_advance": "false"})
     if inv["status"] == "open":
         inv = _post(f"invoices/{inv_id}/send", {})
