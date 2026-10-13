@@ -1261,3 +1261,6 @@ nav .navdrop-menu a::after { display: none; }
   .sp-logo { height: 20px; }
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .inv-check .chk.warn { color: #e2b04a; } }
+.inv-paper.stripe td, .inv-paper.stripe th { color: #1a1a1a !important; }
+.sp-meta td { border: 0 !important; padding: 1px 22px 1px 0 !important; font-size: 14px; }
+.sp-totals td:first-child { color: #1a1a1a !important; }
