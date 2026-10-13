@@ -251,6 +251,6 @@ def check_payments():
     done = []
     for r in at.list_records("sales", "AND({Status}='Invoiced', {Stripe Invoice ID}!='')", fields=["Stripe Invoice ID"]):
         inv = _get(f"invoices/{r['fields']['Stripe Invoice ID']}")
-        if inv.get("status") == "paid" and mark_paid(r["id"], inv.get("amount_paid", 0) / 100):
+        if inv.get("status") == "paid" and mark_paid(r["id"], (inv.get("amount_paid") or inv.get("total") or 0) / 100):
             done.append(r["id"])
     return done

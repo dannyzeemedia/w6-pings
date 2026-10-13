@@ -959,7 +959,7 @@ def onboarding_view(rid):
 
 
 # ---------- notices: pop-ups for things that arrive while she works (onboarding details, finished assets) ----------
-NOTICE_EVENTS = ("Details Received", "Assets Received")
+NOTICE_EVENTS = ("Details Received", "Assets Received", "Paid")
 
 
 @app.get("/api/notices")
@@ -1123,7 +1123,7 @@ def stripe_webhook():
     ev = request.get_json(silent=True) or {}
     obj = (ev.get("data") or {}).get("object") or {}
     if ev.get("type") in ("invoice.paid", "invoice.payment_succeeded") and (obj.get("metadata") or {}).get("pings_sale"):
-        invoicing.mark_paid(obj["metadata"]["pings_sale"], obj.get("amount_paid", 0) / 100)
+        invoicing.mark_paid(obj["metadata"]["pings_sale"], (obj.get("amount_paid") or obj.get("total") or 0) / 100)
     return {"ok": True}
 
 

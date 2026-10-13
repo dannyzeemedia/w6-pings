@@ -476,7 +476,7 @@ window.flipTheme=function(){
 // Notices: a pop-up when something arrives for her (a sponsor's invoice details, finished onboarding), linking straight to it.
 (function(){
   if(window.__notices) return; window.__notices=true;
-  const ICON={'Details Received':'🧾','Assets Received':'✅'}, TITLE={'Details Received':'Invoice details are in','Assets Received':'Onboarding finished'};
+  const ICON={'Details Received':'🧾','Assets Received':'✅','Paid':'🤑'}, TITLE={'Details Received':'Invoice details are in','Assets Received':'Onboarding finished','Paid':'Payment received'};
   const shown=new Set();
   const seen=id=>fetch('/api/notices/'+id+'/seen',{method:'POST',headers:{'X-Fetch':'1'}}).catch(()=>{});
   function show(n){
