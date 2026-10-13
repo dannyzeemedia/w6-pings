@@ -986,6 +986,22 @@ def notice_seen(rid):
     return {"ok": True}
 
 
+# ---------- "Publish to W6" connector (MCP) for the team's Claude: pages go live at partners.workspace6.io/<slug> ----------
+@app.route("/mcp/pages/<token>", methods=["GET", "POST", "DELETE"])
+def pages_connector(token):
+    import pages_mcp
+    if request.method != "POST":
+        return "", 405, {"Allow": "POST"}
+    msg = request.get_json(silent=True)
+    if isinstance(msg, list):
+        out = [r for r in (pages_mcp.handle(token, m) for m in msg) if r is not None]
+        return (json.dumps(out), 200, {"Content-Type": "application/json"}) if out else ("", 202)
+    if not isinstance(msg, dict):
+        return {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}, 400
+    out = pages_mcp.handle(token, msg)
+    return (out, 200) if out is not None else ("", 202)
+
+
 # ---------- attachments (any email she sends) ----------
 ATTACH_FIELD = {"drafts": "Attachments", "log": "Reply Attachments"}
 ATTACH_MAX = 5 * 1024 * 1024  # Airtable's upload limit per file
