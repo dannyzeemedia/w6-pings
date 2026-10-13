@@ -1389,6 +1389,10 @@ def _after_reply(rid, e, text, text_html, tid, mid, to):
                       "Email": to, "At": t, "Snippet": text[:500], "Gmail Message ID": mid,
                       "Gmail Thread ID": tid, "Draft": [draft["id"]], "Handled": True, **link})
     at.update("log", rid, {"Handled": True})
+    try:  # her reply keeps any promise to get back to them (other emails do this when they're logged; this one is logged here)
+        engine._keep_promise((e.get("Contact") or [None])[0], (to or "").split(",")[0].strip())
+    except Exception:
+        pass
     try:
         gmail.mark_done(tid)  # read + archived in her inbox, since she's dealt with it
     except Exception:
