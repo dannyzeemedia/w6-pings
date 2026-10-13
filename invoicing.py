@@ -130,7 +130,9 @@ def view(sid):
         return None
     inv = _get(f"invoices/{f['Stripe Invoice ID']}", **{"expand[]": ["discounts", "customer"]})
     cust = inv.get("customer") if isinstance(inv.get("customer"), dict) else {}
-    due = (dt.datetime.fromtimestamp(inv["due_date"], ET).date().isoformat() if inv.get("due_date") else None)
+    # a draft on "N days" terms shows a provisional date from today; the real one is set when it's sent
+    fixed = inv.get("due_date") and not (inv["status"] == "draft" and inv.get("days_until_due") is not None)
+    due = dt.datetime.fromtimestamp(inv["due_date"], ET).date().isoformat() if fixed else None
     return {"id": inv["id"], "status": inv["status"], "number": inv.get("number"), "customer_name": cust.get("name"),
             "email": cust.get("email"), "lines": [{"description": l.get("description"), "amount": l["amount"] / 100}
                                                   for l in inv["lines"]["data"]],
