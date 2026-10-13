@@ -1190,3 +1190,14 @@ nav .navdrop-menu a::after { display: none; }
 .ob-head { display: flex; align-items: center; gap: 16px; }
 .ob-head h1 { margin: 0; }
 .ob-name { display: inline-flex; align-items: center; gap: 12px; min-width: 0; }
+/* Results menu label: opens the menu, goes nowhere */
+.navdrop-btn { cursor: pointer; user-select: none; }
+.navdrop.open .navdrop-menu { opacity: 1; visibility: visible; transform: none; }
+.navdrop.open .caret { transform: rotate(180deg); }
+/* Onboarding list rows: open the sponsor, or delete the link */
+.ob-row { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.ob-row:first-child { border-top: 1px solid var(--line); }
+.ob-link { flex: 1; min-width: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 4px; text-decoration: none; color: inherit; }
+.ob-row form { margin: 0; }
+.ob-del { all: unset; cursor: pointer; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--muted); font-size: 18px; }
+.ob-del:hover { background: color-mix(in srgb, #c0392b 12%, transparent); color: #b0322a; }

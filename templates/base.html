@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=72" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=74" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -21,7 +21,7 @@
     <a href="{{ url_for('approve') }}" class="{{ 'on' if here=='approve' }}"{% if here != 'approve' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg><span class="nl"><span class="nl-long">To approve</span><span class="nl-short">Approve</span></span>{% if n_to_approve %}<span class="pill">{{ n_to_approve }}</span>{% endif %}</a>
     <a href="{{ url_for('yours') }}" class="{{ 'on' if here=='yours' }}"{% if here != 'yours' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg><span class="nl">Your turn</span>{% if n_yours %}<span class="pill">{{ n_yours }}</span>{% endif %}</a>
     <div class="navdrop">
-  <a href="{{ url_for('results') }}" class="{{ 'on' if here in ('results','bookings_page','onboarding_list','onboarding_new','onboarding_view') }}"{% if here != 'results' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="nl">Results</span><svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></a>
+  <a role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" class="navdrop-btn {{ 'on' if here in ('results','bookings_page','onboarding_list','onboarding_new','onboarding_view') }}"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="nl">Results</span><svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></a>
       <div class="navdrop-menu" role="menu">
         <a href="{{ url_for('results') }}" class="{{ 'cur' if here=='results' }}" role="menuitem">Summary</a>
         <a href="{{ url_for('bookings_page') }}" class="{{ 'cur' if here=='bookings_page' }}" role="menuitem">Bookings</a>
@@ -457,6 +457,20 @@ window.flipTheme=function(){
     });
   }
   window.dxSegs=segs; if(document.fonts&&document.fonts.ready) document.fonts.ready.then(segs); segs();
+})();
+
+// The Results menu: its label only opens the menu (hover, click or tap); the items inside are the links.
+(function(){
+  if(window.__navdrop) return; window.__navdrop=true;
+  const close=()=>document.querySelectorAll('.navdrop.open').forEach(d=>{ d.classList.remove('open'); d.querySelector('.navdrop-btn')?.setAttribute('aria-expanded','false'); });
+  document.addEventListener('click',e=>{
+    const btn=e.target.closest('.navdrop-btn');
+    if(btn){ e.preventDefault(); const d=btn.closest('.navdrop'), open=!d.classList.contains('open'); close(); if(open){ d.classList.add('open'); btn.setAttribute('aria-expanded','true'); } else btn.blur(); return; }
+    if(!e.target.closest('.navdrop-menu')) close();
+  });
+  document.addEventListener('keydown',e=>{ const btn=e.target.closest&&e.target.closest('.navdrop-btn');
+    if(btn&&(e.key==='Enter'||e.key===' ')){ e.preventDefault(); btn.click(); } if(e.key==='Escape') close(); });
+  document.addEventListener('turbo:visit',close);
 })();
 
 // Notices: a pop-up when something arrives for her (a sponsor's invoice details, finished onboarding), linking straight to it.

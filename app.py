@@ -924,6 +924,17 @@ def onboarding_create():
     return redirect(url_for("onboarding_view", rid=rec["id"]))
 
 
+@app.post("/onboarding/<rid>/delete")
+@login_required
+def onboarding_delete(rid):
+    """Delete a sponsor's onboarding link: the link stops working and their answers and files go with it."""
+    if re.match(r"rec\w+$", rid):
+        name = (at.get("onboard", rid)["fields"].get("Name") or "That link")
+        at.delete("onboard", rid)
+        flash(f"Deleted {name}. That link no longer works.")
+    return redirect(url_for("onboarding_list"))
+
+
 @app.get("/onboarding/<rid>")
 @login_required
 def onboarding_view(rid):
