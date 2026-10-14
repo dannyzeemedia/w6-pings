@@ -13,7 +13,9 @@
 <div class="card">
   <h2 style="margin-bottom:16px">When it sends</h2>
   <div class="field"><label>Daily goal (pings per day)</label><input type="number" name="Daily Ping Limit" min="0" max="200" value="{{ s.get('Daily Ping Limit', '') }}" style="max-width:140px">
-    <div class="hint">It keeps twice this many drafts waiting so you can overachieve, and will send up to twice this in a day if you approve that many. Keep the goal under about 20 so your inbox doesn't get flagged as spam.</div></div>
+    <div class="hint">It keeps twice this many drafts waiting so you can overachieve.</div></div>
+  <div class="field"><label>Most new emails sent per day</label><input type="number" name="Daily Send Cap" min="0" max="60" value="{{ s.get('Daily Send Cap', '') }}" style="max-width:140px">
+    <div class="hint">Anything you approve beyond this waits for the next day. Keep it under about 30 so your inbox doesn't get flagged as spam. Answers to people who wrote to you skip the line and always go out the same or next business day.</div></div>
   <div class="field"><label>Days</label><div class="days">
     {% for d in days %}<label><input type="checkbox" name="day_{{ d }}" {{ 'checked' if d in s.get('Send Days', []) }}><span>{{ d }}</span></label>{% endfor %}
   </div></div>

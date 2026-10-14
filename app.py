@@ -511,7 +511,7 @@ def _eta(d):
         w = engine.World()  # settings only; tables load lazily and we don't touch them here
         cid = (d.get("Contact") or [None])[0]
         contact = at.get("contacts", cid) if cid else None
-        t = engine.next_send_time(w, contact)
+        t = engine.next_send_time(w, contact, hot=bool(engine.hot_threads([d.get("Gmail Thread ID")])))
         if not t:
             return "It'll go out once there's a send day and time set on the Rules page.", None
         tz = w.tz_for(contact)
@@ -1646,7 +1646,7 @@ def yours_reply(rid):
 
 
 # ---------- rules ----------
-NUM_FIELDS = ["Daily Ping Limit", "Send Window Start (Hour)", "Send Window End (Hour)", "Max Follow-ups",
+NUM_FIELDS = ["Daily Ping Limit", "Daily Send Cap", "Send Window Start (Hour)", "Send Window End (Hour)", "Max Follow-ups",
               "Follow-up 1 After (Days)", "Follow-up 2 After (Days)", "Follow-up 3 After (Days)",
               "Days Before Re-pitching A Company", "Rescue Tries Per Company", "Rest After No Reply (Days)",
               "Stalled Deal After (Days)", "Stalled Deal Nudges Per Day"]

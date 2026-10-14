@@ -433,15 +433,36 @@ def away(contact):
     return u if u and u > dt.date.today().isoformat() else None
 
 
-def sendable_now(w, contact):
-    if away(contact):
+def sendable_now(w, contact, hot=False):
+    """hot = an answer to someone who wrote to us: any day, plain business hours, so it never waits more than a night."""
+    if away(contact) and not hot:
         return False  # their auto-reply said they're away: hold it until they're back
     tz = w.tz_for(contact)
     t = now().astimezone(tz)
-    if t.strftime("%a") not in (w.s.get("Send Days") or []):
+    if not hot and t.strftime("%a") not in (w.s.get("Send Days") or []):
         return False
-    lo, hi = _window(w, contact)
+    lo, hi = _hot_window(w) if hot else _window(w, contact)
     return lo <= t.hour * 60 + t.minute < hi
+
+
+def _hot_window(w):
+    return (w.s.get("Send Window Start (Hour)") or 8) * 60, (w.s.get("Send Window End (Hour)") or 17) * 60
+
+
+def hot_threads(tids):
+    """Threads where they wrote last: an email in one of these is an answer to a warm lead, so it jumps the queue."""
+    tids = {t for t in tids if t}
+    if not tids:
+        return set()
+    last = {}
+    since = (now() - dt.timedelta(days=60)).strftime("%Y-%m-%d")
+    for r in at.list_records("log", f"AND({{Gmail Thread ID}}!='', IS_AFTER({{At}}, '{since}'), OR({{Direction}}='In', {{Direction}}='Out'))",
+                             fields=["Gmail Thread ID", "Direction", "At"]):
+        f = r["fields"]
+        t = f.get("Gmail Thread ID")
+        if t in tids and (f.get("At") or "") > last.get(t, ("",))[0]:
+            last[t] = (f.get("At") or "", f.get("Direction"))
+    return {t for t, (_, d) in last.items() if d == "In"}
 
 
 def sent_today(w):
@@ -461,8 +482,10 @@ def auto_ok(mode, kind):
 
 
 def daily_cap(s):
-    """The goal is what Karlie aims for; she can overachieve up to twice that. Hard ceiling protects the inbox."""
-    return min(60, 2 * (s.get("Daily Ping Limit") or 0))
+    """Most new pitches and follow-ups sent in a day (the goal is separate: it's what Karlie aims to approve).
+    Hard ceiling protects the inbox. Answers to warm leads aren't held back by this."""
+    cap = s.get("Daily Send Cap")
+    return min(60, cap if cap is not None else 2 * (s.get("Daily Ping Limit") or 0))
 
 
 def send_due(w, max_sends=SENDS_PER_TICK):
@@ -471,16 +494,19 @@ def send_due(w, max_sends=SENDS_PER_TICK):
         return {"paused": True}
     limit = daily_cap(w.s)
     done = sent_today(w)
-    if done >= limit:
-        return {"limit_reached": done}
     mode = w.s.get("Approval Mode") or "Approve Every Draft"
     cands = at.list_records("drafts", "OR({Status}='Approved', {Status}='Pending Approval')", sort=[("Scheduled For", "asc")])
     cands = [d for d in cands if d["fields"].get("Status") == "Approved" or auto_ok(mode, d["fields"].get("Kind"))]
     if not cands:
         return {"sent": [], "nothing_approved": True, "sent_today": done, "limit": limit}
-    sent, skipped = [], []
+    hot = hot_threads(d["fields"].get("Gmail Thread ID") for d in cands)
+    cands.sort(key=lambda d: d["fields"].get("Gmail Thread ID") not in hot)  # answers to warm leads first (stable: keeps the schedule order)
+    sent, skipped, cold = [], [], 0
     for d in cands:
         f = d["fields"]
+        is_hot = f.get("Gmail Thread ID") in hot
+        if not is_hot and (done + len(sent) >= limit or cold >= max_sends):
+            break
         if f.get("Status") == "Pending Approval" and not auto_ok(mode, f.get("Kind")):
             continue
         if f.get("Scheduled For") and pts(f["Scheduled For"]) > now():
@@ -496,7 +522,7 @@ def send_due(w, max_sends=SENDS_PER_TICK):
             at.update("drafts", d["id"], {"Status": "Cancelled", "Replan Note": why, "Decided At": iso(now())})
             skipped.append(why)
             continue
-        if not sendable_now(w, contact):
+        if not sendable_now(w, contact, hot=is_hot):
             continue
         try:
             mid, tid = _send(w, d, contact)
@@ -505,8 +531,7 @@ def send_due(w, max_sends=SENDS_PER_TICK):
             skipped.append(f"failed: {ex}")
             continue
         sent.append(f.get("To Email"))
-        if len(sent) >= max_sends or done + len(sent) >= limit:
-            break
+        cold += not is_hot
     return {"sent": sent, "skipped": skipped, "sent_today": done + len(sent), "limit": limit}
 
 
@@ -559,16 +584,27 @@ def _touch_sale(w, pid, sale_id, t):
     return r["id"]
 
 
-def next_send_time(w, contact, not_before=None):
+def next_send_time(w, contact, not_before=None, hot=False, ahead=None):
     """Earliest moment the sender would actually send to this person: their local window, allowed days,
-    the daily limit, and emails already approved ahead of it. Returns a UTC datetime (or None if no window)."""
+    the daily limit, and emails already approved ahead of it. Returns a UTC datetime (or None if no window).
+    hot (an answer to someone who wrote to us) skips the queue: the next tick inside business hours, any day."""
     tz = w.tz_for(contact)
+    if hot:
+        lo, hi = _hot_window(w)
+        t = max(now(), not_before or now()) + dt.timedelta(minutes=10)
+        for _ in range(24 * 6 * 2):
+            local = t.astimezone(tz)
+            if lo <= local.hour * 60 + local.minute < hi:
+                return t
+            t += dt.timedelta(minutes=10)
+        return None
     lo, hi = _window(w, contact)
     days = w.s.get("Send Days") or []
     limit = daily_cap(w.s)
     if not days or not limit or hi <= lo:
         return None
-    ahead = len([d for d in at.list_records("drafts", "AND({Status}='Approved', {Remix Request}='')", fields=["Subject"])])
+    if ahead is None:
+        ahead = len([d for d in at.list_records("drafts", "AND({Status}='Approved', {Remix Request}='')", fields=["Subject"])])
     t = max(now(), not_before or now()) + dt.timedelta(minutes=10)  # next tick
     done_today = sent_today(w)
     for _ in range(24 * 6 * 14):  # walk forward in 10-minute ticks, up to two weeks
