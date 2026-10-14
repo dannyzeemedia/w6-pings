@@ -144,6 +144,9 @@ _trefresh = set()
 def thread(tid, max_age=90):
     """Messages oldest-first: from, is_me, ts, body (quoted history stripped), message-id header. Cached briefly."""
     import time as _time
+    if len(_tcache) > 300:  # copies older than 15 minutes are never used again
+        for k in [k for k, v in list(_tcache.items()) if _time.time() - v[0] > 900]:
+            _tcache.pop(k, None)
     hit = _tcache.get(tid)
     if hit and _time.time() - hit[0] < max_age:
         return hit[1]

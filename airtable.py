@@ -114,6 +114,20 @@ def _forget(tbl):
     _gen[tbl] = _gen.get(tbl, 0) + 1  # only this table's in-flight refreshes are now out of date
 
 
+_last_prune = [0.0]
+
+
+def _prune():
+    """Drop copies too old to ever be answered from again. Many lookups carry the current time in their filter, so each
+    is a new key; without this the saved copies pile up until the server runs out of memory (it did, every ~6 hours)."""
+    t = time.time()
+    if t - _last_prune[0] < 60:
+        return
+    _last_prune[0] = t
+    for k in [k for k, v in list(_cache.items()) if t - v[0] > STALE_OK]:
+        _cache.pop(k, None)
+
+
 def _fetch(method, url, key, gen=None, **kw):
     for attempt in range(4):
         r = requests.request(method, url, headers=_h(), timeout=30, **kw)
@@ -125,6 +139,7 @@ def _fetch(method, url, key, gen=None, **kw):
         j = r.json()
         if method == "GET" and key is not None and (gen is None or gen == _gen.get(_tbl(url), 0)):
             _cache[key] = (time.time(), j)
+            _prune()
         return j
     r.raise_for_status()
 
