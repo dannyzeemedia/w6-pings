@@ -18,19 +18,19 @@
 
 <div class="card">
   <h2>Bounce rate, week by week</h2>
-  <div class="bars dl-bars">
+  <div class="bars dl-bars" style="grid-template-columns:repeat({{ weeks|length }},1fr)">
     <div class="dl-goal" style="bottom:{{ (100 * 2 / bpeak)|round }}%"><span>2% goal</span></div>
     {% for w in weeks %}<div class="bar"><div class="s dl-b {{ 'over' if (w.bounce or 0) >= 2 }}" style="height:{{ (100 * (w.bounce or 0) / bpeak)|round }}%">{% if w.sent %}<span class="dv">{{ w.bounce|string|replace('.0','') }}%</span>{% endif %}
       <div class="tip">Week of {{ w.label }}: {{ w.bounced }} bounced of {{ w.sent }} sent</div></div></div>{% endfor %}
   </div>
-  <div class="bar-labels">{% for w in weeks %}<div>{{ w.label }}</div>{% endfor %}</div>
+  <div class="bar-labels" style="grid-template-columns:repeat({{ weeks|length }},1fr)">{% for w in weeks %}<div>{{ w.label }}</div>{% endfor %}</div>
 
   <h3 class="chart-sub">Emails sent and reply rate</h3>
-  <div class="bars">
+  <div class="bars" style="grid-template-columns:repeat({{ weeks|length }},1fr)">
     {% for w in weeks %}<div class="bar"><div class="s" style="height:{{ (100 * w.sent / peak)|round }}%">{% if w.sent %}<span class="dv">{{ w.sent }}</span>{% endif %}
       <div class="tip">Week of {{ w.label }}: {{ w.sent }} sent{% if w.reply is not none %}, {{ w.reply }}% of people pitched replied{% endif %}{% if w.auto %}, {{ w.auto }} out-of-office{% endif %}</div></div></div>{% endfor %}
   </div>
-  <div class="bar-labels">{% for w in weeks %}<div>{{ w.label }}<br><span class="muted">{{ (w.reply|string + '% replied') if w.reply is not none else '' }}</span></div>{% endfor %}</div>
+  <div class="bar-labels" style="grid-template-columns:repeat({{ weeks|length }},1fr)">{% for w in weeks %}<div>{{ w.label }}<br><span class="muted">{{ (w.reply|string + '% replied') if w.reply is not none else '' }}</span></div>{% endfor %}</div>
   <div class="muted tiny" style="margin-top:6px">Weeks run Monday to Sunday, US Eastern time. Hover a week for the detail.</div>
 </div>
 

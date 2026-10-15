@@ -1177,6 +1177,8 @@ def deliverability():
         start = first + dt.timedelta(days=7 * (7 - w))
         st = stats([e for e in ev if start <= at_of(e).astimezone(et) < start + dt.timedelta(days=7)])
         weeks.append(dict(st, label=start.strftime("%-d %b")))
+    while len(weeks) > 4 and not weeks[0]["sent"]:
+        weeks.pop(0)  # before Pings started sending
     cut = now_utc() - dt.timedelta(days=30)
     now30 = stats([e for e in ev if at_of(e) > cut])
     prev30 = stats([e for e in ev if cut - dt.timedelta(days=30) < at_of(e) <= cut])
