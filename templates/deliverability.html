@@ -13,7 +13,7 @@
   <div class="card"><div class="label">Bounce rate</div><div class="big">{{ now.bounce if now.bounce is not none else '–' }}%</div><div class="muted">{{ now.bounced }} of {{ now.sent }} emails · goal under 2%</div>{{ trend(now.bounce, prev.bounce, True, ' pts') }}</div>
   <div class="card"><div class="label">Reply rate</div><div class="big">{{ now.reply if now.reply is not none else '–' }}%</div><div class="muted">of people pitched who wrote back</div>{{ trend(now.reply, prev.reply, False, ' pts') }}</div>
   <div class="card"><div class="label">Emails sent</div><div class="big">{{ now.sent }}</div><div class="muted">last 30 days, including Karlie's replies</div>{{ trend(now.sent, prev.sent) }}</div>
-  <div class="card"><div class="label">Dead addresses found</div><div class="big">{{ now.gone }}</div><div class="muted">bounced or "no longer here"</div>{{ trend(now.gone, prev.gone, True) }}</div>
+  <div class="card"><div class="label">Dead addresses</div><div class="big">{{ now.gone }}</div><div class="muted">bounced or "no longer here"</div>{{ trend(now.gone, prev.gone, True) }}</div>
 </div>
 
 <div class="card">
