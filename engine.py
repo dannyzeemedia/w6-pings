@@ -543,6 +543,12 @@ def send_due(w, max_sends=SENDS_PER_TICK):
             continue
         if not sendable_now(w, contact, hot=is_hot):
             continue
+        if not is_hot:  # someone who just wrote to us is clearly reachable
+            dead = address_problem((f.get("To Email") or "").lower(), contact)
+            if dead:
+                _mark_dead(w, d, contact, dead)
+                skipped.append(f"dead address: {dead}")
+                continue
         try:
             mid, tid = _send(w, d, contact)
         except Exception as ex:
@@ -552,6 +558,57 @@ def send_due(w, max_sends=SENDS_PER_TICK):
         sent.append(f.get("To Email"))
         cold += not is_hot
     return {"sent": sent, "skipped": skipped, "sent_today": done + len(sent), "limit": limit}
+
+
+RECHECK_EMAIL_DAYS = 60
+
+
+def _has_mail_server(domain):
+    try:
+        j = requests.get("https://dns.google/resolve", params={"name": domain, "type": "MX"}, timeout=8).json()
+    except Exception:
+        return True  # can't tell: don't hold the email back
+    if j.get("Status") == 3:
+        return False  # the domain doesn't exist any more
+    return bool(j.get("Answer")) or j.get("Status") != 0 or _has_a(domain)
+
+
+def _has_a(domain):
+    try:
+        return bool(requests.get("https://dns.google/resolve", params={"name": domain, "type": "A"}, timeout=8).json().get("Answer"))
+    except Exception:
+        return True
+
+
+def address_problem(email, contact=None):
+    """Before an email goes out: is this address dead? A bounce hurts workspace6.io with every inbox, whoever's fault it
+    is, so catch it first. Checked at most every 60 days per contact. Returns why it's dead, or None."""
+    cf = (contact or {}).get("fields", {})
+    last = cf.get("Email Checked")
+    if last and (dt.date.today() - dt.date.fromisoformat(last[:10])).days < RECHECK_EMAIL_DAYS:
+        return None
+    dom = email.split("@")[-1].lower()
+    if not _has_mail_server(dom):
+        return f"{dom} has no mail server any more, so the company looks closed."
+    try:
+        ok, why = apollo.still_there(email)
+    except Exception:
+        ok, why = True, None  # Apollo down: don't block sending on it
+    if ok and contact:
+        at.update("contacts", contact["id"], {"Email Checked": dt.date.today().isoformat()})
+    return None if ok else why
+
+
+def _mark_dead(w, d, contact, why):
+    f = d["fields"]
+    to = (f.get("To Email") or "").lower()
+    pid = (f.get("Partner") or [None])[0]
+    if contact and contact["fields"].get("Status") in (None, "Active"):
+        at.update("contacts", contact["id"], {"Status": "Left Company", "Dead Reason": f"Caught before sending: {why}"})
+    log("Left Company", "Out", "System", to, partner=pid, contact=contact and contact["id"],
+        summary=f"Caught before sending: {why} Not sent, so it didn't count against workspace6.io.", handled=True, reviewed=True)
+    at.update("drafts", d["id"], {"Status": "Cancelled", "Replan Note": f"Not sent: {why}", "Decided At": iso(now())})
+    _cancel_pending(w, None, to, f"Not sent: {why}")  # just this address: other people at the company are fine
 
 
 def _send(w, d, contact):

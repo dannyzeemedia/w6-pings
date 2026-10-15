@@ -1171,7 +1171,8 @@ def deliverability():
         return {"sent": len(sent), "bounced": bounced, "bounce": round(100 * bounced / len(sent), 1) if sent else None,
                 "replied": len(replied), "reply": round(100 * len(replied & pitched) / len(pitched)) if pitched else None,
                 "gone": bounced + sum(e["fields"].get("Event") == "Left Company" for e in rows),
-                "auto": sum(e["fields"].get("Event") == "Auto-Reply" for e in rows)}
+                "auto": sum(e["fields"].get("Event") == "Auto-Reply" for e in rows),
+                "caught": sum(e["fields"].get("Event") == "Left Company" and e["fields"].get("By") == "System" for e in rows)}
     weeks = []
     for w in range(7, -1, -1):
         start = first + dt.timedelta(days=7 * (7 - w))

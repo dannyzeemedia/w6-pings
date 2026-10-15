@@ -13,7 +13,7 @@
   <div class="card"><div class="label">Bounce rate</div><div class="big">{{ now.bounce if now.bounce is not none else '–' }}%</div><div class="muted">{{ now.bounced }} of {{ now.sent }} emails · goal under 2%</div>{{ trend(now.bounce, prev.bounce, True, ' pts') }}</div>
   <div class="card"><div class="label">Reply rate</div><div class="big">{{ now.reply if now.reply is not none else '–' }}%</div><div class="muted">of people pitched who wrote back</div>{{ trend(now.reply, prev.reply, False, ' pts') }}</div>
   <div class="card"><div class="label">Emails sent</div><div class="big">{{ now.sent }}</div><div class="muted">last 30 days, including Karlie's replies</div>{{ trend(now.sent, prev.sent) }}</div>
-  <div class="card"><div class="label">Dead addresses</div><div class="big">{{ now.gone }}</div><div class="muted">bounced or "no longer here"</div>{{ trend(now.gone, prev.gone, True) }}</div>
+  <div class="card"><div class="label">Dead addresses</div><div class="big">{{ now.gone }}</div><div class="muted">{% if now.caught %}{{ now.caught }} caught before sending · {% endif %}bounced or "no longer here"</div>{{ trend(now.gone, prev.gone, True) }}</div>
 </div>
 
 <div class="card">
@@ -44,7 +44,7 @@
 
 <div class="card">
   <h2>Recent bounces</h2>
-  <p class="muted tiny" style="margin:0 0 10px">Almost always an old address: the person has left, or the company has closed. That isn't Karlie's fault, but inboxes still count it against workspace6.io.</p>
+  <p class="muted tiny" style="margin:0 0 10px">Almost always an old address: the person has left, or the company has closed. That isn't Karlie's fault, but inboxes still count it against workspace6.io. So before anything sends, Pings now checks the person still works there (Apollo) and the company still has email. Dead ones are stopped and never count as a bounce. They show here as "Caught before sending".</p>
   {% for b in bounces %}<div class="dl-bounce"><span class="muted tiny">{{ b.get('At')|when }}</span><strong>{{ b.get('Email') }}</strong><span class="muted">{{ b.get('Summary') }}</span></div>{% endfor %}
   {% if not bounces %}<p class="muted">No bounces. 🎉</p>{% endif %}
 </div>
