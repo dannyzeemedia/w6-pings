@@ -1285,7 +1285,7 @@ nav .navdrop-menu a::after { display: none; }
 .dl-health { display: grid; gap: 4px; border-left: 5px solid var(--green); }
 .dl-health.dl-watch { border-left-color: #eda100; }
 .dl-health.dl-risk { border-left-color: #d6453d; }
-.grid.res-stats.dl-stats { grid-template-columns: repeat(4, 1fr); }
+.grid.res-stats.dl-stats { grid-template-columns: repeat(4, 1fr) !important; }
 .dl-trend { display: block; font-size: 12px; margin-top: 6px; }
 .dl-trend.good { color: var(--green); }
 .dl-trend.bad { color: #b0322a; }
@@ -1301,4 +1301,4 @@ nav .navdrop-menu a::after { display: none; }
 .dl-dot { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 12px; color: #fff; background: var(--green); }
 .dl-dot.warn { background: #eda100; }
 .dl-dot.bad { background: #d6453d; }
-@media (max-width: 640px) { .grid.res-stats.dl-stats { grid-template-columns: 1fr 1fr; } .dl-bounce { grid-template-columns: 1fr; gap: 2px; } }
+@media (max-width: 640px) { .grid.res-stats.dl-stats { grid-template-columns: 1fr 1fr !important; } .dl-bounce { grid-template-columns: 1fr; gap: 2px; } }
