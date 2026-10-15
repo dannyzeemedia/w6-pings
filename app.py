@@ -94,7 +94,6 @@ def parse_ts(s):
     return dt.datetime.fromisoformat(s.replace("Z", "+00:00")) if s else None
 
 
-@app.template_filter("when")
 def view_tz():
     """The timezone of whoever is looking: their browser reports it (a cookie the page keeps current), so every time on
     screen reads in their own local time, wherever they are. Display only: when things actually send never changes."""
@@ -111,6 +110,7 @@ def tz_name(tz=None):
     return tz.key.split("/")[-1].replace("_", " ")
 
 
+@app.template_filter("when")
 def when(s):
     t = parse_ts(s) if isinstance(s, str) else s
     if not t:
