@@ -511,7 +511,7 @@ def _eta(d):
         w = engine.World()  # settings only; tables load lazily and we don't touch them here
         cid = (d.get("Contact") or [None])[0]
         contact = at.get("contacts", cid) if cid else None
-        t = engine.next_send_time(w, contact, hot=bool(engine.hot_threads([d.get("Gmail Thread ID")])))
+        t = engine.next_send_time(w, contact, hot=engine.is_priority(w, d))
         if not t:
             return "It'll go out once there's a send day and time set on the Rules page.", None
         tz = w.tz_for(contact)

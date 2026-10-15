@@ -455,6 +455,16 @@ def _hot_window(w):
     return (w.s.get("Send Window Start (Hour)") or 8) * 60, (w.s.get("Send Window End (Hour)") or 17) * 60
 
 
+def about_won_deal(w, f):
+    """An email about a deal they've already bought (like the invoice heads-up): it goes first, never waits behind pitches."""
+    sid = (f.get("Sale") or [None])[0]
+    return bool(sid) and w.sales.get(sid, {}).get("fields", {}).get("Status") in WON
+
+
+def is_priority(w, f):
+    return about_won_deal(w, f) or bool(hot_threads([f.get("Gmail Thread ID")]))
+
+
 def hot_threads(tids):
     """Threads where they wrote last: an email in one of these is an answer to a warm lead, so it jumps the queue."""
     tids = {t for t in tids if t}
@@ -505,12 +515,13 @@ def send_due(w, max_sends=SENDS_PER_TICK):
     cands = [d for d in cands if d["fields"].get("Status") == "Approved" or auto_ok(mode, d["fields"].get("Kind"))]
     if not cands:
         return {"sent": [], "nothing_approved": True, "sent_today": done, "limit": limit}
-    hot = hot_threads(d["fields"].get("Gmail Thread ID") for d in cands)
-    cands.sort(key=lambda d: d["fields"].get("Gmail Thread ID") not in hot)  # answers to warm leads first (stable: keeps the schedule order)
+    hot_t = hot_threads(d["fields"].get("Gmail Thread ID") for d in cands)
+    hot = {d["id"] for d in cands if d["fields"].get("Gmail Thread ID") in hot_t or about_won_deal(w, d["fields"])}
+    cands.sort(key=lambda d: d["id"] not in hot)  # answers to warm leads and paying sponsors first (stable: keeps the schedule order)
     sent, skipped, cold = [], [], 0
     for d in cands:
         f = d["fields"]
-        is_hot = f.get("Gmail Thread ID") in hot
+        is_hot = d["id"] in hot
         if not is_hot and (done + len(sent) >= limit or cold >= max_sends):
             break
         if f.get("Status") == "Pending Approval" and not auto_ok(mode, f.get("Kind")):
