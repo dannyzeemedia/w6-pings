@@ -287,19 +287,66 @@ def mark_paid(sid, amount=None, how="Stripe"):
             at.update("promo", b["id"], {"Status": "🤑 " + bk.TYPES[b["kind"]]["status"]})
     name = at.partner_names([pid]).get(pid) if pid else f.get("Opportunity")
     at.create("log", {"Event": "Paid", "Direction": "In", "By": "Them", "At": now, "Handled": True,
-                      "Summary": f"{name} paid ${amt:,}" + (" (marked by hand)" if how != "Stripe" else ""),
+                      "Summary": f"{name} paid ${amt:,}! The deal's confirmed and every date is locked in. Nice work 🎉"
+                                 + (" (marked by hand)" if how != "Stripe" else ""),
                       "Link": f"/invoice/{sid}", **({"Partner": [pid]} if pid else {})}, typecast=True)
+    _slack(f"\U0001f911 *{name} just paid ${amt:,}!* Deal confirmed, dates locked in. Huge work <@{ob_karlie()}> \U0001f389"
+           f"\n{_public()}/invoice/{sid}")
     return True
 
 
 def check_payments():
-    """Fallback to the webhook: any Invoiced deal whose Stripe invoice is now paid."""
+    """Runs every few minutes (and as a fallback to Stripe's paid message): any invoiced deal that's now paid gets
+    confirmed with a celebration; one past its due date and still unpaid goes Overdue, with a heads-up to Karlie."""
     done = []
-    for r in at.list_records("sales", "AND({Status}='Invoiced', {Stripe Invoice ID}!='')", fields=["Stripe Invoice ID"]):
+    today = dt.datetime.now(ET).date()
+    for r in at.list_records("sales", "AND(OR({Status}='Invoiced', {Status}='Overdue'), {Stripe Invoice ID}!='')",
+                             fields=["Stripe Invoice ID", "Status", "Partner", "Opportunity", "Value"]):
         inv = _get(f"invoices/{r['fields']['Stripe Invoice ID']}")
-        if inv.get("status") == "paid" and mark_paid(r["id"], (inv.get("amount_paid") or inv.get("total") or 0) / 100):
-            done.append(r["id"])
+        if inv.get("status") == "paid":
+            if mark_paid(r["id"], (inv.get("amount_paid") or inv.get("total") or 0) / 100):
+                done.append(("paid", r["id"]))
+        elif (r["fields"].get("Status") == "Invoiced" and inv.get("status") == "open" and inv.get("due_date")
+              and dt.datetime.fromtimestamp(inv["due_date"], ET).date() < today):
+            mark_overdue(r["id"], inv)
+            done.append(("overdue", r["id"]))
     return done
+
+
+def mark_overdue(sid, inv):
+    f = sale(sid)["fields"]
+    pid = (f.get("Partner") or [None])[0]
+    name = (at.partner_names([pid]).get(pid) if pid else None) or f.get("Opportunity") or "A sponsor"
+    due = dt.datetime.fromtimestamp(inv["due_date"], ET).strftime("%a %-d %b")
+    amt = int((inv.get("amount_remaining") or inv.get("total") or 0) / 100)
+    now = dt.datetime.now(dt.timezone.utc).isoformat()
+    at.update("sales", sid, {"Status": "Overdue"})
+    at.create("log", {"Event": "Overdue", "Direction": "Out", "By": "System", "At": now, "Handled": True,
+                      "Summary": f"{name} hasn't paid yet. ${amt:,} was due {due}. Worth a friendly nudge.",
+                      "Link": f"/invoice/{sid}", **({"Partner": [pid]} if pid else {})}, typecast=True)
+    _slack(f"\u23f0 *{name}*'s invoice is overdue <@{ob_karlie()}>. ${amt:,} was due {due}.\n{_public()}/invoice/{sid}")
+
+
+def ob_karlie():
+    import onboarding
+    return onboarding.KARLIE_SLACK_ID
+
+
+def _public():
+    import onboarding
+    return onboarding.PUBLIC_BASE
+
+
+def _slack(text):
+    tok = os.environ.get("SLACK_BOT_TOKEN")
+    if not tok:
+        return
+    import onboarding
+    try:
+        requests.post("https://slack.com/api/chat.postMessage", headers={"Authorization": f"Bearer {tok}"}, timeout=15,
+                      json={"channel": onboarding.W6_TEAM_CHANNEL, "text": text, "unfurl_links": False})
+    except Exception:
+        pass
 
 
 def preflight(sid, v=None):

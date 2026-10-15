@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=gambetta@400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=83" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=84" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -476,7 +476,7 @@ window.flipTheme=function(){
 // Notices: a pop-up when something arrives for her (a sponsor's invoice details, finished onboarding), linking straight to it.
 (function(){
   if(window.__notices) return; window.__notices=true;
-  const ICON={'Details Received':'🧾','Assets Received':'✅','Paid':'🤑'}, TITLE={'Details Received':'Invoice details are in','Assets Received':'Onboarding finished','Paid':'Payment received'};
+  const ICON={'Details Received':'🧾','Assets Received':'✅','Paid':'🤑','Overdue':'⏰'}, TITLE={'Details Received':'Invoice details are in','Assets Received':'Onboarding finished','Paid':'They paid! 🎉','Overdue':'An invoice is overdue'};
   const shown=new Set();
   const seen=id=>fetch('/api/notices/'+id+'/seen',{method:'POST',headers:{'X-Fetch':'1'}}).catch(()=>{});
   function show(n){

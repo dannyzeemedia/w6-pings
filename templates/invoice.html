@@ -2,7 +2,7 @@
 {% from "_brand.html" import chip %}{% block body %}
 {% set st = f.get('Status') %}
 <div class="head ob-head">{{ chip(brand, name, 52) }}<div><h1>{{ name }}</h1>
-  <p>{% if st == 'Paid' %}🤑 Paid{% elif st == 'Invoiced' %}🧾 Invoiced, waiting for payment{% elif v %}✏️ Draft invoice, not sent{% else %}No invoice yet{% endif %}
+  <p>{% if st == 'Paid' %}🤑 Paid{% elif st == 'Invoiced' %}🧾 Invoiced, waiting for payment{% elif st == 'Overdue' %}⏰ Overdue: past its due date and not paid yet{% elif v %}✏️ Draft invoice, not sent{% else %}No invoice yet{% endif %}
   {% if f.get('Value') %} · ${{ '{:,}'.format(f['Value']) }}{% endif %}</p></div></div>
 {% if err %}<div class="card"><p>⚠️ {{ err }}</p></div>{% endif %}
 

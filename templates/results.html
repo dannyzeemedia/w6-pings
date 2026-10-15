@@ -38,7 +38,7 @@
   <h2>Bookings</h2>
   <p class="muted tiny" style="margin:0 0 10px">When a sponsor says yes, their dates are pencilled in automatically so nobody else gets offered them. Then: invoice them, and it turns Paid by itself when they pay.</p>
   {% for g in deals %}<div class="deal">
-    <div class="deal-main"><strong>{{ g.sponsor }}</strong> <span class="tag {{ {'paid':'green','invoiced':'','pencilled':'amber'}[g.stage] }}">{{ {'paid':'🤑 Paid','invoiced':'🧾 Invoiced','pencilled':'✏️ Pencilled in'}[g.stage] }}</span>
+    <div class="deal-main"><strong>{{ g.sponsor }}</strong> <span class="tag {{ {'paid':'green','invoiced':'','overdue':'red','pencilled':'amber'}[g.stage] }}">{{ {'paid':'🤑 Paid','invoiced':'🧾 Invoiced','overdue':'⏰ Overdue','pencilled':'✏️ Pencilled in'}[g.stage] }}</span>
       <div class="muted tiny">{{ g.summary }}</div>
       {% if g.pencilled_value %}<div class="muted tiny">Pencilled in at ${{ '{:,}'.format(g.pencilled_value) }}{% if g.value and g.value != g.pencilled_value %} · now ${{ '{:,}'.format(g.value) }}{% endif %}</div>{% endif %}</div>
     {% if g.partner %}<a class="btn small {{ 'ghost' if g.stage != 'pencilled' }}" href="{{ url_for('invoice_for', pid=g.partner) }}">{{ 'Invoice' if g.stage == 'pencilled' else 'View invoice' }}</a>{% endif %}

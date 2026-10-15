@@ -439,12 +439,12 @@ def deals(days_back=30, days_ahead=180):
         g["summary"] = describe([(b["kind"], b["date"], "TBC" if "date to confirm" in b["name"] else "") for b in g["rows"]])
         g["next"] = min((b["date"] for b in g["upcoming"]), default=None)
         sf = at.get("sales", g["sale"])["fields"] if g["sale"] else {}
-        g["stage"] = "paid" if (sf.get("Status") == "Paid" or g["confirmed"]) else ("invoiced" if sf.get("Status") == "Invoiced" else "pencilled")
+        g["stage"] = "paid" if (sf.get("Status") == "Paid" or g["confirmed"]) else ("overdue" if sf.get("Status") == "Overdue" else "invoiced" if sf.get("Status") == "Invoiced" else "pencilled")
         g["pencilled_value"] = int(sf.get("Pencilled Value") or sf.get("Value") or 0) or None
         g["value"] = int(sf.get("Value") or 0) or None
         if g["upcoming"]:
             res.append(g)
-    order = {"pencilled": 0, "invoiced": 1, "paid": 2}
+    order = {"pencilled": 0, "overdue": 1, "invoiced": 2, "paid": 3}
     return sorted(res, key=lambda g: (order.get(g.get("stage"), 0), g["next"] or today))
 
 

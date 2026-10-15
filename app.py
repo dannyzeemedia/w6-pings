@@ -959,7 +959,7 @@ def onboarding_view(rid):
 
 
 # ---------- notices: pop-ups for things that arrive while she works (onboarding details, finished assets) ----------
-NOTICE_EVENTS = ("Details Received", "Assets Received", "Paid")
+NOTICE_EVENTS = ("Details Received", "Assets Received", "Paid", "Overdue")
 
 
 @app.get("/api/notices")

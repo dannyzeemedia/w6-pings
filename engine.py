@@ -115,9 +115,10 @@ class World:
     def partner_sales(self, pid):
         return [self.sales[s] for s in self.partners.get(pid, {}).get("fields", {}).get("Sales", []) if s in self.sales]
 
-    def blocked(self, pid, ignore_open_deals=False):
+    def blocked(self, pid, ignore_open_deals=False, about_sale=None):
         """Why the system must not email this company right now, or None. ignore_open_deals: a stalled-deal nudge
-        is allowed past an undecided deal (Discussion), never past a sold one."""
+        is allowed past an undecided deal (Discussion), never past a sold one. about_sale: an email ABOUT that deal
+        (like the invoice heads-up) isn't held back by the deal itself."""
         if not pid:
             return None
         stage = self.partners.get(pid, {}).get("fields", {}).get("Stage")
@@ -129,6 +130,8 @@ class World:
             if pid in f.get("Partner", []) or f.get("Company", "").strip().lower() in names:
                 return f"Hands off: {f.get('Reason', 'Karlie is handling them')}"
         for s in self.partner_sales(pid):
+            if s["id"] == about_sale:
+                continue
             if s["fields"].get("Status") in LIVE_DEAL and not (ignore_open_deals and s["fields"]["Status"] in UNDECIDED):
                 return f"Live deal in Sales ({s['fields']['Status']})"
         return None
@@ -403,9 +406,12 @@ def _cancel_pending(w, pid, email, why):
     if pid:
         conds.append(f"FIND('{pid}', ARRAYJOIN({{Partner}}))")
     for d in at.list_records("drafts", f"AND(OR({{Status}}='Pending Approval', {{Status}}='Approved'), OR({','.join(conds)}))",
-                             fields=["Status", "Kind"]):
+                             fields=["Status", "Kind", "Sale"]):
         if d["fields"].get("Kind") == "Reply":
             continue
+        sid = (d["fields"].get("Sale") or [None])[0]
+        if w.sales.get(sid, {}).get("fields", {}).get("Status") in WON:
+            continue  # about a deal they've already bought (the invoice heads-up): still needed whatever they said
         at.update("drafts", d["id"], {"Status": "Cancelled", "Replan Note": why, "Decided At": iso(now())})
 
 
@@ -515,7 +521,9 @@ def send_due(w, max_sends=SENDS_PER_TICK):
             continue  # being rewritten on Karlie's instruction
         pid = (f.get("Partner") or [None])[0]
         contact = w.contacts.get((f.get("Contact") or [None])[0]) or w.by_email.get((f.get("To Email") or "").lower())
-        why = w.blocked(pid, ignore_open_deals=f.get("Kind") == "Deal Nudge")
+        sid = (f.get("Sale") or [None])[0]
+        why = w.blocked(pid, ignore_open_deals=f.get("Kind") == "Deal Nudge",
+                        about_sale=sid if w.sales.get(sid, {}).get("fields", {}).get("Status") in WON else None)
         if not why and contact and contact["fields"].get("Status") not in (None, "Active"):
             why = f"Contact is {contact['fields']['Status'].lower()}"
         if why:
@@ -1605,5 +1613,10 @@ def tick():
     out = {"inbox": sync_inbox(w)}
     w = World()  # fresh snapshot: the sync may have changed contacts or hands-off state
     out["send"] = send_due(w)
+    try:  # has anyone paid, or gone past their due date?
+        import invoicing
+        out["payments"] = invoicing.check_payments()
+    except Exception as ex:
+        out["payments"] = f"error: {ex}"
     at.update("settings", w.settings_rec["id"], {"Last Tick": iso(now())})
     return out

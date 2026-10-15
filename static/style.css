@@ -1266,3 +1266,7 @@ nav .navdrop-menu a::after { display: none; }
 .sp-totals td:first-child { color: #1a1a1a !important; }
 .sp-meta { width: auto !important; } .sp-meta td:first-child { width: 8.5em; }
 .inv-heads .row { justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+.tag.red { background: color-mix(in srgb, #d6453d 16%, transparent); color: #a3271f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tag.red { color: #f08a83; } }
+:root[data-theme="dark"] .tag.red { color: #f08a83; }
