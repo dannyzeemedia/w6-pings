@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block title %}Invoices{% endblock %}
+{% from "_brand.html" import chip %}{% block body %}
+<div class="head"><h1>Invoices</h1><p>Every invoice sent from W6's Stripe. They turn Paid by themselves when the sponsor pays.</p></div>
+<div class="inv-stats">
+  <div class="card inv-stat"><div class="muted tiny">Waiting on</div><strong>${{ '{:,}'.format(totals.invoiced[0]) }}</strong><div class="muted tiny">{{ totals.invoiced[1] }} invoice{{ 's' if totals.invoiced[1] != 1 }}</div></div>
+  <div class="card inv-stat{{ ' inv-stat-bad' if totals.overdue[1] }}"><div class="muted tiny">Overdue</div><strong>${{ '{:,}'.format(totals.overdue[0]) }}</strong><div class="muted tiny">{{ totals.overdue[1] }} invoice{{ 's' if totals.overdue[1] != 1 }}</div></div>
+  <div class="card inv-stat"><div class="muted tiny">Paid</div><strong>${{ '{:,}'.format(totals.paid[0]) }}</strong><div class="muted tiny">{{ totals.paid[1] }} invoice{{ 's' if totals.paid[1] != 1 }}</div></div>
+</div>
+<div class="card">
+  {% if not rows %}<p class="muted">No invoices yet. Make one from a booking on Results.</p>{% endif %}
+  {% for r in rows %}
+  <a class="ob-row inv-row" href="{{ url_for('invoice_page', sid=r.id) }}">
+    <span class="ob-name">{{ chip(brands.get(r.id), r.name, 32) }}<span><strong>{{ r.name }}</strong>
+      <span class="muted tiny" style="display:block">{% if r.stage == 'paid' %}Paid {{ r.paid|when }}{% elif r.sent %}Sent {{ r.sent|when }}{% else %}Draft, not sent yet{% endif %}{% if r.number %} · {{ r.number }}{% endif %}</span></span></span>
+    <span class="inv-right">
+      {% if r.due %}<span class="tag {{ {'paid':'green','overdue':'red','soon':'amber','due':''}[r.due[0]] }}">{{ r.due[1] }}</span>
+      {% elif r.stage == 'draft' %}<span class="tag amber">✏️ Draft</span>{% endif %}
+      <strong class="inv-amt">${{ '{:,}'.format(r.value) }}</strong>
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1102,6 +1102,36 @@ def invoice_status(sid):
     return {"pending": bool((f.get("Invoice Request") or "").strip()), "note": f.get("Invoice Note")}
 
 
+@app.get("/invoices")
+@login_required
+def invoices_page():
+    try:  # in case Stripe's paid message didn't arrive
+        invoicing.check_payments()
+    except Exception:
+        pass
+    rows = at.list_records("sales", "{Stripe Invoice ID}!=''", fields=["Opportunity", "Partner", "Status", "Value", "Due Date",
+                                                                       "Invoiced At", "Paid At", "Invoice #"])
+    names = at.partner_names([p for r in rows for p in r["fields"].get("Partner", [])])
+    out = []
+    for r in rows:
+        f = r["fields"]
+        st = f.get("Status")
+        stage = {"Paid": "paid", "Overdue": "overdue", "Invoiced": "invoiced"}.get(st, "draft")
+        pid = (f.get("Partner") or [None])[0]
+        out.append({"id": r["id"], "name": names.get(pid) or re.sub(r"^.*//\s*", "", f.get("Opportunity") or ""), "stage": stage,
+                    "value": int(f.get("Value") or 0), "number": f.get("Invoice #"), "sent": f.get("Invoiced At"), "paid": f.get("Paid At"),
+                    "due": invoicing.due_label(st, f.get("Due Date")) if stage != "draft" else None, "due_date": f.get("Due Date") or "",
+                    "fields": {"Partner": f.get("Partner") or []}})
+    order = {"overdue": 0, "invoiced": 1, "draft": 2, "paid": 3}
+    out.sort(key=lambda x: (order[x["stage"]], x["due_date"]))
+    paid = sorted([x for x in out if x["stage"] == "paid"], key=lambda x: x["paid"] or "", reverse=True)
+    out = [x for x in out if x["stage"] != "paid"] + paid
+    totals = {k: (sum(x["value"] for x in out if x["stage"] == k), sum(1 for x in out if x["stage"] == k))
+              for k in ("invoiced", "overdue", "paid", "draft")}
+    brands = {k: (dict(v, website=None) if v else v) for k, v in brands_for(out, "x").items()}
+    return render_template("invoices.html", rows=out, totals=totals, brands=brands)
+
+
 @app.get("/invoice/<sid>/live")
 @login_required
 def invoice_live(sid):

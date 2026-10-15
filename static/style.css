@@ -1270,3 +1270,13 @@ nav .navdrop-menu a::after { display: none; }
 .tag.red { background: color-mix(in srgb, #d6453d 16%, transparent); color: #a3271f; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tag.red { color: #f08a83; } }
 :root[data-theme="dark"] .tag.red { color: #f08a83; }
+
+/* Invoices list */
+.inv-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.inv-stat { margin: 0; padding: 14px 16px; }
+.inv-stat strong { display: block; font-size: 1.5rem; margin: 2px 0; }
+.inv-stat-bad strong { color: #a3271f; }
+.inv-row { text-decoration: none; color: inherit; justify-content: space-between; gap: 12px; padding: 12px 4px; }
+.inv-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.inv-amt { min-width: 70px; text-align: right; }
+@media (max-width: 640px) { .inv-stats { grid-template-columns: 1fr; } .inv-row { flex-wrap: wrap; gap: 8px; } }
