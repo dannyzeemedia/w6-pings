@@ -98,7 +98,8 @@ def view_tz():
     """The timezone of whoever is looking: their browser reports it (a cookie the page keeps current), so every time on
     screen reads in their own local time, wherever they are. Display only: when things actually send never changes."""
     try:
-        z = request.cookies.get("tz") or ""
+        from urllib.parse import unquote
+        z = unquote(request.cookies.get("tz") or "")
         return ZoneInfo(z) if z else BRIS
     except Exception:
         return BRIS
