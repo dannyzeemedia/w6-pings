@@ -1,0 +1,51 @@
+{% extends "base.html" %}{% block title %}Deliverability{% endblock %}
+{% macro trend(a, b, lower_better=False, unit='') %}{% if a is not none and b is not none and a != b %}{% set up = a > b %}{% set good = (not up) if lower_better else up %}<span class="dl-trend {{ 'good' if good else 'bad' }}">{{ '▲' if up else '▼' }} {{ ((a - b)|abs)|round(1)|string|replace('.0','') }}{{ unit }} vs the 30 days before</span>{% elif a is not none and b is not none %}<span class="dl-trend muted">Same as the 30 days before</span>{% endif %}{% endmacro %}
+{% block body %}
+<div class="head"><h1>Deliverability</h1><p>Are Karlie's emails landing in inboxes? Bounces are the number to watch: when too many go to dead addresses, Gmail and Outlook start sending everything from workspace6.io to spam.</p></div>
+
+<div class="card dl-health dl-{{ health }}">
+  <strong>{{ {'good':'✅ Healthy','watch':'👀 Worth watching','risk':'⚠️ At risk'}[health] }}</strong>
+  <span>{% if now.bounce is none %}Nothing sent in the last 30 days.{% else %}{{ now.bounce }}% of emails bounced in the last 30 days.
+  {{ {'good':'Under 2%, which is where inboxes like it.','watch':'Inboxes start to notice above 2%. The usual cause is old addresses of people who have left their company.','risk':'Above 5% is when inboxes start pushing mail to spam. Clean the list before sending more.'}[health] }}{% endif %}</span>
+</div>
+
+<div class="grid res-stats dl-stats">
+  <div class="card"><div class="label">Bounce rate</div><div class="big">{{ now.bounce if now.bounce is not none else '–' }}%</div><div class="muted">{{ now.bounced }} of {{ now.sent }} emails · goal under 2%</div>{{ trend(now.bounce, prev.bounce, True, ' pts') }}</div>
+  <div class="card"><div class="label">Reply rate</div><div class="big">{{ now.reply if now.reply is not none else '–' }}%</div><div class="muted">of people pitched who wrote back</div>{{ trend(now.reply, prev.reply, False, ' pts') }}</div>
+  <div class="card"><div class="label">Emails sent</div><div class="big">{{ now.sent }}</div><div class="muted">last 30 days, including Karlie's replies</div>{{ trend(now.sent, prev.sent) }}</div>
+  <div class="card"><div class="label">Dead addresses found</div><div class="big">{{ now.gone }}</div><div class="muted">bounced or "no longer here"</div>{{ trend(now.gone, prev.gone, True) }}</div>
+</div>
+
+<div class="card">
+  <h2>Bounce rate, week by week</h2>
+  <div class="bars dl-bars">
+    <div class="dl-goal" style="bottom:{{ (100 * 2 / bpeak)|round }}%"><span>2% goal</span></div>
+    {% for w in weeks %}<div class="bar"><div class="s dl-b {{ 'over' if (w.bounce or 0) >= 2 }}" style="height:{{ (100 * (w.bounce or 0) / bpeak)|round }}%">{% if w.sent %}<span class="dv">{{ w.bounce|string|replace('.0','') }}%</span>{% endif %}
+      <div class="tip">Week of {{ w.label }}: {{ w.bounced }} bounced of {{ w.sent }} sent</div></div></div>{% endfor %}
+  </div>
+  <div class="bar-labels">{% for w in weeks %}<div>{{ w.label }}</div>{% endfor %}</div>
+
+  <h3 class="chart-sub">Emails sent and reply rate</h3>
+  <div class="bars">
+    {% for w in weeks %}<div class="bar"><div class="s" style="height:{{ (100 * w.sent / peak)|round }}%">{% if w.sent %}<span class="dv">{{ w.sent }}</span>{% endif %}
+      <div class="tip">Week of {{ w.label }}: {{ w.sent }} sent{% if w.reply is not none %}, {{ w.reply }}% of people pitched replied{% endif %}{% if w.auto %}, {{ w.auto }} out-of-office{% endif %}</div></div></div>{% endfor %}
+  </div>
+  <div class="bar-labels">{% for w in weeks %}<div>{{ w.label }}<br><span class="muted">{{ (w.reply|string + '% replied') if w.reply is not none else '' }}</span></div>{% endfor %}</div>
+  <div class="muted tiny" style="margin-top:6px">Weeks run Monday to Sunday, US Eastern time. Hover a week for the detail.</div>
+</div>
+
+<div class="card">
+  <h2>Domain setup</h2>
+  <p class="muted tiny" style="margin:0 0 10px">The three records inboxes check to decide whether an email really comes from workspace6.io. Checked live.</p>
+  {% for st, name, text in checks %}<div class="dl-check"><span class="dl-dot {{ st }}">{{ {'ok':'✓','warn':'!','bad':'✕'}[st] }}</span><strong>{{ name }}</strong><span class="muted">{{ text }}</span></div>{% endfor %}
+  {% if not checks %}<p class="muted">Couldn't reach DNS just now. Try again in a minute.</p>{% endif %}
+  <p class="muted tiny" style="margin:10px 0 0">Spam complaints aren't shown here yet: Google only reports them through Postmaster Tools, which isn't connected.</p>
+</div>
+
+<div class="card">
+  <h2>Recent bounces</h2>
+  <p class="muted tiny" style="margin:0 0 10px">Almost always an old address: the person has left, or the company has closed. That isn't Karlie's fault, but inboxes still count it against workspace6.io.</p>
+  {% for b in bounces %}<div class="dl-bounce"><span class="muted tiny">{{ b.get('At')|when }}</span><strong>{{ b.get('Email') }}</strong><span class="muted">{{ b.get('Summary') }}</span></div>{% endfor %}
+  {% if not bounces %}<p class="muted">No bounces. 🎉</p>{% endif %}
+</div>
+{% endblock %}

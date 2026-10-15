@@ -14,7 +14,7 @@ if(z&&had!==z){document.cookie='tz='+encodeURIComponent(z)+'; path=/; max-age=31
 else sessionStorage.removeItem('tzr');}catch(e){}
 document.addEventListener('visibilitychange',function(){try{if(document.hidden)return;var z=Intl.DateTimeFormat().resolvedOptions().timeZone,m=document.cookie.match(/(?:^|; )tz=([^;]*)/);
 if(z&&(!m||decodeURIComponent(m[1])!==z)){document.cookie='tz='+encodeURIComponent(z)+'; path=/; max-age=31536000; SameSite=Lax';location.reload();}}catch(e){}});</script>
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=86" data-turbo-track="reload">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=87" data-turbo-track="reload">
 <script type="module" src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-esm.js"></script>
 <meta name="turbo-prefetch" content="true">
 </head><body class="{% block bodyclass %}{% endblock %}">
@@ -27,11 +27,12 @@ if(z&&(!m||decodeURIComponent(m[1])!==z)){document.cookie='tz='+encodeURICompone
     <a href="{{ url_for('approve') }}" class="{{ 'on' if here=='approve' }}"{% if here != 'approve' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg><span class="nl"><span class="nl-long">To approve</span><span class="nl-short">Approve</span></span>{% if n_to_approve %}<span class="pill">{{ n_to_approve }}</span>{% endif %}</a>
     <a href="{{ url_for('yours') }}" class="{{ 'on' if here=='yours' }}"{% if here != 'yours' %} data-turbo-preload{% endif %}><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg><span class="nl">Your turn</span>{% if n_yours %}<span class="pill">{{ n_yours }}</span>{% endif %}</a>
     <div class="navdrop">
-  <a role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" class="navdrop-btn {{ 'on' if here in ('results','bookings_page','invoices_page','invoice_page','onboarding_list','onboarding_new','onboarding_view') }}"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="nl">Results</span><svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></a>
+  <a role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" class="navdrop-btn {{ 'on' if here in ('results','bookings_page','invoices_page','invoice_page','deliverability','onboarding_list','onboarding_new','onboarding_view') }}"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="nl">Results</span><svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></a>
       <div class="navdrop-menu" role="menu">
         <a href="{{ url_for('results') }}" class="{{ 'cur' if here=='results' }}" role="menuitem">Summary</a>
         <a href="{{ url_for('bookings_page') }}" class="{{ 'cur' if here=='bookings_page' }}" role="menuitem">Bookings</a>
         <a href="{{ url_for('invoices_page') }}" class="{{ 'cur' if here in ('invoices_page','invoice_page') }}" role="menuitem">Invoices</a>
+        <a href="{{ url_for('deliverability') }}" class="{{ 'cur' if here=='deliverability' }}" role="menuitem">Deliverability</a>
         <a href="{{ url_for('onboarding_list') }}" class="{{ 'cur' if here in ('onboarding_list','onboarding_new','onboarding_view') }}" role="menuitem">Onboarding</a>
       </div>
     </div>

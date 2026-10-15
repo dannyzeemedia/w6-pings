@@ -1,6 +1,6 @@
 """Karlie's outbound dashboard: daily ping count, approvals, replies to handle, rules, voice, results.
 Airtable (W6 Media base) is the database; this app is only a friendlier screen over it."""
-import os, json, re, datetime as dt
+import os, json, re, time, datetime as dt
 import requests
 from functools import wraps
 from zoneinfo import ZoneInfo
@@ -1118,6 +1118,75 @@ def invoice_change(sid):
 def invoice_status(sid):
     f = invoicing.sale(sid)["fields"]
     return {"pending": bool((f.get("Invoice Request") or "").strip()), "note": f.get("Invoice Note")}
+
+
+_dns_cache = {"at": 0, "rows": None}
+
+
+def _domain_checks(domain="workspace6.io"):
+    """Is the sending domain set up so inboxes trust it? Read live from public DNS, at most once an hour."""
+    if _dns_cache["rows"] is not None and time.time() - _dns_cache["at"] < 3600:
+        return _dns_cache["rows"]
+    def txt(name):
+        try:
+            j = requests.get("https://dns.google/resolve", params={"name": name, "type": "TXT"}, timeout=8).json()
+            return [a["data"].strip('"').replace('" "', "") for a in j.get("Answer", [])]
+        except Exception:
+            return None
+    spf, dkim, dmarc = txt(domain), txt(f"google._domainkey.{domain}"), txt(f"_dmarc.{domain}")
+    spf_ok = spf is not None and any(t.startswith("v=spf1") and "_spf.google.com" in t for t in spf)
+    dkim_ok = dkim is not None and any("v=DKIM1" in t for t in dkim)
+    dm = next((t for t in dmarc or [] if t.startswith("v=DMARC1")), "")
+    policy = (re.search(r"p=(\w+)", dm) or [None, None])[1] if dm else None
+    rows = [("ok" if spf_ok else "bad", "SPF", "Google is allowed to send for workspace6.io." if spf_ok else "Missing or doesn't include Google."),
+            ("ok" if dkim_ok else "bad", "DKIM", "Emails carry Google's signature, so inboxes can tell they're really from us." if dkim_ok
+             else "No signature found. Inboxes can't confirm emails are really from us."),
+            (("ok" if policy in ("quarantine", "reject") else "warn") if dm else "bad", "DMARC",
+             (f"Set up, policy \"{policy}\"." + (" Fine for now. Tightening it later protects the name from spoofers." if policy == "none" else ""))
+             if dm else "Missing. Big inboxes increasingly expect it.")]
+    if spf is None and dkim is None:
+        return _dns_cache["rows"] or []
+    _dns_cache.update(at=time.time(), rows=rows)
+    return rows
+
+
+@app.get("/deliverability")
+@login_required
+def deliverability():
+    et = ZoneInfo("America/New_York")
+    now_et = dt.datetime.now(et)
+    first = (now_et - dt.timedelta(days=now_et.weekday() + 7 * 7)).replace(hour=0, minute=0, second=0, microsecond=0)
+    since = min(first, dt.datetime.now(dt.timezone.utc).astimezone(et) - dt.timedelta(days=60)).strftime("%Y-%m-%d")
+    ev = at.list_records("log", f"AND(IS_AFTER({{At}}, '{since}'), OR({{Event}}='Sent', {{Event}}='Bounced', {{Event}}='Replied', "
+                                f"{{Event}}='Handed To Karlie', {{Event}}='Auto-Reply', {{Event}}='Left Company'))",
+                         fields=["Event", "By", "At", "Email", "Summary"])
+    at_of = lambda e: parse_ts(e["fields"].get("At") or "1970-01-01T00:00:00Z")
+    email = lambda e: (e["fields"].get("Email") or "").lower()
+
+    def stats(rows):
+        sent = [e for e in rows if e["fields"].get("Event") == "Sent"]
+        pitched = {email(e) for e in sent if e["fields"].get("By") == "System"} - {""}
+        bounced = sum(e["fields"].get("Event") == "Bounced" for e in rows)
+        replied = {email(e) for e in rows if e["fields"].get("Event") in ("Replied", "Handed To Karlie")} - {""}
+        return {"sent": len(sent), "bounced": bounced, "bounce": round(100 * bounced / len(sent), 1) if sent else None,
+                "replied": len(replied), "reply": round(100 * len(replied & pitched) / len(pitched)) if pitched else None,
+                "gone": bounced + sum(e["fields"].get("Event") == "Left Company" for e in rows),
+                "auto": sum(e["fields"].get("Event") == "Auto-Reply" for e in rows)}
+    weeks = []
+    for w in range(7, -1, -1):
+        start = first + dt.timedelta(days=7 * (7 - w))
+        st = stats([e for e in ev if start <= at_of(e).astimezone(et) < start + dt.timedelta(days=7)])
+        weeks.append(dict(st, label=start.strftime("%-d %b")))
+    cut = now_utc() - dt.timedelta(days=30)
+    now30 = stats([e for e in ev if at_of(e) > cut])
+    prev30 = stats([e for e in ev if cut - dt.timedelta(days=30) < at_of(e) <= cut])
+    b = now30["bounce"]
+    health = ("good" if b is None or b < 2 else "watch" if b < 5 else "risk")
+    bounces = [e["fields"] for e in sorted([e for e in ev if e["fields"].get("Event") in ("Bounced", "Left Company")], key=at_of, reverse=True)][:12]
+    peak = max([w["sent"] for w in weeks] + [1])
+    bpeak = max([w["bounce"] or 0 for w in weeks] + [5])
+    return render_template("deliverability.html", weeks=weeks, now=now30, prev=prev30, health=health, bounces=bounces,
+                           checks=_domain_checks(), peak=peak, bpeak=bpeak)
 
 
 @app.get("/invoices")
