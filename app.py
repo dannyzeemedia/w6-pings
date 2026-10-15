@@ -95,12 +95,29 @@ def parse_ts(s):
 
 
 @app.template_filter("when")
+def view_tz():
+    """The timezone of whoever is looking: their browser reports it (a cookie the page keeps current), so every time on
+    screen reads in their own local time, wherever they are. Display only: when things actually send never changes."""
+    try:
+        z = request.cookies.get("tz") or ""
+        return ZoneInfo(z) if z else BRIS
+    except Exception:
+        return BRIS
+
+
+def tz_name(tz=None):
+    """A short name for the viewer's zone, like 'New York' or 'Chicago'."""
+    tz = tz or view_tz()
+    return tz.key.split("/")[-1].replace("_", " ")
+
+
 def when(s):
     t = parse_ts(s) if isinstance(s, str) else s
     if not t:
         return ""
-    t = t.astimezone(BRIS)
-    today = dt.datetime.now(BRIS).date()
+    tz = view_tz()
+    t = t.astimezone(tz)
+    today = dt.datetime.now(tz).date()
     if t.date() == today:
         return "today " + t.strftime("%-I:%M%p").lower()
     if t.date() == today - dt.timedelta(days=1):
@@ -126,7 +143,7 @@ def nicedate(s):
 @app.template_filter("datevalue")
 def datevalue(s):
     t = parse_ts(s)
-    return t.astimezone(BRIS).strftime("%Y-%m-%d") if t else ""
+    return t.astimezone(view_tz()).strftime("%Y-%m-%d") if t else ""
 
 
 @app.context_processor
@@ -506,7 +523,7 @@ def decide(rid):
 
 
 def _eta(d):
-    """(plain-English 'when will this go' in Brisbane time and theirs, UTC datetime or None)."""
+    """(plain-English 'when will this go' in the viewer's local time and theirs, UTC datetime or None)."""
     try:
         w = engine.World()  # settings only; tables load lazily and we don't touch them here
         cid = (d.get("Contact") or [None])[0]
@@ -518,7 +535,7 @@ def _eta(d):
         fmt = lambda x, f: x.strftime(f).replace("AM", "am").replace("PM", "pm")
         who = (d.get("To Name") or "them").split()[0]
         place = tz.key.split("/")[-1].replace("_", " ")
-        line = (f"Goes out around {fmt(t.astimezone(BRIS), '%a %-d %b, %-I:%M%p')} your time "
+        line = (f"Goes out around {fmt(t.astimezone(view_tz()), '%a %-d %b, %-I:%M%p')} your time "
                 f"({fmt(t.astimezone(tz), '%a %-I:%M%p')} for {who} in {place}).")
         if w.s.get("Paused"):
             line = "Sending is paused, so it's waiting. Once you press Start sending: " + line[0].lower() + line[1:]
@@ -534,7 +551,7 @@ def _eta_line(d):
 def _short_eta(t):
     if not t:
         return "waiting for a send window"
-    return "goes out ~" + t.astimezone(BRIS).strftime("%a %-I:%M%p").replace("AM", "am").replace("PM", "pm")
+    return "goes out ~" + t.astimezone(view_tz()).strftime("%a %-I:%M%p").replace("AM", "am").replace("PM", "pm")
 
 
 @app.post("/approve/<rid>/undo")
