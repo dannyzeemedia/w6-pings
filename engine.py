@@ -580,6 +580,16 @@ def _has_a(domain):
         return True
 
 
+def recently_in_touch(email, days=14):
+    """They wrote to us, or Karlie emailed them herself, in the last two weeks (and it didn't bounce): the address works."""
+    since = (now() - dt.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    rows = at.list_records("log", f"AND(LOWER({{Email}})='{email.lower()}', IS_AFTER({{At}}, '{since}'))", fields=["Event", "Direction", "By"])
+    if any(r["fields"].get("Event") == "Bounced" for r in rows):
+        return False
+    return any((r["fields"].get("Direction") == "In" and r["fields"].get("Event") not in ("Left Company", "Auto-Reply"))
+               or (r["fields"].get("Event") == "Sent" and r["fields"].get("By") == "Karlie") for r in rows)
+
+
 def address_problem(email, contact=None):
     """Before an email goes out: is this address dead? A bounce hurts workspace6.io with every inbox, whoever's fault it
     is, so catch it first. Checked at most every 60 days per contact. Returns why it's dead, or None."""
@@ -587,6 +597,8 @@ def address_problem(email, contact=None):
     last = cf.get("Email Checked")
     if last and (dt.date.today() - dt.date.fromisoformat(last[:10])).days < RECHECK_EMAIL_DAYS:
         return None
+    if recently_in_touch(email):
+        return None  # Karlie's own recent contact beats Apollo
     dom = email.split("@")[-1].lower()
     if not _has_mail_server(dom):
         return f"{dom} has no mail server any more, so the company looks closed."
