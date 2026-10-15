@@ -1279,4 +1279,4 @@ nav .navdrop-menu a::after { display: none; }
 .inv-row { text-decoration: none; color: inherit; justify-content: space-between; gap: 12px; padding: 12px 4px; }
 .inv-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
 .inv-amt { min-width: 70px; text-align: right; }
-@media (max-width: 640px) { .inv-stats { grid-template-columns: 1fr; } .inv-row { flex-wrap: wrap; gap: 8px; } }
+@media (max-width: 640px) { .inv-stats { gap: 8px; } .inv-stat { padding: 10px 12px; } .inv-stat strong { font-size: 1.15rem; } .inv-row { flex-wrap: wrap; gap: 8px; } }
