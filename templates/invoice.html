@@ -3,7 +3,8 @@
 {% set st = f.get('Status') %}
 <div class="head ob-head">{{ chip(brand, name, 52) }}<div><h1>{{ name }}</h1>
   <p>{% if st == 'Paid' %}🤑 Paid{% elif st == 'Invoiced' %}🧾 Invoiced, waiting for payment{% elif st == 'Overdue' %}⏰ Overdue: past its due date and not paid yet{% elif v %}✏️ Draft invoice, not sent{% else %}No invoice yet{% endif %}
-  {% if f.get('Value') %} · ${{ '{:,}'.format(f['Value']) }}{% endif %}</p></div></div>
+  {% if f.get('Value') %} · ${{ '{:,}'.format(f['Value']) }}{% endif %}
+  {% if due and v and v.status != 'draft' %}<span class="tag {{ {'paid':'green','overdue':'red','soon':'amber','due':''}[due[0]] }}" id="inv-live" style="margin-left:6px">{{ due[1] }}</span>{% endif %}</p></div></div>
 {% if err %}<div class="card"><p>⚠️ {{ err }}</p></div>{% endif %}
 
 {% if not v %}
@@ -80,7 +81,6 @@
   {% else %}<span class="muted">✉️ Heads-up email: {{ heads_up.Status|lower }}.</span>{% endif %}
 </div>{% endif %}
 <div class="card">
-  {% if due %}<p class="inv-live"><span class="tag {{ {'paid':'green','overdue':'red','soon':'amber','due':''}[due[0]] }}" id="inv-live">{{ due[1] }}</span></p>{% endif %}
   <p>🧾 Sent{% if f.get('Invoiced At') %} {{ f['Invoiced At']|when }}{% endif %} to {{ v.email }}. {% if v.due_date %}Due {{ v.due_date }}.{% endif %}
     {% if v.hosted_url %}<a href="{{ v.hosted_url }}" target="_blank" rel="noopener">View invoice ↗</a>{% endif %}</p>
   <p class="muted tiny">It flips to Paid by itself when they pay through Stripe. Paid some other way (bank transfer, PayPal)? Mark it here:</p>
