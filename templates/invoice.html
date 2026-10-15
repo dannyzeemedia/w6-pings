@@ -70,7 +70,7 @@
 </div>
 <form method="post" action="{{ url_for('invoice_send', sid=sid) }}" class="inv-send" onsubmit="return confirm('Send this ${{ '{:,.2f}'.format(v.total) }} invoice to {{ v.email }}? Stripe emails it with a link to pay.')">
   <button {{ 'disabled' if pending }}>Send invoice to {{ v.email }}</button>
-  <span class="muted tiny">{% if v.due_date %}Due {{ v.due_date }}.{% elif v.days_until_due %}Due {{ v.days_until_due }} days from the day it's sent.{% else %}Due on receipt.{% endif %}</span>
+  <span class="muted tiny">{% if v.due_date %}Due {{ v.due_date|nicedate }}.{% elif v.days_until_due %}Due {{ v.days_until_due }} days from the day it's sent.{% else %}Due on receipt.{% endif %}</span>
 </form>
 {% elif v.status in ('open', 'uncollectible') %}
 {% if heads_up %}<div class="card inv-heads">
@@ -81,7 +81,7 @@
   {% else %}<span class="muted">✉️ Heads-up email: {{ heads_up.Status|lower }}.</span>{% endif %}
 </div>{% endif %}
 <div class="card">
-  <p>🧾 Sent{% if f.get('Invoiced At') %} {{ f['Invoiced At']|when }}{% endif %} to {{ v.email }}. {% if v.due_date %}Due {{ v.due_date }}.{% endif %}
+  <p>🧾 Sent{% if f.get('Invoiced At') %} {{ f['Invoiced At']|when }}{% endif %} to {{ v.email }}. {% if v.due_date %}Due {{ v.due_date|nicedate }}.{% endif %}
     {% if v.hosted_url %}<a href="{{ v.hosted_url }}" target="_blank" rel="noopener">View invoice ↗</a>{% endif %}</p>
   <p class="muted tiny">It flips to Paid by itself when they pay through Stripe. Paid some other way (bank transfer, PayPal)? Mark it here:</p>
   <form method="post" action="{{ url_for('invoice_paid', sid=sid) }}" class="row" onsubmit="return confirm('Mark this as paid?')">
