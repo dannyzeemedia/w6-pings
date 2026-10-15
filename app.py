@@ -1073,7 +1073,7 @@ def invoice_page(sid):
     fmt_long = lambda d: dt.date.fromisoformat(d).strftime("%B %-d, %Y") if d else ""
     return render_template("invoice.html", sid=sid, f=f, name=name or f.get("Opportunity"), email=email, company=company or name,
                            v=v, err=err, brand=brand, pending=bool((f.get("Invoice Request") or "").strip()), checks=checks, fmt_long=fmt_long,
-                           heads_up=heads_up)
+                           heads_up=heads_up, due=invoicing.due_label(f.get("Status"), (v or {}).get("due_date") or f.get("Due Date")))
 
 
 @app.post("/invoice/<sid>/prepare")
@@ -1100,6 +1100,15 @@ def invoice_change(sid):
 def invoice_status(sid):
     f = invoicing.sale(sid)["fields"]
     return {"pending": bool((f.get("Invoice Request") or "").strip()), "note": f.get("Invoice Note")}
+
+
+@app.get("/invoice/<sid>/live")
+@login_required
+def invoice_live(sid):
+    if not re.match(r"rec\w+$", sid):
+        return {}, 400
+    lab = invoicing.live(sid)
+    return {"state": lab[0], "text": lab[1]} if lab else {}
 
 
 @app.post("/invoice/<sid>/send")
@@ -1408,6 +1417,7 @@ def logo_src(url):
 
 
 app.jinja_env.globals["logo_src"] = logo_src
+app.jinja_env.globals["due_label"] = invoicing.due_label
 
 
 @app.get("/logo/<key>")

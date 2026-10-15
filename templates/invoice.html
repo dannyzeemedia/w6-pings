@@ -80,6 +80,7 @@
   {% else %}<span class="muted">✉️ Heads-up email: {{ heads_up.Status|lower }}.</span>{% endif %}
 </div>{% endif %}
 <div class="card">
+  {% if due %}<p class="inv-live"><span class="tag {{ {'paid':'green','overdue':'red','soon':'amber','due':''}[due[0]] }}" id="inv-live">{{ due[1] }}</span></p>{% endif %}
   <p>🧾 Sent{% if f.get('Invoiced At') %} {{ f['Invoiced At']|when }}{% endif %} to {{ v.email }}. {% if v.due_date %}Due {{ v.due_date }}.{% endif %}
     {% if v.hosted_url %}<a href="{{ v.hosted_url }}" target="_blank" rel="noopener">View invoice ↗</a>{% endif %}</p>
   <p class="muted tiny">It flips to Paid by itself when they pay through Stripe. Paid some other way (bank transfer, PayPal)? Mark it here:</p>
@@ -92,6 +93,14 @@
   {% if v.hosted_url %}<a href="{{ v.hosted_url }}" target="_blank" rel="noopener">View invoice ↗</a>{% endif %}</p></div>
 {% endif %}
 {% endif %}
+{% if due and due[0] != 'paid' %}<script>
+(function(){ const el=document.getElementById('inv-live'); if(!el) return;
+  const C={paid:'green',overdue:'red',soon:'amber',due:''};
+  const t=setInterval(()=>{ if(document.hidden) return; fetch('{{ url_for("invoice_live", sid=sid) }}',{headers:{'X-Fetch':'1'}}).then(r=>r.json()).then(j=>{
+    if(!j.text) return; el.textContent=j.text; el.className='tag '+(C[j.state]||'');
+    if(j.state==='paid'){ clearInterval(t); setTimeout(()=>location.reload(),1500); } }).catch(()=>{}); },30000);
+})();
+</script>{% endif %}
 {% if pending %}<script>
 (function(){ const t=setInterval(()=>fetch('{{ url_for("invoice_status", sid=sid) }}',{headers:{'X-Fetch':'1'}}).then(r=>r.json()).then(j=>{ if(!j.pending){ clearInterval(t); location.reload(); } }).catch(()=>{}),3000); })();
 </script>{% endif %}

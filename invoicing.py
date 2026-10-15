@@ -313,6 +313,43 @@ def check_payments():
     return done
 
 
+def due_label(status, due_iso):
+    """The live tracker on an invoice: (state, words). state is paid / overdue / soon / due, for its colour."""
+    if status == "Paid":
+        return "paid", "Paid 🎉"
+    if not due_iso:
+        return None
+    try:
+        due = dt.date.fromisoformat(str(due_iso)[:10])
+    except ValueError:
+        return None
+    days = (due - dt.datetime.now(ET).date()).days
+    on = due.strftime("%a %-d %b")
+    if days < 0:
+        return "overdue", f"Overdue by {-days} day{'s' if days != -1 else ''} (was due {on})"
+    if days == 0:
+        return "soon", "Due today"
+    if days == 1:
+        return "soon", f"Due tomorrow ({on})"
+    return ("soon" if days <= 3 else "due"), f"Due in {days} days ({on})"
+
+
+def live(sid):
+    """For the open invoice page: ask Stripe right now, so the tracker flips to Paid the moment they pay."""
+    f = sale(sid)["fields"]
+    due = f.get("Due Date")
+    if f.get("Status") in ("Invoiced", "Overdue") and f.get("Stripe Invoice ID"):
+        inv = _get(f"invoices/{f['Stripe Invoice ID']}")
+        if inv.get("due_date"):
+            due = dt.datetime.fromtimestamp(inv["due_date"], ET).date().isoformat()
+        if inv.get("status") == "paid":
+            mark_paid(sid, (inv.get("amount_paid") or inv.get("total") or 0) / 100)
+            return due_label("Paid", due)
+        if f.get("Status") == "Invoiced" and inv.get("status") == "open" and due and dt.date.fromisoformat(due) < dt.datetime.now(ET).date():
+            mark_overdue(sid, inv)
+    return due_label(f.get("Status"), due)
+
+
 def mark_overdue(sid, inv):
     f = sale(sid)["fields"]
     pid = (f.get("Partner") or [None])[0]

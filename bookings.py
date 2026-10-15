@@ -442,6 +442,7 @@ def deals(days_back=30, days_ahead=180):
         g["stage"] = "paid" if (sf.get("Status") == "Paid" or g["confirmed"]) else ("overdue" if sf.get("Status") == "Overdue" else "invoiced" if sf.get("Status") == "Invoiced" else "pencilled")
         g["pencilled_value"] = int(sf.get("Pencilled Value") or sf.get("Value") or 0) or None
         g["value"] = int(sf.get("Value") or 0) or None
+        g["due"] = sf.get("Due Date")
         if g["upcoming"]:
             res.append(g)
     order = {"pencilled": 0, "overdue": 1, "invoiced": 2, "paid": 3}
