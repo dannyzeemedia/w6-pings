@@ -226,7 +226,7 @@ def sync_inbox(w):
         return {"started": True}
     new_ids, latest = gmail.history_since(hist)
     seen = known_message_ids()
-    out = {"bounced": 0, "auto": 0, "replied": 0, "karlie": 0, "left": 0, "ignored": 0}
+    out = {"bounced": 0, "auto": 0, "replied": 0, "karlie": 0, "left": 0, "ignored": 0, "warmup": 0}
     for mid in new_ids:
         if mid in seen:
             continue
@@ -289,7 +289,19 @@ def _tidy_inbox(m):
         pass
 
 
+def warmup_tags(w):
+    """Smartlead's warm-up identifier tags (Settings "Warmup Tags", comma-separated). Warm-up mail carries one in its text."""
+    return [t.strip().lower() for t in (w.s.get("Warmup Tags") or "").split(",") if t.strip()]
+
+
+def is_warmup(w, m):
+    text = f'{m.get("subject", "")}\n{m.get("body", "")}'.lower()
+    return any(t in text for t in warmup_tags(w))
+
+
 def _handle_message(w, m):
+    if is_warmup(w, m):
+        return "warmup"  # Smartlead warm-up traffic, in or out: never a ping, a reply, or Karlie being active
     frm = m["from"]
     if m["is_me"]:
         # Karlie wrote this herself (not through the system): count it, and it tells us she's active with them.
